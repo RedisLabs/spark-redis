@@ -1,0 +1,17 @@
+hs_err_pid*.log
+nohup.out
+.idea
+*.iml
+**/.idea
+*/.classpath
+*/.project
+*/.settings
+*/.cache
+*/test-output/
+*.log
+*/*.versionsBackup
+target/
+*GitIgnored*
+*.asc
+*.gpg
+/bin/
