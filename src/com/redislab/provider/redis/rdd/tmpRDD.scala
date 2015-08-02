@@ -40,10 +40,9 @@ class RedisKVRDD(sc: SparkContext,
       case _      => Seq().iterator;
     }
   }
+
   def save(key: String, tarType: String = rddType): Unit = {
-    println(key)
-    println(tarType)
-    val jc = new JedisCluster(Set(new HostAndPort(redisHosts(0)._1, redisHosts(0)._2)), 5)    
+    val jc = new JedisCluster(Set(new HostAndPort(redisHosts(0)._1, redisHosts(0)._2)), 5)
     tarType match {
       case "hash" => toLocalIterator.foreach{
         x => {
@@ -57,7 +56,7 @@ class RedisKVRDD(sc: SparkContext,
       }};
       case _      => Seq().iterator;
     }
-    
+
   }
 
   def getKeys(jedis: Jedis, keyPattern: String) = {
