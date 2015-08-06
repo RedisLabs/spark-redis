@@ -14,8 +14,7 @@ import com.redislab.provider.redis.partitioner._
 class RedisKVRDD(sc: SparkContext,
                  val redisHosts: Array[(String, Int, util.HashSet[Int])],
                  val keyPattern: String,
-                 val rddType: String,
-                 val makePartitioner: Boolean)
+                 val rddType: String)
     extends RDD[(String, String)](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
@@ -63,8 +62,7 @@ class RedisKVRDD(sc: SparkContext,
 class RedisListRDD(sc: SparkContext,
                    val redisHosts: Array[(String, Int, util.HashSet[Int])],
                    val keyPattern: String,
-                   val rddType: String,
-                   val makePartitioner: Boolean)
+                   val rddType: String)
     extends RDD[String](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {

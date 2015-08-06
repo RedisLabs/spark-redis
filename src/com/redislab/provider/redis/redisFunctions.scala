@@ -41,29 +41,24 @@ class RedisContext(val sc: SparkContext) extends Serializable {
   }
 
   def fromRedisKV(initialHost: (String, Int),
-                  keyPattern: String = "*",
-                  makePartitioner: Boolean = true) = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "kv", false);
+                  keyPattern: String = "*") = {
+    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "kv");
   }
   def fromRedisHASH(initialHost: (String, Int),
-                    keyPattern: String = "*",
-                    makePartitioner: Boolean = true) = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "hash", false);
+                    keyPattern: String = "*") = {
+    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "hash");
   }
   def fromRedisZSET(initialHost: (String, Int),
-                    keyPattern: String = "*",
-                    makePartitioner: Boolean = true) = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "zset", false);
+                    keyPattern: String = "*") = {
+    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "zset");
   }
   def fromRedisSET(initialHost: (String, Int),
-                   keyPattern: String = "*",
-                   makePartitioner: Boolean = true) = {
-    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "set", false);
+                   keyPattern: String = "*") = {
+    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "set");
   }
   def fromRedisLIST(initialHost: (String, Int),
-                    keyPattern: String = "*",
-                    makePartitioner: Boolean = true) = {
-    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "list", false);
+                    keyPattern: String = "*") = {
+    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "list");
   }
 
   def toRedisKV(kvs: RDD[(String, String)],
