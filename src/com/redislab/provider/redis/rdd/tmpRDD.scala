@@ -16,7 +16,7 @@ class RedisKVRDD(sc: SparkContext,
                  val keyPattern: String,
                  val rddType: String,
                  val makePartitioner: Boolean)
-    extends RDD[(String, String)](sc, Seq.empty) with Logging {
+    extends RDD[(String, String)](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(split.asInstanceOf[RedisPartition].addr._1.getHostName)
@@ -58,20 +58,6 @@ class RedisKVRDD(sc: SparkContext,
     }
 
   }
-
-  def getKeys(jedis: Jedis, keyPattern: String) = {
-    val params = new ScanParams().`match`(keyPattern)
-    val keys = new util.HashSet[String]()
-    var scan = jedis.scan("0", params)
-    val f = scan.getResult
-    keys.addAll(f)
-    while (scan.getStringCursor != "0") {
-      scan = jedis.scan(scan.getStringCursor, params)
-      val f1 = scan.getResult
-      keys.addAll(f1)
-    }
-    keys
-  }
 }
 
 class RedisListRDD(sc: SparkContext,
@@ -79,7 +65,7 @@ class RedisListRDD(sc: SparkContext,
                    val keyPattern: String,
                    val rddType: String,
                    val makePartitioner: Boolean)
-    extends RDD[String](sc, Seq.empty) with Logging {
+    extends RDD[String](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(split.asInstanceOf[RedisPartition].addr._1.getHostName)
@@ -111,17 +97,50 @@ class RedisListRDD(sc: SparkContext,
       case _      => Seq().iterator;
     }
   }
+}
 
+trait Keys {
+  private def isRedisRegex(key: String) = {
+    def judge(key: String, escape: Boolean): Boolean = {
+      if (key.length == 0)
+        return false
+      escape match {
+        case true => judge(key.substring(1), false);
+        case false => {
+          key.charAt(0) match {
+            case '*'  => true;
+            case '?'  => true;
+            case '['  => true;
+            case '\\' => judge(key.substring(1), true);
+            case _    => judge(key.substring(1), false);
+          }
+        }
+      }
+    }
+    judge(key, false)
+  }
+  
+  private def scanKeys(jedis: Jedis, params: ScanParams, cursor: String): util.ArrayList[String] = {
+    def scankeys(jedis: Jedis, params: ScanParams, cursor: String, scanned: Boolean): util.ArrayList[String] = {
+      val keys = new util.ArrayList[String]
+      if (scanned && cursor == "0")
+        return keys;
+      val scan = jedis.scan(cursor, params)
+      keys.addAll(scan.getResult)
+      keys.addAll(scankeys(jedis, params, scan.getStringCursor, true))
+      keys
+    }
+    scankeys(jedis, params, cursor, false)
+  }
+  
   def getKeys(jedis: Jedis, keyPattern: String) = {
-    val params = new ScanParams().`match`(keyPattern)
-    val keys = new util.HashSet[String]()
-    var scan = jedis.scan("0", params)
-    val f = scan.getResult
-    keys.addAll(f)
-    while (scan.getStringCursor != "0") {
-      scan = jedis.scan(scan.getStringCursor, params)
-      val f1 = scan.getResult
-      keys.addAll(f1)
+    val keys = new util.ArrayList[String]()
+    if (isRedisRegex(keyPattern)) {
+      val params = new ScanParams().`match`(keyPattern)
+      keys.addAll(scanKeys(jedis, params, "0"))
+    }
+    else {
+      keys.add(keyPattern)
     }
     keys
   }
