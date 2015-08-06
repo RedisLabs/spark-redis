@@ -2,15 +2,16 @@ package com.redislab.provider.redis
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.{ HostAndPort, Jedis }
-import redis.clients.util.SafeEncoder
+import redis.clients.jedis.{ HostAndPort, Jedis, JedisCluster }
+import redis.clients.util.{ SafeEncoder, JedisClusterCRC16 }
 import scala.collection.JavaConversions._
 import com.redislab.provider.redis.rdd._
+import com.redislab.provider.redis.SaveToRedis._
 
 class RedisContext(val sc: SparkContext) extends Serializable {
 
   def getHosts(initialHost: (String, Int)) = {
-    val j = new Jedis(initialHost._1, initialHost._2);
+    val j = new Jedis(initialHost._1, initialHost._2)
     val hosts = j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].map {
       slotInfoObj =>
         {
@@ -64,10 +65,75 @@ class RedisContext(val sc: SparkContext) extends Serializable {
                     makePartitioner: Boolean = true) = {
     new RedisListRDD(sc, getHosts(initialHost), keyPattern, "list", false);
   }
+
+  def toRedisKV(kvs: RDD[(String, String)],
+                initialHost: (String, Int)) = {
+    val hosts = getHosts((initialHost._1, initialHost._2))
+    val ckv = kvs.map(x => (getIndex(hosts, x._1), (x._1, x._2))).groupByKey
+    ckv.foreach {
+      x => setKVs(x._1, hosts, x._2)
+    }
+  }
+  def toRedisHASH(kvs: RDD[(String, String)],
+                  hashName: String,
+                  initialHost: (String, Int)) = {
+    val hosts = getHosts((initialHost._1, initialHost._2))
+    val index = getIndex(hosts, hashName)
+    setHash(index, hosts, hashName, kvs.collect)
+  }
+  def toRedisZSET(kvs: RDD[(String, String)],
+                  zsetName: String,
+                  initialHost: (String, Int)) = {
+    val hosts = getHosts((initialHost._1, initialHost._2))
+    val index = getIndex(hosts, zsetName)
+    setZset(index, hosts, zsetName, kvs.collect)
+  }
+  def toRedisSET(vs: RDD[String],
+                 setName: String,
+                 initialHost: (String, Int)) = {
+    val hosts = getHosts((initialHost._1, initialHost._2))
+    val index = getIndex(hosts, setName)
+    setSet(index, hosts, setName, vs.collect)
+  }
+  def toRedisLIST(vs: RDD[String],
+                  listName: String,
+                  initialHost: (String, Int)) = {
+    val hosts = getHosts((initialHost._1, initialHost._2))
+    val index = getIndex(hosts, listName)
+    setList(index, hosts, listName, vs.collect)
+  }
+}
+
+object SaveToRedis {
+  def getIndex(hosts: Array[(String, Int, java.util.HashSet[Int])], key: String) = {
+    val slot = JedisClusterCRC16.getSlot(key);
+    var index = 0
+    while (!(hosts(index)._3.contains(slot))) index += 1;
+    index
+  }
+  def setKVs(index: Int, hosts: Array[(String, Int, java.util.HashSet[Int])], arr: Iterable[(String, String)]) = {
+    val jedis = new Jedis(hosts(index)._1, hosts(index)._2)
+    arr.foreach(x => jedis.set(x._1, x._2))
+  }
+  def setHash(index: Int, hosts: Array[(String, Int, java.util.HashSet[Int])], hashName: String, arr: Array[(String, String)]) = {
+    val jedis = new Jedis(hosts(index)._1, hosts(index)._2)
+    arr.foreach(x => jedis.hset(hashName, x._1, x._2))
+  }
+  def setZset(index: Int, hosts: Array[(String, Int, java.util.HashSet[Int])], zsetName: String, arr: Array[(String, String)]) = {
+    val jedis = new Jedis(hosts(index)._1, hosts(index)._2)
+    arr.foreach(x => jedis.zadd(zsetName, x._2.toDouble, x._1))
+  }
+  def setSet(index: Int, hosts: Array[(String, Int, java.util.HashSet[Int])], setName: String, arr: Array[String]) = {
+    val jedis = new Jedis(hosts(index)._1, hosts(index)._2)
+    arr.foreach(jedis.sadd(setName, _))
+  }
+  def setList(index: Int, hosts: Array[(String, Int, java.util.HashSet[Int])], listName: String, arr: Array[String]) = {
+    val jedis = new Jedis(hosts(index)._1, hosts(index)._2)
+    arr.foreach(jedis.rpush(listName, _))
+  }
 }
 
 trait RedisFunctions {
-
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
-
 }
+
