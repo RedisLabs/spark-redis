@@ -39,24 +39,6 @@ class RedisKVRDD(sc: SparkContext,
       case _      => Seq().iterator;
     }
   }
-
-  def save(key: String, tarType: String = rddType): Unit = {
-    val jc = new JedisCluster(Set(new HostAndPort(redisHosts(0)._1, redisHosts(0)._2)), 5)
-    tarType match {
-      case "hash" => toLocalIterator.foreach{
-        x => {
-        val xx = x.asInstanceOf[(String, String)];
-        jc.hset(key, xx._1, xx._2)
-      }};
-      case "zset" => toLocalIterator.foreach{
-        x => {
-        val xx = x.asInstanceOf[(String, String)];
-        jc.zadd(key, xx._2.toDouble, xx._1)
-      }};
-      case _      => Seq().iterator;
-    }
-
-  }
 }
 
 class RedisListRDD(sc: SparkContext,
@@ -86,15 +68,6 @@ class RedisListRDD(sc: SparkContext,
       case _      => Seq().iterator;
     }
   }
-
-  def save(key: String, tarType: String = rddType): Unit = {
-    val jc = new JedisCluster(Set(new HostAndPort(redisHosts(0)._1, redisHosts(0)._2)), 5)
-    tarType match {
-      case "set"  => toLocalIterator.foreach(jc.sadd(key, _));
-      case "list" => toLocalIterator.foreach(jc.rpush(key, _));
-      case _      => Seq().iterator;
-    }
-  }
 }
 
 trait Keys {
@@ -117,7 +90,7 @@ trait Keys {
     }
     judge(key, false)
   }
-  
+
   private def scanKeys(jedis: Jedis, params: ScanParams, cursor: String): util.ArrayList[String] = {
     def scankeys(jedis: Jedis, params: ScanParams, cursor: String, scanned: Boolean): util.ArrayList[String] = {
       val keys = new util.ArrayList[String]
@@ -130,7 +103,7 @@ trait Keys {
     }
     scankeys(jedis, params, cursor, false)
   }
-  
+
   def getKeys(jedis: Jedis, keyPattern: String) = {
     val keys = new util.ArrayList[String]()
     if (isRedisRegex(keyPattern)) {
