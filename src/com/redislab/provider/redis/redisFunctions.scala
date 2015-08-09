@@ -19,7 +19,8 @@ class RedisContext(val sc: SparkContext) extends Serializable {
           val sPos = slotInfo.get(0).toString.toInt
           val ePos = slotInfo.get(1).toString.toInt
           val hostInfos = slotInfo.get(2).asInstanceOf[java.util.List[java.lang.Object]]
-          val hp = new HostAndPort(SafeEncoder.encode(hostInfos.get(0).asInstanceOf[Array[scala.Byte]]), hostInfos.get(1).toString.toInt);
+          val hp = new HostAndPort(SafeEncoder.encode(hostInfos.get(0).asInstanceOf[Array[scala.Byte]]),
+                                   hostInfos.get(1).toString.toInt);
           (hp, sPos, ePos)
         }
     }.groupBy(_._1).map {
@@ -38,6 +39,49 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     }.toArray
     j.close()
     hosts
+  }
+  
+  def getNodes_hash(initialHost: (String, Int)) = {
+    val j = new Jedis(initialHost._1, initialHost._2)
+    val nodes = new java.util.HashSet[(HostAndPort, Int)]()
+    val hosts = j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].map {
+      slotInfoObj =>
+        {
+          var index = 1
+          val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
+          slotInfo.drop(2).foreach{
+            x => {
+              var hosts = x.asInstanceOf[java.util.List[java.lang.Object]]
+              nodes.add((new HostAndPort(SafeEncoder.encode(hosts.get(0).asInstanceOf[Array[scala.Byte]]), 
+                         hosts.get(1).toString.toInt), 
+                        index))
+              index += 1
+            }
+          }
+        }
+    }
+    nodes.map(x => x)
+  }
+
+  def getNodes(initialHost: (String, Int)) = {
+    val j = new Jedis(initialHost._1, initialHost._2)
+    j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
+      slotInfoObj =>
+        {
+          var index = 0
+          val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
+          slotInfo.drop(2).map {
+            x =>
+              {
+                var hosts = x.asInstanceOf[java.util.List[java.lang.Object]]
+                index += 1
+                (new HostAndPort(SafeEncoder.encode(hosts.get(0).asInstanceOf[Array[scala.Byte]]),
+                  hosts.get(1).toString.toInt),
+                  index)
+              }
+          }
+        }
+    }.distinct
   }
 
   def fromRedisKV(initialHost: (String, Int),
