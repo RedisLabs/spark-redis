@@ -12,7 +12,7 @@ import scala.collection.JavaConversions._
 import com.redislab.provider.redis.partitioner._
 
 class RedisKVRDD(sc: SparkContext,
-                 val redisNodes: Array[(String, Int, Int)],
+                 val redisNodes: Array[(String, Int, Int, Int)],
                  val keyPattern: String,
                  val rddType: String)
     extends RDD[(String, String)](sc, Seq.empty) with Logging with Keys{
@@ -23,7 +23,7 @@ class RedisKVRDD(sc: SparkContext,
 
   override protected def getPartitions: Array[Partition] = {
     (0 until redisNodes.size).map(i => {
-      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3)).asInstanceOf[Partition]
+      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3, redisNodes(i)._4)).asInstanceOf[Partition]
     }).toArray
   }
 
@@ -32,11 +32,11 @@ class RedisKVRDD(sc: SparkContext,
     val node = partition.node
     val jedis = new Jedis(node._1.getHostAddress, node._2)
     val index = node._3
-    if (index > 1)
-      return Seq().iterator
+    val range = node._4
+    jedis.readonly()
     val keys = getKeys(jedis, keyPattern)
     rddType match {
-      case "kv"   => keys.filter(k => jedis.`type`(k) == "string").map(k => (k, jedis.get(k))).iterator;
+      case "kv"   => keys.filter(k => (k.hashCode % range == index && jedis.`type`(k) == "string")).map(k => (k, jedis.get(k))).iterator;
       case "hash" => keys.filter(k => jedis.`type`(k) == "hash").flatMap(k => jedis.hgetAll(k)).iterator;
       case "zset" => keys.filter(k => jedis.`type`(k) == "zset").flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator;
       case _      => Seq().iterator;
@@ -45,7 +45,7 @@ class RedisKVRDD(sc: SparkContext,
 }
 
 class RedisListRDD(sc: SparkContext,
-                   val redisNodes: Array[(String, Int, Int)],
+                   val redisNodes: Array[(String, Int, Int, Int)],
                    val keyPattern: String,
                    val rddType: String)
     extends RDD[String](sc, Seq.empty) with Logging with Keys{
@@ -56,7 +56,7 @@ class RedisListRDD(sc: SparkContext,
 
   override protected def getPartitions: Array[Partition] = {
     (0 until redisNodes.size).map(i => {
-      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3)).asInstanceOf[Partition]
+      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3, redisNodes(i)._4)).asInstanceOf[Partition]
     }).toArray
   }
 
@@ -65,8 +65,7 @@ class RedisListRDD(sc: SparkContext,
     val node = partition.node
     val jedis = new Jedis(node._1.getHostAddress, node._2)
     val index = node._3
-    if (index > 1)
-      return Seq().iterator
+    val range = node._4
     val keys = getKeys(jedis, keyPattern)
     rddType match {
       case "set"  => keys.filter(k => jedis.`type`(k) == "set").flatMap(k => jedis.smembers(k)).iterator;
