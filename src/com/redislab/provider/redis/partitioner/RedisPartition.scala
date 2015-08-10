@@ -5,5 +5,4 @@ import java.util
 import org.apache.spark.Partition
 
 case class RedisPartition(index: Int,
-                          addr: (InetAddress, Int),
-                          slots: util.HashSet[Int]) extends Partition
+                          node: (InetAddress, Int, Int)) extends Partition

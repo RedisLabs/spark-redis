@@ -75,34 +75,34 @@ class RedisContext(val sc: SparkContext) extends Serializable {
               {
                 var hosts = x.asInstanceOf[java.util.List[java.lang.Object]]
                 index += 1
-                (new HostAndPort(SafeEncoder.encode(hosts.get(0).asInstanceOf[Array[scala.Byte]]),
-                  hosts.get(1).toString.toInt),
+                ( SafeEncoder.encode(hosts.get(0).asInstanceOf[Array[scala.Byte]]),
+                  hosts.get(1).toString.toInt,
                   index)
               }
           }
         }
-    }.distinct
+    }.distinct.toArray
   }
 
   def fromRedisKV(initialHost: (String, Int),
                   keyPattern: String = "*") = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "kv");
+    new RedisKVRDD(sc, getNodes(initialHost), keyPattern, "kv");
   }
   def fromRedisHASH(initialHost: (String, Int),
                     keyPattern: String = "*") = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "hash");
+    new RedisKVRDD(sc, getNodes(initialHost), keyPattern, "hash");
   }
   def fromRedisZSET(initialHost: (String, Int),
                     keyPattern: String = "*") = {
-    new RedisKVRDD(sc, getHosts(initialHost), keyPattern, "zset");
+    new RedisKVRDD(sc, getNodes(initialHost), keyPattern, "zset");
   }
   def fromRedisSET(initialHost: (String, Int),
                    keyPattern: String = "*") = {
-    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "set");
+    new RedisListRDD(sc, getNodes(initialHost), keyPattern, "set");
   }
   def fromRedisLIST(initialHost: (String, Int),
                     keyPattern: String = "*") = {
-    new RedisListRDD(sc, getHosts(initialHost), keyPattern, "list");
+    new RedisListRDD(sc, getNodes(initialHost), keyPattern, "list");
   }
 
   def toRedisKV(kvs: RDD[(String, String)],

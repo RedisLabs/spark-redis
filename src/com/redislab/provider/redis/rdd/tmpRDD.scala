@@ -12,25 +12,28 @@ import scala.collection.JavaConversions._
 import com.redislab.provider.redis.partitioner._
 
 class RedisKVRDD(sc: SparkContext,
-                 val redisHosts: Array[(String, Int, util.HashSet[Int])],
+                 val redisNodes: Array[(String, Int, Int)],
                  val keyPattern: String,
                  val rddType: String)
     extends RDD[(String, String)](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
-    Seq(split.asInstanceOf[RedisPartition].addr._1.getHostName)
+    Seq(split.asInstanceOf[RedisPartition].node._1.getHostName)
   }
 
   override protected def getPartitions: Array[Partition] = {
-    (0 until redisHosts.size).map(i => {
-      new RedisPartition(i, (InetAddress.getByName(redisHosts(i)._1), redisHosts(i)._2), redisHosts(i)._3).asInstanceOf[Partition]
+    (0 until redisNodes.size).map(i => {
+      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3)).asInstanceOf[Partition]
     }).toArray
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[(String, String)] = {
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
-    val addr = partition.addr
-    val jedis = new Jedis(addr._1.getHostAddress, addr._2)
+    val node = partition.node
+    val jedis = new Jedis(node._1.getHostAddress, node._2)
+    val index = node._3
+    if (index > 1)
+      return Seq().iterator
     val keys = getKeys(jedis, keyPattern)
     rddType match {
       case "kv"   => keys.filter(k => jedis.`type`(k) == "string").map(k => (k, jedis.get(k))).iterator;
@@ -42,25 +45,28 @@ class RedisKVRDD(sc: SparkContext,
 }
 
 class RedisListRDD(sc: SparkContext,
-                   val redisHosts: Array[(String, Int, util.HashSet[Int])],
+                   val redisNodes: Array[(String, Int, Int)],
                    val keyPattern: String,
                    val rddType: String)
     extends RDD[String](sc, Seq.empty) with Logging with Keys{
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
-    Seq(split.asInstanceOf[RedisPartition].addr._1.getHostName)
+    Seq(split.asInstanceOf[RedisPartition].node._1.getHostName)
   }
 
   override protected def getPartitions: Array[Partition] = {
-    (0 until redisHosts.size).map(i => {
-      new RedisPartition(i, (InetAddress.getByName(redisHosts(i)._1), redisHosts(i)._2), redisHosts(i)._3).asInstanceOf[Partition]
+    (0 until redisNodes.size).map(i => {
+      new RedisPartition(i, (InetAddress.getByName(redisNodes(i)._1), redisNodes(i)._2, redisNodes(i)._3)).asInstanceOf[Partition]
     }).toArray
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
-    val addr = partition.addr
-    val jedis = new Jedis(addr._1.getHostAddress, addr._2)
+    val node = partition.node
+    val jedis = new Jedis(node._1.getHostAddress, node._2)
+    val index = node._3
+    if (index > 1)
+      return Seq().iterator
     val keys = getKeys(jedis, keyPattern)
     rddType match {
       case "set"  => keys.filter(k => jedis.`type`(k) == "set").flatMap(k => jedis.smembers(k)).iterator;
