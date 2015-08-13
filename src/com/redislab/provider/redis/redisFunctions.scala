@@ -6,15 +6,10 @@ import redis.clients.jedis.{ HostAndPort, Jedis, JedisCluster }
 import redis.clients.util.{ SafeEncoder, JedisClusterCRC16 }
 import scala.collection.JavaConversions._
 import com.redislab.provider.redis.rdd._
-//import com.redislab.provider.redis.SaveToRedis._
+import com.redislab.provider.redis.SaveToRedis._
 import com.redislab.provider.redis.NodesInfo._
 
 class RedisContext(val sc: SparkContext) extends Serializable {
-  
-  def fromRRDD(initialHost: (String, Int),
-               keys: RDD[String]) = {
-    new RRDD(sc, initialHost, keys);
-  }
   
   def fromRedisKeyPattern(initialHost: (String, Int),
                           keyPattern: String = "*") = {
@@ -43,7 +38,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     new RedisListRDD(sc, initialHost, keyPattern, "list");
   }
   
-  /*
+  
   def toRedisKV(kvs: RDD[(String, String)],
                 initialHost: (String, Int)) = {
     val hosts = getHosts((initialHost._1, initialHost._2))
@@ -81,7 +76,6 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     val index = getIndex(hosts, listName)
     setList(index, hosts, listName, vs.collect)
   }
-  */
 }
 
 object NodesInfo {
@@ -154,7 +148,6 @@ object NodesInfo {
   }
 }
 
-/*
 object SaveToRedis {
   def getIndex(hosts: Array[(String, Int, java.util.HashSet[Int])], key: String) = {
     val slot = JedisClusterCRC16.getSlot(key);
@@ -183,7 +176,6 @@ object SaveToRedis {
     arr.foreach(jedis.rpush(listName, _))
   }
 }
-*/
 
 trait RedisFunctions {
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
