@@ -13,7 +13,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
   
   def fromRedisKeyPattern(initialHost: (String, Int),
                           keyPattern: String = "*") = {
-    new RedisListRDD(sc, initialHost, keyPattern, "keypattern");
+    new RedisKeysRDD(sc, initialHost, keyPattern);
   }
   
   def fromRedisKV(initialHost: (String, Int),
