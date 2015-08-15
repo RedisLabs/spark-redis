@@ -146,9 +146,6 @@ class RedisKeysRDD(sc: SparkContext,
 }
 
 trait Keys {
-  def gets(keys: RedisKeysRDD) = {
-    keys.collect
-  }
   private def isRedisRegex(key: String) = {
     def judge(key: String, escape: Boolean): Boolean = {
       if (key.length == 0)
@@ -169,17 +166,15 @@ trait Keys {
     judge(key, false)
   }
 
-  private def scanKeys(jedis: Jedis, params: ScanParams, cursor: String): util.ArrayList[String] = {
-    def scankeys(jedis: Jedis, params: ScanParams, cursor: String, scanned: Boolean): util.ArrayList[String] = {
-      val keys = new util.ArrayList[String]
-      if (scanned && cursor == "0")
-        return keys;
+  private def scanKeys(jedis: Jedis, params: ScanParams): util.HashSet[String] = {
+    val keys = new util.HashSet[String]
+    var cursor = "0"
+    do {
       val scan = jedis.scan(cursor, params)
       keys.addAll(scan.getResult)
-      keys.addAll(scankeys(jedis, params, scan.getStringCursor, true))
-      keys
-    }
-    scankeys(jedis, params, cursor, false)
+      cursor = scan.getStringCursor
+    } while (cursor != "0")
+    keys
   }
 
   /*
@@ -191,7 +186,7 @@ trait Keys {
       nodes.foreach(node => {
         val jedis = new Jedis(node._1, node._2)
         val params = new ScanParams().`match`(keyPattern)
-        keys.addAll(scanKeys(jedis, params, "0").filter(key => {
+        keys.addAll(scanKeys(jedis, params).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         }))
