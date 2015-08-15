@@ -24,30 +24,33 @@ class RedisContext(val sc: SparkContext) extends Serializable {
         x => setKVs((x._1._1, x._1._2), x._2)
     )
   }
-  
   def toRedisHASH(kvs: RDD[(String, String)],
                   hashName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(hashName, initialHost)
-    setHash(host, hashName, kvs.collect)
+    kvs.foreachPartition(partition => setHash(host, hashName, partition))
+    //setHash(host, hashName, kvs.collect)
   }
   def toRedisZSET(kvs: RDD[(String, String)],
                   zsetName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(zsetName, initialHost)
-    setZset(host, zsetName, kvs.collect)
+    kvs.foreachPartition(partition => setZset(host, zsetName, partition))
+    //setZset(host, zsetName, kvs.collect)
   }
   def toRedisSET(vs: RDD[String],
                  setName: String,
                  initialHost: (String, Int)) = {
     val host = getHost(setName, initialHost)
-    setSet(host, setName, vs.collect)
+    vs.foreachPartition(partition => setSet(host, setName, partition))
+    //setSet(host, setName, vs.collect)
   }
   def toRedisLIST(vs: RDD[String],
                   listName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(listName, initialHost)
-    setList(host, listName, vs.collect)
+    vs.foreachPartition(partition => setList(host, listName, partition))
+    //setList(host, listName, vs.collect)
   }
 }
 
@@ -73,7 +76,7 @@ object NodesInfo {
           val sPos = slotInfo.get(0).toString.toInt
           val ePos = slotInfo.get(1).toString.toInt
           (0 until (slotInfo.size - 2)).map(i => {
-            var node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
+            val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
             (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
              node.get(1).toString.toInt,
              i,
@@ -110,25 +113,25 @@ object SaveToRedis {
     arr.foreach(x => pipeline.set(x._1, x._2))
     pipeline.sync
   }
-  def setHash(host: (String, Int), hashName: String, arr: Array[(String, String)]) = {
+  def setHash(host: (String, Int), hashName: String, arr: Iterator[(String, String)]) = {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
     pipeline.sync
   }
-  def setZset(host: (String, Int), zsetName: String, arr: Array[(String, String)]) = {
+  def setZset(host: (String, Int), zsetName: String, arr: Iterator[(String, String)]) = {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
     pipeline.sync
   }
-  def setSet(host: (String, Int), setName: String, arr: Array[String]) = {
+  def setSet(host: (String, Int), setName: String, arr: Iterator[String]) = {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.sadd(setName, _))
     pipeline.sync
   }
-  def setList(host: (String, Int), listName: String, arr: Array[String]) = {
+  def setList(host: (String, Int), listName: String, arr: Iterator[String]) = {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
