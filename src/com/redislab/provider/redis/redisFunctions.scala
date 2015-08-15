@@ -12,32 +12,10 @@ import com.redislab.provider.redis.NodesInfo._
 class RedisContext(val sc: SparkContext) extends Serializable {
   
   def fromRedisKeyPattern(initialHost: (String, Int),
-                          keyPattern: String = "*") = {
-    new RedisKeysRDD(sc, initialHost, keyPattern);
+                          keyPattern: String = "*",
+                          partitionNum: Int = 3) = {
+    new RedisKeysRDD(sc, initialHost, keyPattern, partitionNum);
   }
-  
-  def fromRedisKV(initialHost: (String, Int),
-                  keyPattern: String = "*") = {
-    new RedisKVRDD(sc, initialHost, keyPattern, "kv");
-  }
-  def fromRedisHASH(initialHost: (String, Int),
-                    keyPattern: String = "*") = {
-    new RedisKVRDD(sc, initialHost, keyPattern, "hash");
-  }
-  def fromRedisZSET(initialHost: (String, Int),
-                    keyPattern: String = "*") = {
-    new RedisKVRDD(sc, initialHost, keyPattern, "zset");
-  }
-  
-  def fromRedisSET(initialHost: (String, Int),
-                   keyPattern: String = "*") = {
-    new RedisListRDD(sc, initialHost, keyPattern, "set");
-  }
-  def fromRedisLIST(initialHost: (String, Int),
-                    keyPattern: String = "*") = {
-    new RedisListRDD(sc, initialHost, keyPattern, "list");
-  }
-  
   
   def toRedisKV(kvs: RDD[(String, String)],
                 initialHost: (String, Int)) = {
