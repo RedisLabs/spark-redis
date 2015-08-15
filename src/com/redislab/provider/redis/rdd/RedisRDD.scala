@@ -32,7 +32,7 @@ class RedisKVRDD(prev: RDD[String],
     }
   }
 
-   def getKV(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, String)] = {
+  def getKV(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -117,7 +117,7 @@ class RedisKeysRDD(sc: SparkContext,
     (0 until partitionNum).map(i => {
       new RedisPartition(i,
         new RedisConfig(redisNode._1, redisNode._2),
-        (cnt * i + 1, if (i != partitionNum - 1) cnt * (i + 1) else 16384)).asInstanceOf[Partition]
+        (if (i == 0) 0 else cnt * i + 1, if (i != partitionNum - 1) cnt * (i + 1) else 16383)).asInstanceOf[Partition]
     }).toArray
   }
 
