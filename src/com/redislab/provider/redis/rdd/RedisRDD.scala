@@ -181,7 +181,7 @@ trait Keys {
    * node is (IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
    */
   def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int)], sPos: Int, ePos: Int, keyPattern: String) = {
-    val keys = new util.ArrayList[String]()
+    val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
         val jedis = new Jedis(node._1, node._2)
@@ -200,7 +200,10 @@ trait Keys {
   }
   
   /*
-   * node is (IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
+   * node (IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
+   * 
+   * Group keys by the given nodes.
+   * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
    */ 
   def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]) = {
     def getNode(key: String) = {
@@ -210,6 +213,10 @@ trait Keys {
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2)))
   }
   
+  /*
+   * Filter all the keys of "t" type.
+   * @keys are guaranteed that they belongs with the server @jedis connected to.
+   */
   def filterKeysByType(jedis: Jedis, keys:Array[String], t:String) = {
     val pipeline = jedis.pipelined
     keys.foreach(pipeline.`type`)
