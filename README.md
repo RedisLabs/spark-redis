@@ -31,7 +31,7 @@ after the `git clone` in **Using the library** field
 
 ## Using the library
 ```
-git clone https://github.com/sunheehnus/spark-redis.git
+git clone https://github.com/RedisLabs/spark-redis.git
 mvn clean install
 ```
 In order to add the Spark-Redis jar file to Spark, you can use the --jars command line option.
