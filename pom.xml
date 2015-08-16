@@ -3,7 +3,10 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.redislab</groupId>
 	<artifactId>spark-redis</artifactId>
-	<version>0.0.1</version>
+	<version>0.5.1</version>
+    <name>Spark-Redis</name>name>
+    <description>A Spark library for Redis</description>description>
+    <url>http://github.com/sunheehnus/spark-redis</url>url>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 		<resources>
