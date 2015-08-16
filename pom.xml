@@ -4,9 +4,9 @@
 	<groupId>com.redislab</groupId>
 	<artifactId>spark-redis</artifactId>
 	<version>0.5.1</version>
-    <name>Spark-Redis</name>
-    <description>A Spark library for Redis</description>
-    <url>http://github.com/sunheehnus/spark-redis</url>
+	<name>Spark-Redis</name>
+	<description>A Spark library for Redis</description>
+	<url>http://github.com/RedisLabs/spark-redis</url>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 		<resources>
@@ -74,6 +74,5 @@
             <artifactId>spark-sql_2.10</artifactId>
             <version>1.4.0</version>
         </dependency>
-
     </dependencies>
 </project>

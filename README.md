@@ -23,7 +23,7 @@ This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 3.0+
 
 ## Using the library
 ```
-git clone https://github.com/sunheehnus/spark-redis.git
+git clone https://github.com/RedisLabs/spark-redis.git
 mvn clean install
 ```
 In order to add the Spark-Redis jar file to Spark, you can use the --jars command line option.
