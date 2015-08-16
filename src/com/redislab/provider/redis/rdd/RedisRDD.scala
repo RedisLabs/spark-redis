@@ -37,6 +37,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
+          jedis.readonly
           val stringKeys = filterKeysByType(jedis, x._2, "string")
           val pipeline = jedis.pipelined
           stringKeys.foreach(pipeline.get)
@@ -49,6 +50,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
+          jedis.readonly
           val hashKeys = filterKeysByType(jedis, x._2, "hash")
           hashKeys.flatMap(jedis.hgetAll).iterator
         }
@@ -59,6 +61,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
+          jedis.readonly
           val zsetKeys = filterKeysByType(jedis, x._2, "zset")
           zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator
         }
@@ -89,6 +92,7 @@ class RedisListRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
+          jedis.readonly
           val setKeys = filterKeysByType(jedis, x._2, "set")
           setKeys.flatMap(jedis.smembers).iterator
         }
@@ -99,6 +103,7 @@ class RedisListRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
+          jedis.readonly
           val listKeys = filterKeysByType(jedis, x._2, "list")
           listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
         }
@@ -183,7 +188,7 @@ trait Keys {
   def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int)], sPos: Int, ePos: Int, keyPattern: String) = {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
-      nodes.foreach(node => {
+      nodes.filter(node => (keyPattern.hashCode.abs % node._4 == node._3)).foreach(node => {
         val jedis = new Jedis(node._1, node._2)
         val params = new ScanParams().`match`(keyPattern)
         keys.addAll(scanKeys(jedis, params).filter(key => {
@@ -208,7 +213,7 @@ trait Keys {
   def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]) = {
     def getNode(key: String) = {
       val slot = JedisClusterCRC16.getSlot(key)
-      nodes.filter(node => { node._5 <= slot && node._6 >= slot }).filter(_._3 == 0)(0) // master only
+      nodes.filter(node => { node._5 <= slot && node._6 >= slot && (keys.hashCode.abs % node._4 == node._3)})(0)
     }
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2)))
   }

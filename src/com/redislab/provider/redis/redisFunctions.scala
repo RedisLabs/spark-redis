@@ -29,28 +29,24 @@ class RedisContext(val sc: SparkContext) extends Serializable {
                   initialHost: (String, Int)) = {
     val host = getHost(hashName, initialHost)
     kvs.foreachPartition(partition => setHash(host, hashName, partition))
-    //setHash(host, hashName, kvs.collect)
   }
   def toRedisZSET(kvs: RDD[(String, String)],
                   zsetName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(zsetName, initialHost)
     kvs.foreachPartition(partition => setZset(host, zsetName, partition))
-    //setZset(host, zsetName, kvs.collect)
   }
   def toRedisSET(vs: RDD[String],
                  setName: String,
                  initialHost: (String, Int)) = {
     val host = getHost(setName, initialHost)
     vs.foreachPartition(partition => setSet(host, setName, partition))
-    //setSet(host, setName, vs.collect)
   }
   def toRedisLIST(vs: RDD[String],
                   listName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setList(host, listName, partition))
-    //setList(host, listName, vs.collect)
   }
 }
 
