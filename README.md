@@ -18,6 +18,14 @@ This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 3.0+
     - Spark 1.4.0
     - Jedis 2.7
 
+## Enable Slaves For Reading
+As jedis-2.7 doesn't support `readonly` command. We must wait for the release of jedis-2.8.
+The pre-build jedis-2.8.0 is included in `with-slaves` branch. We can enable slaves for reading by
+
+`git checkout with-slaves`
+
+after the `git clone` in **Using the library** field
+
 ## Warnings
 * The APIs will probably change several times before an official release
 
