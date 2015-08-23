@@ -15,7 +15,6 @@ class RedisConfig(ip: String, port: Int) extends Serializable {
       else
         return ePos2 >= sPos1
     }
-    val ran = scala.util.Random.nextInt()
     val node = nodes.get(scala.util.Random.nextInt().abs % nodes.size())
     getSlots((node._1, node._2)).filter(node => inter(sPos, ePos, node._5, node._6)).filter(_._3 == 0) //master only now
   }

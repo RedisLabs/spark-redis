@@ -55,6 +55,11 @@ class RedisContext(val sc: SparkContext) extends Serializable {
 }
 
 object NodesInfo {
+  
+  private def clusterEnable(initialHost: (String, Int)) : Boolean = {
+    new Jedis(initialHost._1, initialHost._2).info("cluster").contains("1")
+  }
+  
   def findHost(hosts: Array[(String, Int, Int, Int)], key: String) = {
       val slot = JedisClusterCRC16.getSlot(key)
       hosts.filter(host => {host._3 <= slot && host._4 >= slot})(0) 
@@ -67,7 +72,11 @@ object NodesInfo {
   def getHosts(initialHost: (String, Int)) = {
     getSlots(initialHost).filter(_._3 == 0).map(x => (x._1, x._2, x._5, x._6))
   }
-  def getSlots(initialHost: (String, Int)) = {
+  
+  private def getNonClusterSlots(initialHost: (String, Int)) = {
+    getNonClusterNodes(initialHost).map(x=> (x._1, x._2, x._3, x._4, 0, 16383)).toArray
+  }
+  private def getClusterSlots(initialHost: (String, Int)) = {
     val j = new Jedis(initialHost._1, initialHost._2)
     j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
@@ -87,7 +96,35 @@ object NodesInfo {
         }
     }.toArray
   }
-  def getNodes(initialHost: (String, Int)) = {
+  def getSlots(initialHost: (String, Int)) = {
+    if (clusterEnable(initialHost))
+      getClusterSlots(initialHost)
+    else
+      getNonClusterSlots(initialHost)
+  }
+  
+  
+  private def getNonClusterNodes(initialHost: (String, Int)) = {
+    var master = initialHost
+    var replinfo = new Jedis(initialHost._1, initialHost._2).info("Replication").split("\n")
+    if (replinfo.filter(_.contains("role:slave")).length != 0){
+      val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
+      val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
+      master = (host, port)
+      val j = new Jedis(host, port)
+      replinfo = j.info("Replication").split("\n")
+    }
+    val slaves = replinfo.filter(x => (x.contains("slave") && x.contains("online"))).map(rl => {
+      val content = rl.substring(rl.indexOf(':') + 1).split(",")
+      val ip = content(0)
+      val port = content(1)
+      (ip.substring(ip.indexOf('=')+1).toString, port.substring(port.indexOf('=')+1).toInt)
+    })
+    val nodes = master +: slaves
+    val range = nodes.size
+    (0 until range).map(i => (nodes(i)._1, nodes(i)._2, i, range)).toArray
+  }
+  private def getClusterNodes(initialHost: (String, Int)) = {
     val j = new Jedis(initialHost._1, initialHost._2)
     j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
@@ -103,6 +140,13 @@ object NodesInfo {
           })
         }
     }.distinct.toArray
+  }
+  
+  def getNodes(initialHost: (String, Int)) = {
+    if (clusterEnable(initialHost))
+      getClusterNodes(initialHost)
+    else
+      getNonClusterNodes(initialHost)
   }
 }
 
