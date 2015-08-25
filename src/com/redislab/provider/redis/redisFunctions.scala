@@ -2,8 +2,8 @@ package com.redislab.provider.redis
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.{ HostAndPort, Jedis, JedisCluster }
-import redis.clients.util.{ SafeEncoder, JedisClusterCRC16 }
+import redis.clients.jedis.Jedis
+import redis.clients.util.{SafeEncoder, JedisClusterCRC16}
 import scala.collection.JavaConversions._
 import com.redislab.provider.redis.rdd._
 import com.redislab.provider.redis.SaveToRedis._
@@ -29,28 +29,24 @@ class RedisContext(val sc: SparkContext) extends Serializable {
                   initialHost: (String, Int)) = {
     val host = getHost(hashName, initialHost)
     kvs.foreachPartition(partition => setHash(host, hashName, partition))
-    //setHash(host, hashName, kvs.collect)
   }
   def toRedisZSET(kvs: RDD[(String, String)],
                   zsetName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(zsetName, initialHost)
     kvs.foreachPartition(partition => setZset(host, zsetName, partition))
-    //setZset(host, zsetName, kvs.collect)
   }
   def toRedisSET(vs: RDD[String],
                  setName: String,
                  initialHost: (String, Int)) = {
     val host = getHost(setName, initialHost)
     vs.foreachPartition(partition => setSet(host, setName, partition))
-    //setSet(host, setName, vs.collect)
   }
   def toRedisLIST(vs: RDD[String],
                   listName: String,
                   initialHost: (String, Int)) = {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setList(host, listName, partition))
-    //setList(host, listName, vs.collect)
   }
 }
 
