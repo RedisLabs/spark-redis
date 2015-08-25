@@ -12,6 +12,7 @@ import scala.collection.JavaConversions._
 import com.redislab.provider.redis.partitioner._
 import com.redislab.provider.RedisConfig
 import com.redislab.provider.redis._
+import com.redislab.provider.redis.NodesInfo._
 
 class RedisKVRDD(prev: RDD[String],
                  val rddType: String)
@@ -37,7 +38,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
-          jedis.readonly
+          if (clusterEnable(jedis)) jedis.readonly
           val stringKeys = filterKeysByType(jedis, x._2, "string")
           val pipeline = jedis.pipelined
           stringKeys.foreach(pipeline.get)
@@ -50,7 +51,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
-          jedis.readonly
+          if (clusterEnable(jedis)) jedis.readonly
           val hashKeys = filterKeysByType(jedis, x._2, "hash")
           hashKeys.flatMap(jedis.hgetAll).iterator
         }
@@ -61,7 +62,7 @@ class RedisKVRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
-          jedis.readonly
+          if (clusterEnable(jedis)) jedis.readonly
           val zsetKeys = filterKeysByType(jedis, x._2, "zset")
           zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator
         }
@@ -92,7 +93,7 @@ class RedisListRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
-          jedis.readonly
+          if (clusterEnable(jedis)) jedis.readonly
           val setKeys = filterKeysByType(jedis, x._2, "set")
           setKeys.flatMap(jedis.smembers).iterator
         }
@@ -103,7 +104,7 @@ class RedisListRDD(prev: RDD[String],
       x =>
         {
           val jedis = new Jedis(x._1._1, x._1._2)
-          jedis.readonly
+          if (clusterEnable(jedis)) jedis.readonly
           val listKeys = filterKeysByType(jedis, x._2, "list")
           listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
         }
