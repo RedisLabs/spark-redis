@@ -1,3 +1,3 @@
-package com.redislab.provider
+package com.redislabs.provider
 
 package object redis extends RedisFunctions

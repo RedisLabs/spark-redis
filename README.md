@@ -52,11 +52,11 @@ Type in expressions to have them evaluated.
 Type :help for more information.
 ...
 ```
-To read data from Redis Cluster, you can use the library by loading the implicits from `com.redislab.provider.redis._` .
+To read data from Redis Cluster, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
 
 In the example we can see how to read from Redis Cluster.
 ```
-scala> import com.redislab.provider.redis._
+scala> import com.redislabs.provider.redis._
 scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
 scala> val kvRDD = keysRDD.getKV
 scala> val hashRDD = keysRDD.getHash
@@ -67,7 +67,7 @@ scala> val setRDD = keysRDD.getSet
 
 In the example we can see how to write to Redis Cluster.
 ```
-scala> import import com.redislab.provider.redis._
+scala> import import com.redislabs.provider.redis._
 scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
 scala> val kvRDD = keysRDD.getKV
 scala> sc.toRedisHASH(kvRDD, "saved_hash", ("127.0.0.1", 7000))
