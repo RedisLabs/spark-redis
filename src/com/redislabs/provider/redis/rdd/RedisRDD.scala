@@ -1,4 +1,4 @@
-package com.redislab.provider.redis.rdd
+package com.redislabs.provider.redis.rdd
 
 import java.net.InetAddress
 import java.util
@@ -9,10 +9,10 @@ import redis.clients.jedis._
 import redis.clients.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
-import com.redislab.provider.redis.partitioner._
-import com.redislab.provider.RedisConfig
-import com.redislab.provider.redis._
-import com.redislab.provider.redis.NodesInfo._
+import com.redislabs.provider.redis.partitioner._
+import com.redislabs.provider.RedisConfig
+import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.NodesInfo._
 
 class RedisKVRDD(prev: RDD[String],
                  val rddType: String)

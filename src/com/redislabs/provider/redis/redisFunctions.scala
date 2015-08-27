@@ -1,13 +1,13 @@
-package com.redislab.provider.redis
+package com.redislabs.provider.redis
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import redis.clients.jedis.{ HostAndPort, Jedis, JedisCluster }
 import redis.clients.util.{ SafeEncoder, JedisClusterCRC16 }
 import scala.collection.JavaConversions._
-import com.redislab.provider.redis.rdd._
-import com.redislab.provider.redis.SaveToRedis._
-import com.redislab.provider.redis.NodesInfo._
+import com.redislabs.provider.redis.rdd._
+import com.redislabs.provider.redis.SaveToRedis._
+import com.redislabs.provider.redis.NodesInfo._
 
 class RedisContext(val sc: SparkContext) extends Serializable {
 
