@@ -146,6 +146,10 @@ class RedisKeysRDD(sc: SparkContext,
 }
 
 trait Keys {
+  /**
+   * @param key
+   * @return true if the key is a RedisRegex
+   */
   private def isRedisRegex(key: String) = {
     def judge(key: String, escape: Boolean): Boolean = {
       if (key.length == 0)
@@ -166,6 +170,11 @@ trait Keys {
     judge(key, false)
   }
 
+  /**
+   * @param jedis
+   * @param params
+   * @return keys of params pattern in jedis
+   */
   private def scanKeys(jedis: Jedis, params: ScanParams): util.HashSet[String] = {
     val keys = new util.HashSet[String]
     var cursor = "0"
@@ -177,8 +186,12 @@ trait Keys {
     keys
   }
 
-  /*
-   * node is (IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
+  /**
+   * @param nodes list of nodes(IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
+   * @param sPos start position of slots
+   * @param ePos end position of slots
+   * @param keyPattern
+   * return keys whose slot is in [sPos, ePos]
    */
   def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int)], sPos: Int, ePos: Int, keyPattern: String) = {
     val keys = new util.HashSet[String]()
@@ -198,13 +211,12 @@ trait Keys {
     }
     keys
   }
-  
-  /*
-   * node (IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
-   * 
-   * Group keys by the given nodes.
+
+  /**
+   * @param nodes list of nodes(IP:String, port:Int, index:Int, range:Int, startSlot:Int, endSlot:Int)
+   * @param keys list of keys
    * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
-   */ 
+   */
   def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]) = {
     def getNode(key: String) = {
       val slot = JedisClusterCRC16.getSlot(key)
@@ -212,10 +224,12 @@ trait Keys {
     }
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2)))
   }
-  
-  /*
+
+  /**
+   * @param jedis
+   * @param keys
+   * keys are guaranteed that they belongs with the server jedis connected to.
    * Filter all the keys of "t" type.
-   * @keys are guaranteed that they belongs with the server @jedis connected to.
    */
   def filterKeysByType(jedis: Jedis, keys:Array[String], t:String) = {
     val pipeline = jedis.pipelined

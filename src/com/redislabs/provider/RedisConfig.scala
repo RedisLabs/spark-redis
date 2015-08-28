@@ -8,6 +8,12 @@ class RedisConfig(ip: String, port: Int) extends Serializable {
 
   getNodes((ip, port)).foreach(x => nodes.add((x._1, x._2)))
 
+  /**
+   *
+   * @param sPos start position of a slots range
+   * @param ePos end position of a slots range
+   * @return list of nodes(addr, port, index, range, startSlot, endSlot), where Inter([startSlot, endSlot], [sPos, ePos]) is not Nil(master only now)
+   */
   def getNodesBySlots(sPos: Int, ePos: Int) = {
     def inter(sPos1: Int, ePos1: Int, sPos2: Int, ePos2: Int):Boolean = {
       if (sPos1 <= sPos2)
