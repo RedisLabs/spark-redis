@@ -13,7 +13,7 @@ This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 3.0+
 ## Current Limitations
 * No Java or Python API bindings
 * Only tested with the following configurations:
-    - Redis 3.0
+    - Redis 2.8+
     - Scala 2.10
     - Spark 1.4.0
     - Jedis 2.7
@@ -30,6 +30,27 @@ after the `git clone` in **Using the library** field
 * The APIs will probably change several times before an official release
 
 ## Using the library
+There are two ways of using Spark-Redis library:
+
+You can use it as a maven dependency:
+```
+<repositories>
+    <repository>
+        <id>spark-redis-mvn-repo</id>
+        <url>https://raw.github.com/RedisLabs/spark-redis/mvn-repo/</url>
+    </repository>
+</repositories>
+
+<dependencies>
+    <dependency>
+        <groupId>com.redislabs</groupId>
+        <artifactId>spark-redis</artifactId>
+        <version>0.5.1</version>
+    </dependency>
+</dependencies>
+```
+
+There also exists the possibility of downloading the project by doing:
 ```
 git clone https://github.com/RedisLabs/spark-redis.git
 mvn clean install
@@ -52,9 +73,9 @@ Type in expressions to have them evaluated.
 Type :help for more information.
 ...
 ```
-To read data from Redis Cluster, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
+To read data from Redis Server, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
 
-In the example we can see how to read from Redis Cluster.
+In the example we can see how to read from Redis Server.
 ```
 scala> import com.redislabs.provider.redis._
 scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
@@ -65,7 +86,7 @@ scala> val listRDD = keysRDD.getList
 scala> val setRDD = keysRDD.getSet
 ```
 
-In the example we can see how to write to Redis Cluster.
+In the example we can see how to write to Redis Server.
 ```
 scala> import import com.redislabs.provider.redis._
 scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
