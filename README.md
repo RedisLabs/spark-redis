@@ -8,7 +8,7 @@ Integrating Redis and Spark gives us a system that combines the best of both wor
 
 ## Requirements
 
-This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 3.0+
+This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 2.8+
 
 ## Current Limitations
 * No Java or Python API bindings
@@ -77,20 +77,95 @@ To read data from Redis Server, you can use the library by loading the implicits
 
 In the example we can see how to read from Redis Server.
 ```
-scala> import com.redislabs.provider.redis._
-scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
-scala> val kvRDD = keysRDD.getKV
-scala> val hashRDD = keysRDD.getHash
-scala> val zsetRDD = keysRDD.getZSet
-scala> val listRDD = keysRDD.getList
-scala> val setRDD = keysRDD.getSet
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
 ```
+keyPattern should be a plain string or a RedisRegex.
+keysRDD is a RDD holds all the keys of keyPattern of the redis server.
+keysRDD is divided into 5(default 3) partitions by hash slots.
+
+Using Redis' Key/Values
+```
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
+val kvRDD = keysRDD.getKV
+```
+kvRDD is a RDD holds all the k/v pairs whose k's pattern is keyPattern, and k must be of 'string' type in redis-server.
+
+Using Redis' Hash
+```
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
+val hashRDD = keysRDD.getHash
+```
+hashRDD is a RDD holds all the dicts' contents, and the dicts' names must be of keyPattern and exists in the redis-server.
+
+Using Redis' ZSet
+```
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
+val zsetRDD = keysRDD.getZSet
+```
+zsetRDD is a RDD holds all the zsets' contents(key, score), and the zsets' names must be of keyPattern and exists in the redis-server.
+
+Using Redis' List
+```
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
+val listRDD = keysRDD.getList
+```
+listRDD is a RDD holds all the lists' contents, and the lists' names must be of keyPattern and exists in the redis-server.
+
+Using Redis' Set
+```
+import com.redislabs.provider.redis._
+val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
+val setRDD = keysRDD.getSet
+```
+setRDD is a RDD holds all the sets' contents, score), and the sets' names must be of keyPattern and exists in the redis-server.
+
+*****
+
+To write data to Redis Server, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
 
 In the example we can see how to write to Redis Server.
-```
-scala> import import com.redislabs.provider.redis._
-scala> val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "*", 5)
-scala> val kvRDD = keysRDD.getKV
-scala> sc.toRedisHASH(kvRDD, "saved_hash", ("127.0.0.1", 7000))
-```
 
+Saving as Redis' Key/Values
+```
+import com.redislabs.provider.redis._
+val kvRDD = ...
+sc.toRedisKV(kvRDD, ("127.0.0.1", 7000))
+```
+kvRDD is a RDD holds k/v pairs, we will store all the k/v pairs of kvRDD to the redis-server
+
+Saving as Redis' Hash
+```
+import com.redislabs.provider.redis._
+val hashRDD = ...
+sc.toRedisHASH(hashRDD, hashName, ("127.0.0.1", 7000))
+```
+hashRDD is a RDD holds k/v pairs, we will store all the k/v pairs of hashRDD to a dict named hashName to the redis-server
+
+Saving as Redis' ZSet
+```
+import com.redislabs.provider.redis._
+val zsetRDD = ...
+sc.toRedisZSET(zsetRDD, zsetName, ("127.0.0.1", 7000))
+```
+zsetRDD is a RDD holds k/v pairs, we will store all the k/v pairs of zsetRDD to a zset named zsetName to the redis-server
+
+Saving as Redis' List
+```
+import com.redislabs.provider.redis._
+val listRDD = ...
+sc.toRedisLIST(listRDD, listName, ("127.0.0.1", 7000))
+```
+listRDD is a RDD holds strings, we will store all the strings of listRDD to a list named listName to the redis-server
+
+Saving as Redis' Set
+```
+import com.redislabs.provider.redis._
+val setRDD = ...
+sc.toRedisSET(setRDD, setName, ("127.0.0.1", 7000))
+```
+setRDD is a RDD holds strings, we will store all the unique strings of setRDD to a set named setName to the redis-server
