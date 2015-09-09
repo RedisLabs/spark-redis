@@ -1,38 +1,30 @@
 # Spark-Redis
+A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/), for Spark SQL and DataFrames.
 
-Spark-Redis is a connector for reading/writing from Redis cluster or non-cluster directly via Spark.
-It supports all the types of Redis structures: Plain Key/Value, Hash, ZSet, Set, List.
-In Spark, the data from Redis is represented as an RDD with the tolerance of reshard and down of nodes.
+Spark-Redis provides access to all of Redis' data structures - String, Hash, List, Set and Sorted Set - from Spark as RDDs. The library can be used both with Redis stand-alone as well as clustered databases. When used with Redis cluster, Spark-Redis is aware of its partitioning scheme and adjusts in response to resharding and node failure events.
 
-Integrating Redis and Spark gives us a system that combines the best of both worlds.
+## Minimal requirements
+You'll need the the following to use Spark-Redis:
 
-## Requirements
+ - Apache Spark v1.4.0
+ - Scala v2.10.4
+ - Jedis v2.7
+ - Redis v2.8.12 or v3.0.3
 
-This library requires Apache Spark 1.4+, Scala 2.10.4+, Jedis 2.7+, Redis 2.8+
+## Known limitations
 
-## Current Limitations
-* No Java or Python API bindings
-* Only tested with the following configurations:
-    - Redis 2.8+
-    - Scala 2.10
-    - Spark 1.4.0
-    - Jedis 2.7
+* Java, Python and R API bindings are not provided at this time 
+* The package was only tested with the following stack:
+ - Apache Spark v1.4.0
+ - Scala v2.10.4
+ - Jedis v2.7 and v2.8 pre-release (see [below](#jedis-and-read-only-redis-cluster-slave-nodes) for details)
+ - Redis v2.8.12 and v3.0.3
 
-## Enable Slaves For Reading
-As jedis-2.7 doesn't support `readonly` command. We must wait for the release of jedis-2.8.
-The pre-build jedis-2.8.0 is included in `with-slaves` branch. We can enable slaves for reading by
+## Additional considerations
+This library is work in progress so the API may change before the official release.
 
-`git checkout with-slaves`
-
-after the `git clone` in **Using the library** field
-
-## Warnings
-* The APIs will probably change several times before an official release
-
-## Using the library
-There are two ways of using Spark-Redis library:
-
-You can use it as a maven dependency:
+## Getting the library
+You can use the Spark-Redis library by adding it as a maven dependency to your `pom.xml` file:
 ```
 <repositories>
     <repository>
@@ -50,13 +42,23 @@ You can use it as a maven dependency:
 </dependencies>
 ```
 
-There also exists the possibility of downloading the project by doing:
+Alternatively, you can simply download the library's source and build it:
 ```
 git clone https://github.com/RedisLabs/spark-redis.git
+cd spark-redis
 mvn clean install
 ```
-In order to add the Spark-Redis jar file to Spark, you can use the --jars command line option.
-For example, to include it when starting the spark-shell:
+
+### Jedis and read-only Redis cluster slave nodes
+Jedis' current version - v2.7 - does not support reading from Redis cluster's slave nodes. This functionality will only be included in its upcoming version, v2.8.
+
+To use Spark-Redis with Redis cluster's slave nodes, the library's source includes a pre-release of Jedis v2.8 under the `with-slaves` branch. Switch to that branch by entering the following before running `mvn clean install`:
+```
+git checkout with-slaves
+```
+
+## Using the library
+Add Spark-Redis to Spark with the `--jars` command line option. For example, use it from spark-shell, include it in the following manner:
 
 ```
 $ bin/spark-shell --jars <path-to>/spark-redis-<version>.jar,<path-to>/jedis-<version>.jar
@@ -69,103 +71,104 @@ Welcome to
       /_/
 
 Using Scala version 2.10.4 (OpenJDK 64-Bit Server VM, Java 1.7.0_79)
-Type in expressions to have them evaluated.
-Type :help for more information.
 ...
 ```
-To read data from Redis Server, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
 
-In the example we can see how to read from Redis Server.
+The following sections contain code snippets that demonstrate the use of Spark-Redis. To use the sample code, you'll need to replace `your.redis.server` and `6379` with your Redis database's IP address or hostname and port, respectively.
+
+### The keys RDD
+Since data access in Redis is based on keys, to use Spark-Redis you'll first need a keys RDD.  The following example shows how to read key names from Redis into an RDD:
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
-#keyPattern should be a plain string or a RedisRegex.
-#keysRDD is a RDD holds all the keys of keyPattern of the redis server.
-#keysRDD is divided into 5(default 3) partitions by hash slots.
+val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379, "foo*", 5)
 ```
 
-Using Redis' Key/Values
+The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`). Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
+
+
+### Reading data
+
+Each of Redis' data types can be read to an RDD. The following snippet demonstrates reading Redis Strings.
+
+#### Strings
+
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
-val kvRDD = keysRDD.getKV
-#kvRDD is a RDD holds all the k/v pairs whose k's pattern is keyPattern, and k must be of 'string' type in redis-server.
+val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379), "keyPattern", 5)
+
+val stringRDD = keysRDD.getKV
 ```
 
-Using Redis' Hash
+Once run, `stringRDD` will contain the string values of all keys whose names are in provided in `keysRDD`. To read other data types, replace the last line in the example above with one of the following lines according to the actual type that's used.
+
+#### Hashes
 ```
-import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
 val hashRDD = keysRDD.getHash
-#hashRDD is a RDD holds all the dicts' contents, and the dicts' names must be of keyPattern and exists in the redis-server.
 ```
 
-Using Redis' ZSet
-```
-import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
-val zsetRDD = keysRDD.getZSet
-#zsetRDD is a RDD holds all the zsets' contents(key, score), and the zsets' names must be of keyPattern and exists in the redis-server.
-```
+This will populate `hashRDD` with the fields and values of the Redis Hashes given by `keysRDD`.
 
-Using Redis' List
+#### Lists
 ```
-import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
 val listRDD = keysRDD.getList
-#listRDD is a RDD holds all the lists' contents, and the lists' names must be of keyPattern and exists in the redis-server.
 ```
+The contents (members) of the Redis Lists in `keysRDD` will be stored in `listRDD`
 
-Using Redis' Set
+#### Sets
 ```
-import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("127.0.0.1", 7000), "keyPattern", 5)
 val setRDD = keysRDD.getSet
-#setRDD is a RDD holds all the sets' contents, score), and the sets' names must be of keyPattern and exists in the redis-server.
 ```
 
-*****
+The Redis Sets' members will be written to `setRDD`.
 
-To write data to Redis Server, you can use the library by loading the implicits from `com.redislabs.provider.redis._` .
-
-In the example we can see how to write to Redis Server.
-
-Saving as Redis' Key/Values
+#### Sorted Sets
 ```
-import com.redislabs.provider.redis._
-val kvRDD = ...
-sc.toRedisKV(kvRDD, ("127.0.0.1", 7000))
-#kvRDD is a RDD holds k/v pairs, we will store all the k/v pairs of kvRDD to the redis-server
+val zsetRDD = keysRDD.getZSet
 ```
 
-Saving as Redis' Hash
+Using `getZSet` will store in `zsetRDD`, an RDD that consists of members and their scores, from the Redis Sorted Sets in `keysRDD`.
+
+### Writing data
+To write data from Spark to Redis, you'll need to prepare the appropriate RDD depending on the data type you want to use for storing the data in it.
+
+#### Strings
+For String values, your RDD should consist of the key-value pairs that are to be written. Assuming that the strings RDD is called `stringRDD`, use the following snippet for writing it to Redis:
+
 ```
-import com.redislabs.provider.redis._
-val hashRDD = ...
-sc.toRedisHASH(hashRDD, hashName, ("127.0.0.1", 7000))
-#hashRDD is a RDD holds k/v pairs, we will store all the k/v pairs of hashRDD to a dict named hashName to the redis-server
+...
+sc.toRedisKV(kvRDD, ("your.redis.server", 6379))
 ```
 
-Saving as Redis' ZSet
+#### Hashes
+To store a Redis Hash, the RDD should consist of its field-value pairs. If the RDD is called `hashRDD`, the following should be used for storing it in the key name specified by `hashName`:
+
 ```
-import com.redislabs.provider.redis._
-val zsetRDD = ...
-sc.toRedisZSET(zsetRDD, zsetName, ("127.0.0.1", 7000))
-#zsetRDD is a RDD holds k/v pairs, we will store all the k/v pairs of zsetRDD to a zset named zsetName to the redis-server
+...
+sc.toRedisHASH(hashRDD, hashName, ("your.redis.server", 6379))
 ```
 
-Saving as Redis' List
+#### Lists
+Use the following to store an RDD in a Redis List:
+
 ```
-import com.redislabs.provider.redis._
-val listRDD = ...
-sc.toRedisLIST(listRDD, listName, ("127.0.0.1", 7000))
-#listRDD is a RDD holds strings, we will store all the strings of listRDD to a list named listName to the redis-server
+sc.toRedisLIST(listRDD, listName, ("your.redis.server", 6379))
 ```
 
-Saving as Redis' Set
+The `listRDD` is an RDD that contains all of the list's string elements in order, and `listName` is the list's key name.
+
+
+#### Sets
+For storing data in a Redis Set, use `toRedisSET` as follows:
+
 ```
-import com.redislabs.provider.redis._
-val setRDD = ...
-sc.toRedisSET(setRDD, setName, ("127.0.0.1", 7000))
-#setRDD is a RDD holds strings, we will store all the unique strings of setRDD to a set named setName to the redis-server
+sc.toRedisSET(setRDD, setName, ("your.redis.server", 6379))
 ```
+
+Where `setRDD` is an RDD with the set's string elements and `setName` is the name of the key for that set.
+
+#### Sorted Sets
+```
+sc.toRedisZSET(zsetRDD, zsetName, ("your.redis.server", 6379))
+```
+
+The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
