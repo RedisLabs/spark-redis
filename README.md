@@ -151,6 +151,7 @@ sc.toRedisHASH(hashRDD, hashName, ("your.redis.server", 6379))
 Use the following to store an RDD in a Redis List:
 
 ```
+...
 sc.toRedisLIST(listRDD, listName, ("your.redis.server", 6379))
 ```
 
@@ -161,6 +162,7 @@ The `listRDD` is an RDD that contains all of the list's string elements in order
 For storing data in a Redis Set, use `toRedisSET` as follows:
 
 ```
+...
 sc.toRedisSET(setRDD, setName, ("your.redis.server", 6379))
 ```
 
@@ -168,6 +170,7 @@ Where `setRDD` is an RDD with the set's string elements and `setName` is the nam
 
 #### Sorted Sets
 ```
+...
 sc.toRedisZSET(zsetRDD, zsetName, ("your.redis.server", 6379))
 ```
 
