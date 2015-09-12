@@ -176,6 +176,22 @@ sc.toRedisZSET(zsetRDD, zsetName, ("your.redis.server", 6379))
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
 
+## Contributing
+
+You're encouraged to contribute to the open source Spark-Redis project. There are two ways you can do so.
+
+### Issues
+
+If you encounter an issue while using the Spark-Redis library, please report it at the project's [issues tracker](https://github.com/RedisLabs/spark-redis/issues).
+
+### Pull request
+
+Code contributions to the Spark-Redis project can be made using [pull requests](https://github.com/RedisLabs/spark-redis/pulls). To submit a pull request:
+
+ 1. Fork this project.
+ 2. Make and commit your changes.
+ 3. Submit your changes as a pull request.
+
 ## License
 
 Spark-Redis is provided under the [3-Clause BSD License](http://opensource.org/licenses/BSD-3-Clause).
