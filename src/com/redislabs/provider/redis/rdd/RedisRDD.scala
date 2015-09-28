@@ -13,6 +13,13 @@ import com.redislabs.provider.redis.partitioner._
 import com.redislabs.provider.RedisConfig
 import com.redislabs.provider.redis._
 
+import com.cloudera.sparkts._
+import com.cloudera.sparkts.DateTimeIndex._
+
+import com.github.nscala_time.time.Imports._
+
+
+
 class RedisKVRDD(prev: RDD[String],
                  val rddType: String)
     extends RDD[(String, String)](prev) with Keys {
@@ -106,6 +113,74 @@ class RedisListRDD(prev: RDD[String],
   }
 }
 
+class RedisTimeSeriesRDD(prev: RDD[String],
+                         index: DateTimeIndex,
+                         startTime: DateTime = null,
+                         endTime: DateTime = null)
+    extends RDD[(String, Vector[Double])](prev) with Keys {
+
+  override def getPartitions: Array[Partition] = prev.partitions
+
+  override def compute(split: Partition, context: TaskContext): Iterator[(String, Vector[Double])] = {
+    val partition: RedisPartition = split.asInstanceOf[RedisPartition]
+    val sPos = partition.slots._1
+    val ePos = partition.slots._2
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
+    val keys = firstParent[String].iterator(split, context)
+    filterKeys(nodes, keys)
+  }
+
+  private def filterKeysByStartTime(jedis: Jedis, keys:Array[String], startTime: DateTime): Array[String] = {
+    if (startTime == null)
+      return keys
+    val st = startTime.getMillis
+    val pipeline = jedis.pipelined
+    keys.foreach(x => pipeline.zrangeWithScores(x, 0, 0))
+    val dts = pipeline.syncAndReturnAll.flatMap{ x => 
+      (x.asInstanceOf[java.util.Set[Tuple]]).map(tup => tup.getScore.toInt)
+    } 
+    (keys).zip(dts).filter(x => (x._2 <= st)).map(x => x._1)
+  }
+  
+  private def filterKeysByEndTime(jedis: Jedis, keys:Array[String], endTime: DateTime): Array[String] = {
+    if (startTime == null)
+      return keys
+    val st = startTime.getMillis
+    val pipeline = jedis.pipelined
+    keys.foreach(x => pipeline.zrangeWithScores(x, -1, -1))
+    val dts = pipeline.syncAndReturnAll.flatMap{ x => 
+      (x.asInstanceOf[java.util.Set[Tuple]]).map(tup => tup.getScore.toInt)
+    } 
+    (keys).zip(dts).filter(x => (x._2 >= st)).map(x => x._1)
+  }
+  
+  def filterKeys(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, Vector[Double])] = {
+    val miArr = index.toMillisArray
+    groupKeysByNode(nodes, keys).flatMap {
+      x =>
+        {
+          val jedis = new Jedis(x._1._1, x._1._2)
+          val zsetKeys = filterKeysByType(jedis, x._2, "zset")
+          val startTimeKeys = if (startTime == null) zsetKeys else filterKeysByStartTime(jedis, zsetKeys, startTime)
+          val endTimeKeys = if (endTime == null) startTimeKeys else filterKeysByEndTime(jedis, startTimeKeys, endTime)
+          endTimeKeys.map{
+                  x => {
+                    val zsetmap = jedis.zrangeWithScores(x, 0, -1).map(x => (x.getScore.toInt, x.getElement.toDouble)).toMap
+                    (x, miArr.map(x => (if (zsetmap.contains(x)) zsetmap.get(x) else Double.NaN)).toVector)
+                  }
+              }
+        }
+    }.iterator
+  }
+  def filterStartingBefore(dt: DateTime): RedisTimeSeriesRDD = {
+    new RedisTimeSeriesRDD(prev, index, dt, endTime)
+  }
+  def filterEndingAfter(dt: DateTime): RedisTimeSeriesRDD = {
+    new RedisTimeSeriesRDD(prev, index, startTime, dt)
+  }
+}
+
+
 class RedisKeysRDD(sc: SparkContext,
                    val redisNode: (String, Int),
                    val keyPattern: String = "*",
@@ -142,6 +217,9 @@ class RedisKeysRDD(sc: SparkContext,
   }
   def getZSet(): RDD[(String, String)] = {
     new RedisKVRDD(this, "zset")
+  }
+  def getRedisTimeSeriesRDD(index: DateTimeIndex) = {
+    new RedisTimeSeriesRDD(this, index)
   }
 }
 
