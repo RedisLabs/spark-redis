@@ -83,6 +83,21 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setList(host, listName, partition))
   }
+  /**
+   * @param vs RDD of values
+   * @param listName target list's name which hold all the vs
+   * @param initialHost any addr and port of a cluster or a single server
+   * @param listSize target list's size
+   * save all the vs to listName(list type) in redis-server
+   */
+  def toRedisFixedLIST(vs: RDD[String],
+                  listName: String,
+                  initialHost: (String, Int),
+                  listSize: Int = 0) = {
+    val host = getHost(listName, initialHost)
+    vs.foreachPartition(partition => setFixedList(host, listName, listSize, partition))
+  }
+
 }
 
 object NodesInfo {
@@ -283,6 +298,23 @@ object SaveToRedis {
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
   }
+  /**
+   * @param host addr and port of a target host
+   * @param listName
+   * @param listSize
+   * @param arr values which should be saved in the target host
+   * save all the values to listName(list type) to the target host
+   */
+  def setFixedList(host: (String, Int), listName: String, listSize: Int, arr: Iterator[String]) = {
+    val jedis = new Jedis(host._1, host._2)
+    val pipeline = jedis.pipelined
+    arr.foreach(pipeline.lpush(listName, _))
+    if (listSize > 0) {
+      pipeline.ltrim(listName, 0, listSize - 1)
+    }
+    pipeline.sync
+  }
+
 }
 
 trait RedisFunctions {

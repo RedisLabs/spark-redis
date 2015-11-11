@@ -155,7 +155,15 @@ Use the following to store an RDD in a Redis List:
 sc.toRedisLIST(listRDD, listName, ("your.redis.server", 6379))
 ```
 
+Use the following to store an RDD in a fixed-size Redis List:
+
+```
+...
+sc.toRedisFixedLIST(listRDD, listName, ("your.redis.server", 6379), listSize)
+```
+
 The `listRDD` is an RDD that contains all of the list's string elements in order, and `listName` is the list's key name.
+`listSize` is an integer which specifies the size of the redis list; it is optional, and will default to an unlimited size.
 
 
 #### Sets
