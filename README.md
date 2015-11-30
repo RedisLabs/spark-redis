@@ -136,7 +136,7 @@ For String values, your RDD should consist of the key-value pairs that are to be
 
 ```
 ...
-sc.toRedisKV(kvRDD, ("your.redis.server", 6379))
+sc.toRedisKV(stringRDD, ("your.redis.server", 6379))
 ```
 
 #### Hashes
