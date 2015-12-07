@@ -80,7 +80,7 @@ The following sections contain code snippets that demonstrate the use of Spark-R
 Since data access in Redis is based on keys, to use Spark-Redis you'll first need a keys RDD.  The following example shows how to read key names from Redis into an RDD:
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379, "foo*", 5)
+val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379), "foo*", 5)
 ```
 
 The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`). Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
