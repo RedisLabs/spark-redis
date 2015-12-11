@@ -222,7 +222,7 @@ trait Keys {
       val slot = JedisClusterCRC16.getSlot(key)
       nodes.filter(node => { node._5 <= slot && node._6 >= slot }).filter(_._3 == 0)(0) // master only
     }
-    keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2)))
+    keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2))).toArray
   }
 
   /**
