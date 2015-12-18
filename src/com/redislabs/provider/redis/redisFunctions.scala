@@ -30,10 +30,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def toRedisKV(kvs: RDD[(String, String)],
                 initialHost: (String, Int)) = {
-    val hosts = getHosts(initialHost)
-    kvs.map(kv => (findHost(hosts, kv._1), kv)).groupByKey.foreach(
-        x => setKVs((x._1._1, x._1._2), x._2)
-    )
+    kvs.foreachPartition(partition => setKVs(initialHost:(String, Int), partition))
   }
   /**
    * @param kvs Pair RDD of K/V
@@ -244,11 +241,16 @@ object SaveToRedis {
    * @param arr k/vs which should be saved in the target host
    * save all the k/vs to the target host
    */
-  def setKVs(host: (String, Int), arr: Iterable[(String, String)]) = {
-    val jedis = new Jedis(host._1, host._2)
-    val pipeline = jedis.pipelined
-    arr.foreach(x => pipeline.set(x._1, x._2))
-    pipeline.sync
+  def setKVs(initialHost: (String, Int), arr: Iterator[(String, String)]) = {
+    val hosts = getHosts(initialHost)
+    arr.map(kv => (findHost(hosts, kv._1), kv)).toArray.groupBy(_._1).mapValues(a => a.map(p => p._2)).foreach{
+      x => {
+        val jedis = new Jedis(x._1._1, x._1._2)
+        val pipeline = jedis.pipelined
+        x._2.foreach(x => pipeline.set(x._1, x._2))
+        pipeline.sync
+      }
+    }
   }
   /**
    * @param host addr and port of a target host
