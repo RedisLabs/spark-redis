@@ -1,7 +1,5 @@
 package com.redislabs.provider.redis.partitioner
 
-import java.net.InetAddress
-import java.util
 import org.apache.spark.Partition
 import com.redislabs.provider._
 

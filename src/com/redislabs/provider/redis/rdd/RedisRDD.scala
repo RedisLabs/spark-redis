@@ -1,6 +1,5 @@
 package com.redislabs.provider.redis.rdd
 
-import java.net.InetAddress
 import java.util
 
 import org.apache.spark.rdd.RDD
@@ -11,7 +10,6 @@ import redis.clients.util.JedisClusterCRC16
 import scala.collection.JavaConversions._
 import com.redislabs.provider.redis.partitioner._
 import com.redislabs.provider.RedisConfig
-import com.redislabs.provider.redis._
 
 class RedisKVRDD(prev: RDD[String],
                  val rddType: String)
@@ -40,7 +38,9 @@ class RedisKVRDD(prev: RDD[String],
           val stringKeys = filterKeysByType(jedis, x._2, "string")
           val pipeline = jedis.pipelined
           stringKeys.foreach(pipeline.get)
-          stringKeys.zip(pipeline.syncAndReturnAll).iterator.asInstanceOf[Iterator[(String, String)]]
+          val res = stringKeys.zip(pipeline.syncAndReturnAll).iterator.asInstanceOf[Iterator[(String, String)]]
+          jedis.close
+          res
         }
     }.iterator
   }
@@ -50,7 +50,9 @@ class RedisKVRDD(prev: RDD[String],
         {
           val jedis = new Jedis(x._1._1, x._1._2)
           val hashKeys = filterKeysByType(jedis, x._2, "hash")
-          hashKeys.flatMap(jedis.hgetAll).iterator
+          val res = hashKeys.flatMap(jedis.hgetAll).iterator
+          jedis.close
+          res
         }
     }.iterator
   }
@@ -60,7 +62,9 @@ class RedisKVRDD(prev: RDD[String],
         {
           val jedis = new Jedis(x._1._1, x._1._2)
           val zsetKeys = filterKeysByType(jedis, x._2, "zset")
-          zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator
+          val res = zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator
+          jedis.close
+          res
         }
     }.iterator
   }
@@ -90,7 +94,9 @@ class RedisListRDD(prev: RDD[String],
         {
           val jedis = new Jedis(x._1._1, x._1._2)
           val setKeys = filterKeysByType(jedis, x._2, "set")
-          setKeys.flatMap(jedis.smembers).iterator
+          val res = setKeys.flatMap(jedis.smembers).iterator
+          jedis.close
+          res
         }
     }.iterator
   }
@@ -100,7 +106,9 @@ class RedisListRDD(prev: RDD[String],
         {
           val jedis = new Jedis(x._1._1, x._1._2)
           val listKeys = filterKeysByType(jedis, x._2, "list")
-          listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
+          val res = listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
+          jedis.close
+          res
         }
     }.iterator
   }
@@ -199,10 +207,12 @@ trait Keys {
       nodes.foreach(node => {
         val jedis = new Jedis(node._1, node._2)
         val params = new ScanParams().`match`(keyPattern)
-        keys.addAll(scanKeys(jedis, params).filter(key => {
+        val res = keys.addAll(scanKeys(jedis, params).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         }))
+        jedis.close
+        res
       })
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)

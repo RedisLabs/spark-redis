@@ -104,7 +104,10 @@ object NodesInfo {
    * @return true if the target server is in cluster mode
    */
   private def clusterEnable(initialHost: (String, Int)) : Boolean = {
-    new Jedis(initialHost._1, initialHost._2).info("cluster").contains("1")
+    val jedis = new Jedis(initialHost._1, initialHost._2)
+    val res = jedis.info("cluster").contains("1")
+    jedis.close
+    res
   }
 
   /**
@@ -146,8 +149,8 @@ object NodesInfo {
    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
    */
   private def getClusterSlots(initialHost: (String, Int)) = {
-    val j = new Jedis(initialHost._1, initialHost._2)
-    j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
+    val jedis = new Jedis(initialHost._1, initialHost._2)
+    val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
         {
           val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
@@ -164,6 +167,8 @@ object NodesInfo {
           })
         }
     }.toArray
+    jedis.close()
+    res
   }
   /**
    * @param initialHost any addr and port of a cluster or a single server
@@ -183,13 +188,16 @@ object NodesInfo {
    */
   private def getNonClusterNodes(initialHost: (String, Int)) = {
     var master = initialHost
-    var replinfo = new Jedis(initialHost._1, initialHost._2).info("Replication").split("\n")
+    val jedis = new Jedis(initialHost._1, initialHost._2)
+    var replinfo = jedis.info("Replication").split("\n")
+    jedis.close
     if (replinfo.filter(_.contains("role:slave")).length != 0){
       val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
       val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
       master = (host, port)
-      val j = new Jedis(host, port)
-      replinfo = j.info("Replication").split("\n")
+      val jedis = new Jedis(host, port)
+      replinfo = jedis.info("Replication").split("\n")
+      jedis.close
     }
     val slaves = replinfo.filter(x => (x.contains("slave") && x.contains("online"))).map(rl => {
       val content = rl.substring(rl.indexOf(':') + 1).split(",")
@@ -206,8 +214,8 @@ object NodesInfo {
    * @return list of nodes(addr, port, index, range)
    */
   private def getClusterNodes(initialHost: (String, Int)) = {
-    val j = new Jedis(initialHost._1, initialHost._2)
-    j.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
+    val jedis = new Jedis(initialHost._1, initialHost._2)
+    val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
         {
           val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]].drop(2)
@@ -221,6 +229,8 @@ object NodesInfo {
           })
         }
     }.distinct.toArray
+    jedis.close()
+    res
   }
 
   /**
