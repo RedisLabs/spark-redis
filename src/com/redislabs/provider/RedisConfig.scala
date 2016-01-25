@@ -3,10 +3,10 @@ package com.redislabs.provider
 
 import com.redislabs.provider.redis.NodesInfo._
 
-class RedisConfig(ip: String, port: Int, password: String = null) extends Serializable {
-  val nodes: java.util.ArrayList[(String, Int, String)] = new java.util.ArrayList[(String, Int, String)]
+class RedisConfig(ip: String, port: Int) extends Serializable {
+  val nodes: java.util.ArrayList[(String, Int)] = new java.util.ArrayList[(String, Int)]
 
-  getNodes((ip, port, password)).foreach(x => nodes.add((x._1, x._2, x._5)))
+  getNodes((ip, port)).foreach(x => nodes.add((x._1, x._2)))
 
   /**
    *
@@ -22,6 +22,6 @@ class RedisConfig(ip: String, port: Int, password: String = null) extends Serial
         return ePos2 >= sPos1
     }
     val node = nodes.get(scala.util.Random.nextInt().abs % nodes.size())
-    getSlots((node._1, node._2, node._3)).filter(node => inter(sPos, ePos, node._5, node._6)).filter(_._3 == 0) //master only now
+    getSlots((node._1, node._2)).filter(node => inter(sPos, ePos, node._5, node._6)).filter(_._3 == 0) //master only now
   }
 }
