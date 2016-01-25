@@ -30,7 +30,7 @@ class RedisKVRDD(prev: RDD[String],
     }
   }
 
-  def getKV(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, String)] = {
+  def getKV(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -44,7 +44,7 @@ class RedisKVRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getHASH(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, String)] = {
+  def getHASH(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -56,7 +56,7 @@ class RedisKVRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getZSET(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[(String, String)] = {
+  def getZSET(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -88,7 +88,7 @@ class RedisListRDD(prev: RDD[String],
     }
   }
 
-  def getSET(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[String] = {
+  def getSET(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -100,7 +100,7 @@ class RedisListRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getLIST(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]): Iterator[String] = {
+  def getLIST(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
@@ -201,7 +201,7 @@ trait Keys {
    * @param keyPattern
    * return keys whose slot is in [sPos, ePos]
    */
-  def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int)], sPos: Int, ePos: Int, keyPattern: String) = {
+  def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int, String)], sPos: Int, ePos: Int, keyPattern: String) = {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
@@ -227,7 +227,7 @@ trait Keys {
    * @param keys list of keys
    * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
    */
-  def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]) = {
+  def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int, String)], keys: Iterator[String]) = {
     def getNode(key: String) = {
       val slot = JedisClusterCRC16.getSlot(key)
       nodes.filter(node => { node._5 <= slot && node._6 >= slot }).filter(_._3 == 0)(0) // master only

@@ -26,29 +26,42 @@ class RedisContext(val sc: SparkContext) extends Serializable {
   /**
    * @param kvs Pair RDD of K/V
    * @param initialHost any addr and port of a cluster or a single server
-   * save all the kvs to redis-server
+   *                    save all the kvs to redis-server
    */
   def toRedisKV(kvs: RDD[(String, String)],
                 initialHost: (String, Int)) = {
-    kvs.foreachPartition(partition => setKVs(initialHost:(String, Int), partition))
+    kvs.foreachPartition(partition => setKVs(initialHost: (String, Int), partition))
   }
+
   /**
    * @param kvs Pair RDD of K/V
    * @param hashName target hash's name which hold all the kvs
    * @param initialHost any addr and port of a cluster or a single server
-   * save all the kvs to hashName(hash type) in redis-server
+   *                    save all the kvs to hashName(hash type) in redis-server
    */
   def toRedisHASH(kvs: RDD[(String, String)],
                   hashName: String,
                   initialHost: (String, Int)) = {
-    val host = getHost(hashName, initialHost)
+    toRedisHASH(kvs, hashName, (initialHost._1, initialHost._2, null))
+  }
+  /**
+   * @param kvs Pair RDD of K/V
+   * @param hashName target hash's name which hold all the kvs
+   * @param host_port_password any addr and port and password of a cluster or a single server
+   *                    save all the kvs to hashName(hash type) in redis-server
+   */
+  def toRedisHASH(kvs: RDD[(String, String)],
+                  hashName: String,
+                  host_port_password: (String, Int, String)) = {
+    val host = getHost(hashName, host_port_password)
     kvs.foreachPartition(partition => setHash(host, hashName, partition))
   }
+
   /**
    * @param kvs Pair RDD of K/V
    * @param zsetName target zset's name which hold all the kvs
    * @param initialHost any addr and port of a cluster or a single server
-   * save all the kvs to zsetName(zset type) in redis-server
+   *                    save all the kvs to zsetName(zset type) in redis-server
    */
   def toRedisZSET(kvs: RDD[(String, String)],
                   zsetName: String,
@@ -56,11 +69,12 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     val host = getHost(zsetName, initialHost)
     kvs.foreachPartition(partition => setZset(host, zsetName, partition))
   }
+
   /**
    * @param vs RDD of values
    * @param setName target set's name which hold all the vs
    * @param initialHost any addr and port of a cluster or a single server
-   * save all the vs to setName(set type) in redis-server
+   *                    save all the vs to setName(set type) in redis-server
    */
   def toRedisSET(vs: RDD[String],
                  setName: String,
@@ -68,11 +82,12 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     val host = getHost(setName, initialHost)
     vs.foreachPartition(partition => setSet(host, setName, partition))
   }
+
   /**
    * @param vs RDD of values
    * @param listName target list's name which hold all the vs
    * @param initialHost any addr and port of a cluster or a single server
-   * save all the vs to listName(list type) in redis-server
+   *                    save all the vs to listName(list type) in redis-server
    */
   def toRedisLIST(vs: RDD[String],
                   listName: String,
@@ -80,18 +95,32 @@ class RedisContext(val sc: SparkContext) extends Serializable {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setList(host, listName, partition))
   }
+
   /**
    * @param vs RDD of values
    * @param listName target list's name which hold all the vs
    * @param initialHost any addr and port of a cluster or a single server
    * @param listSize target list's size
-   * save all the vs to listName(list type) in redis-server
+   *                 save all the vs to listName(list type) in redis-server
    */
   def toRedisFixedLIST(vs: RDD[String],
-                  listName: String,
-                  initialHost: (String, Int),
-                  listSize: Int = 0) = {
-    val host = getHost(listName, initialHost)
+                       listName: String,
+                       initialHost: (String, Int),
+                       listSize: Int = 0) = {
+    toRedisFixedLIST(vs, listName, (initialHost._1, initialHost._2, null), listSize)
+  }
+  /**
+   * @param vs RDD of values
+   * @param listName target list's name which hold all the vs
+   * @param host_port_password any addr and port and password of a cluster or a single server
+   * @param listSize target list's size
+   *                 save all the vs to listName(list type) in redis-server
+   */
+  def toRedisFixedLIST(vs: RDD[String],
+                       listName: String,
+                       host_port_password: (String, Int, String),
+                       listSize: Int = 0) = {
+    val host = getHost(listName, host_port_password)
     vs.foreachPartition(partition => setFixedList(host, listName, listSize, partition))
   }
 
@@ -100,11 +129,11 @@ class RedisContext(val sc: SparkContext) extends Serializable {
 object NodesInfo {
 
   /**
-   * @param initialHost any addr and port of a cluster or a single server
+   * @param host_port_password any addr and port and password of a cluster or a single server
    * @return true if the target server is in cluster mode
    */
-  private def clusterEnable(initialHost: (String, Int)) : Boolean = {
-    val jedis = new Jedis(initialHost._1, initialHost._2)
+  private def clusterEnable(host_port_password: (String, Int, String)): Boolean = {
+    val jedis = new JedisFactory(host_port_password).create
     val res = jedis.info("cluster").contains("1")
     jedis.close
     res
@@ -115,87 +144,93 @@ object NodesInfo {
    * @param key
    * @return host whose slots should involve key
    */
-  def findHost(hosts: Array[(String, Int, Int, Int)], key: String) = {
-      val slot = JedisClusterCRC16.getSlot(key)
-      hosts.filter(host => {host._3 <= slot && host._4 >= slot})(0)
-  }
-  /**
-   * @param key
-   * @param initialHost any addr and port of a cluster or a single server
-   * @return host whose slots should involve key
-   */
-  def getHost(key: String, initialHost: (String, Int)) = {
-    val slot = JedisClusterCRC16.getSlot(key);
-    val hosts = getSlots(initialHost).filter(x => (x._3 == 0 && x._5 <= slot && x._6 >= slot)).map(x => (x._1, x._2))
-    hosts(0)
-  }
-  /**
-   * @param initialHost any addr and port of a cluster or a single server
-   * @return list of hosts(addr, port, startSlot, endSlot)
-   */
-  def getHosts(initialHost: (String, Int)) = {
-    getSlots(initialHost).filter(_._3 == 0).map(x => (x._1, x._2, x._5, x._6))
+  def findHost(hosts: Array[(String, Int, Int, Int, String)], key: String) = {
+    val slot = JedisClusterCRC16.getSlot(key)
+    hosts.filter(host => {
+      host._3 <= slot && host._4 >= slot
+    })(0)
   }
 
   /**
-   * @param initialHost any addr and port of a single server
-   * @return list of nodes(addr, port, index, range, startSlot, endSlot)
+   * @param key
+   * @param host_port_password any addr and port and password of a cluster or a single server
+   * @return host whose slots should involve key
    */
-  private def getNonClusterSlots(initialHost: (String, Int)) = {
-    getNonClusterNodes(initialHost).map(x=> (x._1, x._2, x._3, x._4, 0, 16383)).toArray
+  def getHost(key: String, host_port_password: (String, Int, String)) = {
+    val slot = JedisClusterCRC16.getSlot(key);
+    val hosts = getSlots(host_port_password).filter(x => x._3 == 0 && x._5 <= slot && x._6 >= slot).map(x => (x._1, x._2))
+    hosts(0)
   }
+
   /**
-   * @param initialHost any addr and port of a cluster server
-   * @return list of nodes(addr, port, index, range, startSlot, endSlot)
+   * @param host_port_password any addr and port and password of a cluster or a single server
+   * @return list of hosts(addr, port, startSlot, endSlot, password)
    */
-  private def getClusterSlots(initialHost: (String, Int)) = {
-    val jedis = new Jedis(initialHost._1, initialHost._2)
+  def getHosts(host_port_password: (String, Int, String)) = {
+    getSlots(host_port_password).filter(_._3 == 0).map(x => (x._1, x._2, x._5, x._6, x._7))
+  }
+
+  /**
+   * @param host_port_password any addr and port and password of a single server
+   * @return list of nodes(addr, port, index, range, startSlot, endSlot, password)
+   */
+  private def getNonClusterSlots(host_port_password: (String, Int, String)) = {
+    getNonClusterNodes(host_port_password).map(x => (x._1, x._2, x._3, x._4, 0, 16383, x._5)).toArray
+  }
+
+  /**
+   * @param host_port_password any addr and port and password of a cluster server
+   * @return list of nodes(addr, port, index, range, startSlot, endSlot, password)
+   */
+  private def getClusterSlots(host_port_password: (String, Int, String)) = {
+    val jedis = new JedisFactory(host_port_password).create
     val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
-      slotInfoObj =>
-        {
-          val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
-          val sPos = slotInfo.get(0).toString.toInt
-          val ePos = slotInfo.get(1).toString.toInt
-          (0 until (slotInfo.size - 2)).map(i => {
-            val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
-            (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
-             node.get(1).toString.toInt,
-             i,
-             slotInfo.size - 2,
-             sPos,
-             ePos)
-          })
-        }
+      slotInfoObj => {
+        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
+        val sPos = slotInfo.get(0).toString.toInt
+        val ePos = slotInfo.get(1).toString.toInt
+        (0 until (slotInfo.size - 2)).map(i => {
+          val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
+          (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
+            node.get(1).toString.toInt,
+            i,
+            slotInfo.size - 2,
+            sPos,
+            ePos,
+            host_port_password._3)
+        })
+      }
     }.toArray
     jedis.close()
     res
   }
+
   /**
-   * @param initialHost any addr and port of a cluster or a single server
-   * @return list of nodes(addr, port, index, range, startSlot, endSlot)
+   * @param host_port_password any addr and port and password of a cluster or a single server
+   * @return list of nodes(addr, port, index, range, startSlot, endSlot, password)
    */
-  def getSlots(initialHost: (String, Int)) = {
-    if (clusterEnable(initialHost))
-      getClusterSlots(initialHost)
+  def getSlots(host_port_password: (String, Int, String)) = {
+    if (clusterEnable(host_port_password))
+      getClusterSlots(host_port_password)
     else
-      getNonClusterSlots(initialHost)
+      getNonClusterSlots(host_port_password)
   }
 
 
   /**
-   * @param initialHost any addr and port of a single server
+   * @param host_port_password any addr and port and password of a single server
    * @return list of nodes(addr, port, index, range)
    */
-  private def getNonClusterNodes(initialHost: (String, Int)) = {
-    var master = initialHost
-    val jedis = new Jedis(initialHost._1, initialHost._2)
+  private def getNonClusterNodes(host_port_password: (String, Int, String)) = {
+    var master = host_port_password
+    val jedis = new JedisFactory(host_port_password).create
     var replinfo = jedis.info("Replication").split("\n")
     jedis.close
-    if (replinfo.filter(_.contains("role:slave")).length != 0){
+    if (replinfo.filter(_.contains("role:slave")).length != 0) {
       val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
       val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
-      master = (host, port)
-      val jedis = new Jedis(host, port)
+      master = (host, port, host_port_password._3)
+      val jedis = new JedisFactory((host, port, host_port_password._3)).create()
       replinfo = jedis.info("Replication").split("\n")
       jedis.close
     }
@@ -203,45 +238,46 @@ object NodesInfo {
       val content = rl.substring(rl.indexOf(':') + 1).split(",")
       val ip = content(0)
       val port = content(1)
-      (ip.substring(ip.indexOf('=')+1).toString, port.substring(port.indexOf('=')+1).toInt)
+      (ip.substring(ip.indexOf('=') + 1).toString, port.substring(port.indexOf('=') + 1).toInt, host_port_password._3)
     })
     val nodes = master +: slaves
     val range = nodes.size
-    (0 until range).map(i => (nodes(i)._1, nodes(i)._2, i, range)).toArray
+    (0 until range).map(i => (nodes(i)._1, nodes(i)._2, i, range, nodes(i)._3)).toArray
   }
+
   /**
-   * @param initialHost any addr and port of a cluster server
+   * @param host_port_password any addr and port of a cluster server
    * @return list of nodes(addr, port, index, range)
    */
-  private def getClusterNodes(initialHost: (String, Int)) = {
-    val jedis = new Jedis(initialHost._1, initialHost._2)
+  private def getClusterNodes(host_port_password: (String, Int, String)) = {
+    val jedis = new JedisFactory(host_port_password).create
     val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
-      slotInfoObj =>
-        {
-          val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]].drop(2)
-          val range = slotInfo.size
-          (0 until range).map(i => {
-            var node = slotInfo(i).asInstanceOf[java.util.List[java.lang.Object]]
-            (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
-             node.get(1).toString.toInt,
-             i,
-             range)
-          })
-        }
+      slotInfoObj => {
+        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]].drop(2)
+        val range = slotInfo.size
+        (0 until range).map(i => {
+          val node = slotInfo(i).asInstanceOf[java.util.List[java.lang.Object]]
+          (SafeEncoder.encode(node.get(0).asInstanceOf[Array[Byte]]),
+            node.get(1).toString.toInt,
+            i,
+            range,
+            host_port_password._3)
+        })
+      }
     }.distinct.toArray
     jedis.close()
     res
   }
 
   /**
-   * @param initialHost any addr and port of a cluster or a single server
+   * @param host_port_password any addr and port and password of a cluster or a single server
    * @return list of nodes(addr, port, index, range)
    */
-  def getNodes(initialHost: (String, Int)) = {
-    if (clusterEnable(initialHost))
-      getClusterNodes(initialHost)
+  def getNodes(host_port_password: (String, Int, String)) = {
+    if (clusterEnable(host_port_password))
+      getClusterNodes(host_port_password)
     else
-      getNonClusterNodes(initialHost)
+      getNonClusterNodes(host_port_password)
   }
 }
 
@@ -249,76 +285,145 @@ object SaveToRedis {
   /**
    * @param host addr and port of a target host
    * @param arr k/vs which should be saved in the target host
-   * save all the k/vs to the target host
+   *            save all the k/vs to the target host
    */
-  def setKVs(initialHost: (String, Int), arr: Iterator[(String, String)]) = {
-    val hosts = getHosts(initialHost)
-    arr.map(kv => (findHost(hosts, kv._1), kv)).toArray.groupBy(_._1).mapValues(a => a.map(p => p._2)).foreach{
-      x => {
-        val jedis = new Jedis(x._1._1, x._1._2)
-        val pipeline = jedis.pipelined
-        x._2.foreach(x => pipeline.set(x._1, x._2))
-        pipeline.sync
-      }
-    }
+  def setKVs(host: (String, Int), arr: Iterator[(String, String)]) = {
+    setKVs((host._1, host._2, null), arr)
   }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param arr k/vs which should be saved in the target host
+   *            save all the k/vs to the target host
+   */
+  def setKVs(host_port_password: (String, Int, String), arr: Iterator[(String, String)]) = {
+    val hosts = getHosts(host_port_password)
+    arr.map(kv => (findHost(hosts, kv._1), kv))
+      .toArray
+      .groupBy(_._1)
+      .mapValues(a => a.map(p => p._2))
+      .foreach {
+        x => {
+          val jedis = new JedisFactory((x._1._1, x._1._2, x._1._5)).create
+          val pipeline = jedis.pipelined
+          x._2.foreach(x => pipeline.set(x._1, x._2))
+          pipeline.sync
+        }
+      }
+  }
+
   /**
    * @param host addr and port of a target host
    * @param hashName
    * @param arr k/vs which should be saved in the target host
-   * save all the k/vs to hashName(list type) to the target host
+   *            save all the k/vs to hashName(list type) to the target host
    */
   def setHash(host: (String, Int), hashName: String, arr: Iterator[(String, String)]) = {
-    val jedis = new Jedis(host._1, host._2)
+    setHash((host._1, host._2, null), hashName, arr)
+  }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param hashName
+   * @param arr k/vs which should be saved in the target host
+   *            save all the k/vs to hashName(list type) to the target host
+   */
+  def setHash(host_port_password: (String, Int, String), hashName: String, arr: Iterator[(String, String)]) = {
+    val jedis = new JedisFactory(host_port_password).create()
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
     pipeline.sync
   }
+
   /**
    * @param host addr and port of a target host
    * @param zsetName
    * @param arr k/vs which should be saved in the target host
-   * save all the k/vs to zsetName(zset type) to the target host
+   *            save all the k/vs to zsetName(zset type) to the target host
    */
   def setZset(host: (String, Int), zsetName: String, arr: Iterator[(String, String)]) = {
-    val jedis = new Jedis(host._1, host._2)
+    setZset((host._1, host._2, null), zsetName, arr)
+  }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param zsetName
+   * @param arr k/vs which should be saved in the target host
+   *            save all the k/vs to zsetName(zset type) to the target host
+   */
+  def setZset(host_port_password: (String, Int, String), zsetName: String, arr: Iterator[(String, String)]) = {
+    val jedis = new JedisFactory(host_port_password).create()
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
     pipeline.sync
   }
+
   /**
    * @param host addr and port of a target host
    * @param setName
    * @param arr values which should be saved in the target host
-   * save all the values to setName(set type) to the target host
+   *            save all the values to setName(set type) to the target host
    */
   def setSet(host: (String, Int), setName: String, arr: Iterator[String]) = {
-    val jedis = new Jedis(host._1, host._2)
+    setSet((host._1, host._2, null), setName, arr)
+  }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param setName
+   * @param arr values which should be saved in the target host
+   *            save all the values to setName(set type) to the target host
+   */
+  def setSet(host_port_password: (String, Int, String), setName: String, arr: Iterator[String]) = {
+    val jedis = new JedisFactory(host_port_password).create()
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.sadd(setName, _))
     pipeline.sync
   }
+
   /**
    * @param host addr and port of a target host
    * @param listName
    * @param arr values which should be saved in the target host
-   * save all the values to listName(list type) to the target host
+   *            save all the values to listName(list type) to the target host
    */
   def setList(host: (String, Int), listName: String, arr: Iterator[String]) = {
-    val jedis = new Jedis(host._1, host._2)
+    setList((host._1, host._2, null), listName, arr)
+  }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param listName
+   * @param arr values which should be saved in the target host
+   *            save all the values to listName(list type) to the target host
+   */
+  def setList(host_port_password: (String, Int, String), listName: String, arr: Iterator[String]) = {
+    val jedis = new JedisFactory(host_port_password).create()
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
   }
+
   /**
    * @param host addr and port of a target host
    * @param listName
    * @param listSize
    * @param arr values which should be saved in the target host
-   * save all the values to listName(list type) to the target host
+   *            save all the values to listName(list type) to the target host
    */
   def setFixedList(host: (String, Int), listName: String, listSize: Int, arr: Iterator[String]) = {
-    val jedis = new Jedis(host._1, host._2)
+    setFixedList((host._1, host._2, null), listName, listSize, arr)
+  }
+
+  /**
+   * @param host_port_password addr and port and password of a target host
+   * @param listName
+   * @param listSize
+   * @param arr values which should be saved in the target host
+   *            save all the values to listName(list type) to the target host
+   */
+  def setFixedList(host_port_password: (String, Int, String), listName: String, listSize: Int, arr: Iterator[String]) = {
+    val jedis = new JedisFactory(host_port_password).create()
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.lpush(listName, _))
     if (listSize > 0) {
