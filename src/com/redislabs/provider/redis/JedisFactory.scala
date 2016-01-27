@@ -2,12 +2,16 @@ package com.redislabs.provider.redis
 
 import redis.clients.jedis.Jedis
 
-class JedisFactory(val connectionParams: RedisConnectionParameters) extends Serializable {
-  def create(): Jedis = {
+class JedisFactory() extends Serializable {
+  def create(connectionParams: RedisConnectionParameters): Jedis = {
     val client = new Jedis(connectionParams.host, connectionParams.port)
     if (connectionParams.password != null) client.auth(connectionParams.password)
     client
   }
+}
+
+object JedisFactory {
+  def instance() = { new JedisFactory()}
 }
 
 class RedisConnectionParameters(val host: String, val port: Int, val password: String) extends Serializable {

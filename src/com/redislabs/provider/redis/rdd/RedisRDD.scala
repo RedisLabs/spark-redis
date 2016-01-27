@@ -35,7 +35,7 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new JedisFactory(x._1._1).create
+          val jedis = JedisFactory.instance.create(x._1._1)
           val stringKeys = filterKeysByType(jedis, x._2, "string")
           val pipeline = jedis.pipelined
           stringKeys.foreach(pipeline.get)
@@ -49,7 +49,7 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new JedisFactory(x._1._1).create
+          val jedis = JedisFactory.instance.create(x._1._1)
           val hashKeys = filterKeysByType(jedis, x._2, "hash")
           val res = hashKeys.flatMap(jedis.hgetAll).iterator
           jedis.close
@@ -61,7 +61,7 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new JedisFactory(x._1._1).create
+          val jedis = JedisFactory.instance.create(x._1._1)
           val zsetKeys = filterKeysByType(jedis, x._2, "zset")
           val res = zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).map(tup => (tup.getElement, tup.getScore.toString)).iterator
           jedis.close
@@ -93,7 +93,7 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new JedisFactory(x._1._1).create
+          val jedis = JedisFactory.instance.create(x._1._1)
           val setKeys = filterKeysByType(jedis, x._2, "set")
           val res = setKeys.flatMap(jedis.smembers).iterator
           jedis.close
@@ -105,7 +105,7 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new JedisFactory(x._1._1).create
+          val jedis = JedisFactory.instance.create(x._1._1)
           val listKeys = filterKeysByType(jedis, x._2, "list")
           val res = listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
           jedis.close
@@ -206,7 +206,7 @@ trait Keys {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
-        val jedis =  new JedisFactory(node._1).create
+        val jedis =  JedisFactory.instance.create(node._1)
         val params = new ScanParams().`match`(keyPattern)
         val res = keys.addAll(scanKeys(jedis, params).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
@@ -231,7 +231,7 @@ trait Keys {
   def groupKeysByNode(nodes: Array[(RedisConnectionParameters, Int, Int, Int, Int)], keys: Iterator[String]) = {
     def getNode(key: String) = {
       val slot = JedisClusterCRC16.getSlot(key)
-      nodes.filter(node => { node._4 <= slot && node._5 >= slot }).filter(_._3 == 0)(0) // master only
+      nodes.filter(node => { node._4 <= slot && node._5 >= slot }).filter(_._2 == 0)(0) // master only
     }
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).map(x => (x._1, x._2.map(_._2))).toArray
   }

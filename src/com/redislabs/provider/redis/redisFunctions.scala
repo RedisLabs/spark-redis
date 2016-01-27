@@ -108,7 +108,7 @@ object NodesInfo {
    * @return true if the target server is in cluster mode
    */
   private def clusterEnable(initialHost: RedisConnectionParameters): Boolean = {
-    val jedis = new JedisFactory(initialHost).create
+    val jedis = JedisFactory.instance.create(initialHost)
     val res = jedis.info("cluster").contains("1")
     jedis.close
     res
@@ -158,7 +158,7 @@ object NodesInfo {
    * @return list of nodes(RedisConnectionParameters, index, range, startSlot, endSlot)
    */
   private def getClusterSlots(initialHost: RedisConnectionParameters) = {
-    val jedis = new JedisFactory(initialHost).create
+    val jedis = JedisFactory.instance.create(initialHost)
     val res = jedis.clusterSlots().flatMap {
       slotInfoObj => {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
@@ -199,14 +199,14 @@ object NodesInfo {
    */
   private def getNonClusterNodes(initialHost: RedisConnectionParameters) = {
     var master = initialHost
-    val jedis = new JedisFactory(initialHost).create
+    val jedis = JedisFactory.instance.create(initialHost)
     var replinfo = jedis.info("Replication").split("\n")
     jedis.close
     if (replinfo.exists(_.contains("role:slave"))) {
       val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
       val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
       master = new RedisConnectionParameters(host, port, initialHost.password)
-      val jedis = new JedisFactory(master).create
+      val jedis = JedisFactory.instance.create(master)
       replinfo = jedis.info("Replication").split("\n")
       jedis.close
     }
@@ -228,7 +228,7 @@ object NodesInfo {
    * @return list of nodes(RedisConnectionParameters, index, range)
    */
   private def getClusterNodes(initialHost: RedisConnectionParameters) = {
-    val jedis = new JedisFactory(initialHost).create()
+    val jedis = JedisFactory.instance.create(initialHost)
     val res = jedis.clusterSlots().flatMap {
       slotInfoObj => {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]].drop(2)
@@ -269,7 +269,7 @@ object SaveToRedis {
     val hosts = getHosts(host)
     arr.map(kv => (findHost(hosts, kv._1), kv)).toArray.groupBy(_._1).mapValues(a => a.map(p => p._2)).foreach {
       x => {
-        val jedis = new JedisFactory(x._1._1).create
+        val jedis = JedisFactory.instance.create(x._1._1)
         val pipeline = jedis.pipelined
         x._2.foreach(x => pipeline.set(x._1, x._2))
         pipeline.sync
@@ -284,7 +284,7 @@ object SaveToRedis {
    *            save all the k/vs to hashName(list type) to the target host
    */
   def setHash(host: RedisConnectionParameters, hashName: String, arr: Iterator[(String, String)]) = {
-    val jedis = new JedisFactory(host).create
+    val jedis = JedisFactory.instance.create(host)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
     pipeline.sync
@@ -297,7 +297,7 @@ object SaveToRedis {
    *            save all the k/vs to zsetName(zset type) to the target host
    */
   def setZset(host: RedisConnectionParameters, zsetName: String, arr: Iterator[(String, String)]) = {
-    val jedis = new JedisFactory(host).create
+    val jedis = JedisFactory.instance.create(host)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
     pipeline.sync
@@ -310,7 +310,7 @@ object SaveToRedis {
    *            save all the values to setName(set type) to the target host
    */
   def setSet(host: RedisConnectionParameters, setName: String, arr: Iterator[String]) = {
-    val jedis = new JedisFactory(host).create
+    val jedis = JedisFactory.instance.create(host)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.sadd(setName, _))
     pipeline.sync
@@ -323,7 +323,7 @@ object SaveToRedis {
    *            save all the values to listName(list type) to the target host
    */
   def setList(host: RedisConnectionParameters, listName: String, arr: Iterator[String]) = {
-    val jedis = new JedisFactory(host).create
+    val jedis = JedisFactory.instance.create(host)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
@@ -337,7 +337,7 @@ object SaveToRedis {
    *            save all the values to listName(list type) to the target host
    */
   def setFixedList(host: RedisConnectionParameters, listName: String, listSize: Int, arr: Iterator[String]) = {
-    val jedis = new JedisFactory(host).create
+    val jedis = JedisFactory.instance.create(host)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.lpush(listName, _))
     if (listSize > 0) {
