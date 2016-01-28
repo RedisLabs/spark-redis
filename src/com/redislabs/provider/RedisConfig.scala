@@ -3,7 +3,7 @@ package com.redislabs.provider
 
 import com.redislabs.provider.redis.NodesInfo._
 
-class RedisConfig(ip: String, port: Int) extends Serializable {
+class RedisConfig(val ip: String, val port: Int) extends Serializable {
   val nodes: java.util.ArrayList[(String, Int)] = new java.util.ArrayList[(String, Int)]
 
   getNodes((ip, port)).foreach(x => nodes.add((x._1, x._2)))

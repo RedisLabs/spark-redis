@@ -120,12 +120,56 @@ class RedisKeysRDD(sc: SparkContext,
                    val partitionNum: Int = 3)
     extends RDD[String](sc, Seq.empty) with Logging with Keys {
 
+  override protected def getPreferredLocations(split: Partition): Seq[String] = {
+    Seq(split.asInstanceOf[RedisPartition].redisConfig.ip)
+  }
+
+  private def scaleHostsWithPartitionNum(): Seq[(String, Int, Int, Int)] = {
+    def split(host: (String, Int, Int, Int), cnt: Int) = {
+      val start = host._3
+      val end = host._4
+      val range = (end - start) / cnt
+      (0 until cnt).map(i => {
+        (host._1,
+          host._2,
+          if (i == 0) start else (start + range * i + 1),
+          if (i != cnt - 1) (start + range * (i + 1)) else end)
+      })
+    }
+
+    val hosts = com.redislabs.provider.redis.NodesInfo.getHosts(redisNode)
+    if (hosts.size == partitionNum)
+      hosts
+    else if (hosts.size < partitionNum) {
+      val presExtCnt = partitionNum / hosts.size
+      val lastExtCnt = if (presExtCnt * hosts.size < partitionNum) (presExtCnt + 1) else presExtCnt
+      hosts.zipWithIndex.flatMap{
+        case(host, idx) => {
+          split(host, if (idx == hosts.size - 1) lastExtCnt else presExtCnt)
+        }
+      }
+    }
+    else {
+      val presExtCnt = hosts.size / partitionNum
+      val lastExtCnt = if (presExtCnt * partitionNum < hosts.size) (presExtCnt + 1) else presExtCnt
+      (0 until partitionNum).map{
+        idx => {
+          val ip = hosts(idx * presExtCnt)._1
+          val port = hosts(idx * presExtCnt)._2
+          val start = hosts(idx * presExtCnt)._3
+          val end = hosts(if (idx == partitionNum - 1) (hosts.size-1) else ((idx + 1) * presExtCnt - 1))._4
+          (ip, port, start, end)
+        }
+      }
+    }
+  }
+
   override protected def getPartitions: Array[Partition] = {
-    val cnt = 16384 / partitionNum
+    val hosts = scaleHostsWithPartitionNum()
     (0 until partitionNum).map(i => {
       new RedisPartition(i,
-        new RedisConfig(redisNode._1, redisNode._2),
-        (if (i == 0) 0 else cnt * i + 1, if (i != partitionNum - 1) cnt * (i + 1) else 16383)).asInstanceOf[Partition]
+        new RedisConfig(hosts(i)._1, hosts(i)._2),
+        (hosts(i)._3, hosts(i)._4)).asInstanceOf[Partition]
     }).toArray
   }
 
