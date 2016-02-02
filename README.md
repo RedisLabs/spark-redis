@@ -74,13 +74,13 @@ Using Scala version 2.10.4 (OpenJDK 64-Bit Server VM, Java 1.7.0_79)
 ...
 ```
 
-The following sections contain code snippets that demonstrate the use of Spark-Redis. To use the sample code, you'll need to replace `your.redis.server` and `6379` with your Redis database's IP address or hostname and port, respectively.
+The following sections contain code snippets that demonstrate the use of Spark-Redis. To use the sample code, you'll need to replace `your.redis.server`, `6379`, and `password` with your Redis database's IP address or hostname, port, and password, respectively.
 
 ### The keys RDD
 Since data access in Redis is based on keys, to use Spark-Redis you'll first need a keys RDD.  The following example shows how to read key names from Redis into an RDD:
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379), "foo*", 5)
+val keysRDD = sc.fromRedisKeyPattern(new RedisConnectionParameters("your.redis.server", 6379, "password")), "foo*", 5)
 ```
 
 The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`). Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
@@ -94,7 +94,7 @@ Each of Redis' data types can be read to an RDD. The following snippet demonstra
 
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern(("your.redis.server", 6379), "keyPattern", 5)
+val keysRDD = sc.fromRedisKeyPattern(new RedisConnectionParameters("your.redis.server", 6379, "password")), "keyPattern", 5)
 
 val stringRDD = keysRDD.getKV
 ```
@@ -136,7 +136,7 @@ For String values, your RDD should consist of the key-value pairs that are to be
 
 ```
 ...
-sc.toRedisKV(stringRDD, ("your.redis.server", 6379))
+sc.toRedisKV(stringRDD, new RedisConnectionParameters("your.redis.server", 6379, "password")))
 ```
 
 #### Hashes
@@ -144,7 +144,7 @@ To store a Redis Hash, the RDD should consist of its field-value pairs. If the R
 
 ```
 ...
-sc.toRedisHASH(hashRDD, hashName, ("your.redis.server", 6379))
+sc.toRedisHASH(hashRDD, hashName, new RedisConnectionParameters("your.redis.server", 6379, "password")))
 ```
 
 #### Lists
@@ -152,14 +152,14 @@ Use the following to store an RDD in a Redis List:
 
 ```
 ...
-sc.toRedisLIST(listRDD, listName, ("your.redis.server", 6379))
+sc.toRedisLIST(listRDD, listName, new RedisConnectionParameters("your.redis.server", 6379, "password")))
 ```
 
 Use the following to store an RDD in a fixed-size Redis List:
 
 ```
 ...
-sc.toRedisFixedLIST(listRDD, listName, ("your.redis.server", 6379), listSize)
+sc.toRedisFixedLIST(listRDD, listName, new RedisConnectionParameters("your.redis.server", 6379, "password")), listSize)
 ```
 
 The `listRDD` is an RDD that contains all of the list's string elements in order, and `listName` is the list's key name.
@@ -171,7 +171,7 @@ For storing data in a Redis Set, use `toRedisSET` as follows:
 
 ```
 ...
-sc.toRedisSET(setRDD, setName, ("your.redis.server", 6379))
+sc.toRedisSET(setRDD, setName, new RedisConnectionParameters("your.redis.server", 6379, "password")))
 ```
 
 Where `setRDD` is an RDD with the set's string elements and `setName` is the name of the key for that set.
@@ -179,7 +179,7 @@ Where `setRDD` is an RDD with the set's string elements and `setName` is the nam
 #### Sorted Sets
 ```
 ...
-sc.toRedisZSET(zsetRDD, zsetName, ("your.redis.server", 6379))
+sc.toRedisZSET(zsetRDD, zsetName, new RedisConnectionParameters("your.redis.server", 6379, "password")))
 ```
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
