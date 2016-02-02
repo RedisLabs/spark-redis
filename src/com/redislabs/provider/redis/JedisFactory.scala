@@ -11,9 +11,11 @@ class JedisFactory() extends Serializable {
 }
 
 object JedisFactory {
-  def instance() = { new JedisFactory()}
+  def instance() = {
+    new JedisFactory()
+  }
 }
 
-class RedisConnectionParameters(val host: String, val port: Int, val password: String) extends Serializable {
+class RedisConnectionParameters(val host: String, val port: Int = 6379, val password: String = null) extends Serializable {
 
 }
