@@ -10,7 +10,7 @@ class JedisFactory() extends Serializable {
   }
 }
 
-object JedisFactory {
+object JedisFactory extends Serializable {
   var instance = new JedisFactory()
 }
 
