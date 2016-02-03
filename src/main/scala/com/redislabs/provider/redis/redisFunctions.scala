@@ -19,7 +19,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def fromRedisKeyPattern(initialHost: (String, Int),
                           keyPattern: String = "*",
-                          partitionNum: Int = 3) = {
+                          partitionNum: Int = 3): RedisKeysRDD = {
     new RedisKeysRDD(sc, initialHost, keyPattern, partitionNum);
   }
 
@@ -29,7 +29,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    * save all the kvs to redis-server
    */
   def toRedisKV(kvs: RDD[(String, String)],
-                initialHost: (String, Int)) = {
+                initialHost: (String, Int)) {
     kvs.foreachPartition(partition => setKVs(initialHost:(String, Int), partition))
   }
   /**
@@ -40,7 +40,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def toRedisHASH(kvs: RDD[(String, String)],
                   hashName: String,
-                  initialHost: (String, Int)) = {
+                  initialHost: (String, Int)) {
     val host = getHost(hashName, initialHost)
     kvs.foreachPartition(partition => setHash(host, hashName, partition))
   }
@@ -52,7 +52,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def toRedisZSET(kvs: RDD[(String, String)],
                   zsetName: String,
-                  initialHost: (String, Int)) = {
+                  initialHost: (String, Int)) {
     val host = getHost(zsetName, initialHost)
     kvs.foreachPartition(partition => setZset(host, zsetName, partition))
   }
@@ -64,7 +64,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def toRedisSET(vs: RDD[String],
                  setName: String,
-                 initialHost: (String, Int)) = {
+                 initialHost: (String, Int)) {
     val host = getHost(setName, initialHost)
     vs.foreachPartition(partition => setSet(host, setName, partition))
   }
@@ -76,7 +76,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
    */
   def toRedisLIST(vs: RDD[String],
                   listName: String,
-                  initialHost: (String, Int)) = {
+                  initialHost: (String, Int)) {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setList(host, listName, partition))
   }
@@ -90,7 +90,7 @@ class RedisContext(val sc: SparkContext) extends Serializable {
   def toRedisFixedLIST(vs: RDD[String],
                   listName: String,
                   initialHost: (String, Int),
-                  listSize: Int = 0) = {
+                  listSize: Int = 0) {
     val host = getHost(listName, initialHost)
     vs.foreachPartition(partition => setFixedList(host, listName, listSize, partition))
   }
@@ -103,7 +103,7 @@ object NodesInfo {
    * @param initialHost any addr and port of a cluster or a single server
    * @return true if the target server is in cluster mode
    */
-  private def clusterEnable(initialHost: (String, Int)) : Boolean = {
+  private def clusterEnable(initialHost: (String, Int)): Boolean = {
     val jedis = new Jedis(initialHost._1, initialHost._2)
     val res = jedis.info("cluster").contains("1")
     jedis.close
@@ -115,7 +115,7 @@ object NodesInfo {
    * @param key
    * @return host whose slots should involve key
    */
-  def findHost(hosts: Array[(String, Int, Int, Int)], key: String) = {
+  def findHost(hosts: Array[(String, Int, Int, Int)], key: String): (String, Int, Int, Int) = {
       val slot = JedisClusterCRC16.getSlot(key)
       hosts.filter(host => {host._3 <= slot && host._4 >= slot})(0)
   }
@@ -124,16 +124,17 @@ object NodesInfo {
    * @param initialHost any addr and port of a cluster or a single server
    * @return host whose slots should involve key
    */
-  def getHost(key: String, initialHost: (String, Int)) = {
-    val slot = JedisClusterCRC16.getSlot(key);
-    val hosts = getSlots(initialHost).filter(x => (x._3 == 0 && x._5 <= slot && x._6 >= slot)).map(x => (x._1, x._2))
+  def getHost(key: String, initialHost: (String, Int)): (String, Int) = {
+    val slot = JedisClusterCRC16.getSlot(key)
+    val hosts = getSlots(initialHost).filter(x => (x._3 == 0 && x._5 <= slot && x._6 >= slot)).
+                map(x => (x._1, x._2))
     hosts(0)
   }
   /**
    * @param initialHost any addr and port of a cluster or a single server
    * @return list of hosts(addr, port, startSlot, endSlot)
    */
-  def getHosts(initialHost: (String, Int)) = {
+  def getHosts(initialHost: (String, Int)): Array[(String, Int, Int, Int)] = {
     getSlots(initialHost).filter(_._3 == 0).map(x => (x._1, x._2, x._5, x._6))
   }
 
@@ -141,14 +142,16 @@ object NodesInfo {
    * @param initialHost any addr and port of a single server
    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
    */
-  private def getNonClusterSlots(initialHost: (String, Int)) = {
+  private def getNonClusterSlots(initialHost: (String, Int)):
+  Array[(String, Int, Int, Int, Int, Int)] = {
     getNonClusterNodes(initialHost).map(x=> (x._1, x._2, x._3, x._4, 0, 16383)).toArray
   }
   /**
    * @param initialHost any addr and port of a cluster server
    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
    */
-  private def getClusterSlots(initialHost: (String, Int)) = {
+  private def getClusterSlots(initialHost: (String, Int)):
+  Array[(String, Int, Int, Int, Int, Int)] = {
     val jedis = new Jedis(initialHost._1, initialHost._2)
     val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
@@ -174,11 +177,12 @@ object NodesInfo {
    * @param initialHost any addr and port of a cluster or a single server
    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
    */
-  def getSlots(initialHost: (String, Int)) = {
-    if (clusterEnable(initialHost))
+  def getSlots(initialHost: (String, Int)): Array[(String, Int, Int, Int, Int, Int)] = {
+    if (clusterEnable(initialHost)) {
       getClusterSlots(initialHost)
-    else
+    } else {
       getNonClusterSlots(initialHost)
+    }
   }
 
 
@@ -186,7 +190,7 @@ object NodesInfo {
    * @param initialHost any addr and port of a single server
    * @return list of nodes(addr, port, index, range)
    */
-  private def getNonClusterNodes(initialHost: (String, Int)) = {
+  private def getNonClusterNodes(initialHost: (String, Int)): Array[(String, Int, Int, Int)] = {
     var master = initialHost
     val jedis = new Jedis(initialHost._1, initialHost._2)
     var replinfo = jedis.info("Replication").split("\n")
@@ -203,7 +207,7 @@ object NodesInfo {
       val content = rl.substring(rl.indexOf(':') + 1).split(",")
       val ip = content(0)
       val port = content(1)
-      (ip.substring(ip.indexOf('=')+1).toString, port.substring(port.indexOf('=')+1).toInt)
+      (ip.substring(ip.indexOf('=') + 1), port.substring(port.indexOf('=') + 1).toInt)
     })
     val nodes = master +: slaves
     val range = nodes.size
@@ -213,7 +217,7 @@ object NodesInfo {
    * @param initialHost any addr and port of a cluster server
    * @return list of nodes(addr, port, index, range)
    */
-  private def getClusterNodes(initialHost: (String, Int)) = {
+  private def getClusterNodes(initialHost: (String, Int)): Array[(String, Int, Int, Int)] = {
     val jedis = new Jedis(initialHost._1, initialHost._2)
     val res = jedis.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
       slotInfoObj =>
@@ -237,11 +241,12 @@ object NodesInfo {
    * @param initialHost any addr and port of a cluster or a single server
    * @return list of nodes(addr, port, index, range)
    */
-  def getNodes(initialHost: (String, Int)) = {
-    if (clusterEnable(initialHost))
+  def getNodes(initialHost: (String, Int)): Array[(String, Int, Int, Int)] = {
+    if (clusterEnable(initialHost)) {
       getClusterNodes(initialHost)
-    else
+    } else {
       getNonClusterNodes(initialHost)
+    }
   }
 }
 
@@ -251,14 +256,16 @@ object SaveToRedis {
    * @param arr k/vs which should be saved in the target host
    * save all the k/vs to the target host
    */
-  def setKVs(initialHost: (String, Int), arr: Iterator[(String, String)]) = {
+  def setKVs(initialHost: (String, Int), arr: Iterator[(String, String)]) {
     val hosts = getHosts(initialHost)
-    arr.map(kv => (findHost(hosts, kv._1), kv)).toArray.groupBy(_._1).mapValues(a => a.map(p => p._2)).foreach{
+    arr.map(kv => (findHost(hosts, kv._1), kv)).toArray.groupBy(_._1).
+      mapValues(a => a.map(p => p._2)).foreach{
       x => {
         val jedis = new Jedis(x._1._1, x._1._2)
         val pipeline = jedis.pipelined
         x._2.foreach(x => pipeline.set(x._1, x._2))
         pipeline.sync
+        jedis.close
       }
     }
   }
@@ -268,11 +275,12 @@ object SaveToRedis {
    * @param arr k/vs which should be saved in the target host
    * save all the k/vs to hashName(list type) to the target host
    */
-  def setHash(host: (String, Int), hashName: String, arr: Iterator[(String, String)]) = {
+  def setHash(host: (String, Int), hashName: String, arr: Iterator[(String, String)]) {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
     pipeline.sync
+    jedis.close
   }
   /**
    * @param host addr and port of a target host
@@ -280,11 +288,12 @@ object SaveToRedis {
    * @param arr k/vs which should be saved in the target host
    * save all the k/vs to zsetName(zset type) to the target host
    */
-  def setZset(host: (String, Int), zsetName: String, arr: Iterator[(String, String)]) = {
+  def setZset(host: (String, Int), zsetName: String, arr: Iterator[(String, String)]) {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
     pipeline.sync
+    jedis.close
   }
   /**
    * @param host addr and port of a target host
@@ -292,11 +301,12 @@ object SaveToRedis {
    * @param arr values which should be saved in the target host
    * save all the values to setName(set type) to the target host
    */
-  def setSet(host: (String, Int), setName: String, arr: Iterator[String]) = {
+  def setSet(host: (String, Int), setName: String, arr: Iterator[String]) {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.sadd(setName, _))
     pipeline.sync
+    jedis.close
   }
   /**
    * @param host addr and port of a target host
@@ -304,11 +314,12 @@ object SaveToRedis {
    * @param arr values which should be saved in the target host
    * save all the values to listName(list type) to the target host
    */
-  def setList(host: (String, Int), listName: String, arr: Iterator[String]) = {
+  def setList(host: (String, Int), listName: String, arr: Iterator[String]) {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
+    jedis.close
   }
   /**
    * @param host addr and port of a target host
@@ -317,7 +328,7 @@ object SaveToRedis {
    * @param arr values which should be saved in the target host
    * save all the values to listName(list type) to the target host
    */
-  def setFixedList(host: (String, Int), listName: String, listSize: Int, arr: Iterator[String]) = {
+  def setFixedList(host: (String, Int), listName: String, listSize: Int, arr: Iterator[String]) {
     val jedis = new Jedis(host._1, host._2)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.lpush(listName, _))
@@ -325,8 +336,8 @@ object SaveToRedis {
       pipeline.ltrim(listName, 0, listSize - 1)
     }
     pipeline.sync
+    jedis.close
   }
-
 }
 
 trait RedisFunctions {

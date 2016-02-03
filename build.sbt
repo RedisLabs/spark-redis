@@ -1,8 +1,6 @@
 // Your sbt build file. Guides on how to write one can be found at
 // http://www.scala-sbt.org/0.13/docs/index.html
 
-scalaSource in Compile := baseDirectory.value / "src"
-
 scalaVersion := "2.10.4"
 
 sparkVersion := "1.4.0"
