@@ -12,7 +12,8 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.7</java.version>
-		<scala.version>2.10.4</scala.version>
+		<scala.minor.version>2.10</scala.minor.version>
+		<scala.complete.version>${scala.minor.version}.4</scala.complete.version>
 		<jedis.version>2.7.2</jedis.version>
 		<spark.version>1.4.1</spark.version>
 	</properties>
@@ -24,7 +25,7 @@
 				<artifactId>scala-maven-plugin</artifactId>
 				<version>3.2.2</version>
 				<configuration>
-					<scalaVersion>${scala.version}</scalaVersion>
+					<scalaVersion>${scala.complete.version}</scalaVersion>
 					<javacArgs>
 						<javacArg>-source</javacArg>
 						<javacArg>${java.version}</javacArg>
@@ -154,6 +155,35 @@
 					</dependency>
 				</dependencies>
 			</plugin>
+			<!-- disable surefire -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>2.18.1</version>
+				<configuration>
+					<skipTests>true</skipTests>
+				</configuration>
+			</plugin>
+			<!-- enable scalatest -->
+			<plugin>
+				<groupId>org.scalatest</groupId>
+				<artifactId>scalatest-maven-plugin</artifactId>
+				<version>1.0</version>
+				<configuration>
+					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+					<junitxml>.</junitxml>
+					<filereports>WDF TestSuite.txt</filereports>
+					<argLine>-XX:MaxPermSize=256m -Xmx2g</argLine>
+				</configuration>
+				<executions>
+					<execution>
+						<id>test</id>
+						<goals>
+							<goal>test</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 	<dependencies>
@@ -172,23 +202,38 @@
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>${scala.version}</version>
+            <version>${scala.complete.version}</version>
         </dependency>
-        <dependency>
+		<dependency>
+			<groupId>org.scala-lang</groupId>
+			<artifactId>scalap</artifactId>
+			<version>${scala.complete.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.scala-lang</groupId>
+			<artifactId>scala-compiler</artifactId>
+			<version>${scala.complete.version}</version>
+		</dependency>
+		<dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.10</artifactId>
+            <artifactId>spark-core_${scala.minor.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming_2.10</artifactId>
+            <artifactId>spark-streaming_${scala.minor.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.10</artifactId>
+            <artifactId>spark-sql_${scala.minor.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
-
+		<dependency>
+			<groupId>org.scalatest</groupId>
+			<artifactId>scalatest_${scala.minor.version}</artifactId>
+			<version>2.2.1</version>
+			<scope>test</scope>
+		</dependency>
     </dependencies>
 </project>
