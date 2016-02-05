@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
+
 # Spark-Redis
 A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/), for Spark SQL and DataFrames.
 
