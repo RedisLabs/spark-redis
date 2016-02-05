@@ -1,0 +1,12 @@
+sudo: required
+language: scala
+scala:
+    - 2.10.4
+before_install:
+    - git clone https://github.com/antirez/redis.git redis_for_spark-redis_test || true
+install:
+    - make -C redis_for_spark-redis_test -j4
+script: make test
+cache:
+    directories:
+        - $HOME/.m2
