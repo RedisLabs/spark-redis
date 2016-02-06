@@ -26,29 +26,11 @@ You'll need the the following to use Spark-Redis:
 This library is work in progress so the API may change before the official release.
 
 ## Getting the library
-You can use the Spark-Redis library by adding it as a maven dependency to your `pom.xml` file:
-```
-<repositories>
-    <repository>
-        <id>spark-redis-mvn-repo</id>
-        <url>https://raw.github.com/RedisLabs/spark-redis/mvn-repo/</url>
-    </repository>
-</repositories>
-
-<dependencies>
-    <dependency>
-        <groupId>com.redislabs</groupId>
-        <artifactId>spark-redis</artifactId>
-        <version>0.5.1</version>
-    </dependency>
-</dependencies>
-```
-
-Alternatively, you can simply download the library's source and build it:
+You can download the library's source and build it:
 ```
 git clone https://github.com/RedisLabs/spark-redis.git
 cd spark-redis
-mvn clean install
+mvn clean package -DskipTests
 ```
 
 ### Jedis and read-only Redis cluster slave nodes
