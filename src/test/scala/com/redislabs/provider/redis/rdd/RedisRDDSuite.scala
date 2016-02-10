@@ -10,7 +10,9 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
   override def beforeAll() {
     super.beforeAll()
 
-    sc = new SparkContext(new SparkConf().setMaster("local").setAppName(getClass.getName))
+    sc = new SparkContext(new SparkConf().setMaster("local").setAppName(getClass.getName)
+      .set("redis.host", "localhost").set("redis.port", "6379"))
+
     redisStandaloneDB = ("127.0.0.1", 6379)
     redisClusterDB = ("127.0.0.1", 7379)
     content = fromInputStream(getClass.getClassLoader.getResourceAsStream("blog")).
@@ -20,17 +22,17 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
       reduceByKey(_ + _).map(x => (x._1, x._2.toString))
     val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
 
-    sc.toRedisKV(wcnts, redisStandaloneDB)
-    sc.toRedisZSET(wcnts, "all:words:cnt:sortedset", redisStandaloneDB)
-    sc.toRedisHASH(wcnts, "all:words:cnt:hash", redisStandaloneDB)
-    sc.toRedisLIST(wds, "all:words:list", redisStandaloneDB)
-    sc.toRedisSET(wds, "all:words:set", redisStandaloneDB)
+    sc.toRedisKV(wcnts)
+    sc.toRedisZSET(wcnts, "all:words:cnt:sortedset" )
+    sc.toRedisHASH(wcnts, "all:words:cnt:hash")
+    sc.toRedisLIST(wds, "all:words:list" )
+    sc.toRedisSET(wds, "all:words:set")
 
-    sc.toRedisKV(wcnts, redisClusterDB)
-    sc.toRedisZSET(wcnts, "all:words:cnt:sortedset", redisClusterDB)
-    sc.toRedisHASH(wcnts, "all:words:cnt:hash", redisClusterDB)
-    sc.toRedisLIST(wds, "all:words:list", redisClusterDB)
-    sc.toRedisSET(wds, "all:words:set", redisClusterDB)
+    sc.toRedisKV(wcnts)
+    sc.toRedisZSET(wcnts, "all:words:cnt:sortedset")
+    sc.toRedisHASH(wcnts, "all:words:cnt:hash" )
+    sc.toRedisLIST(wds, "all:words:list" )
+    sc.toRedisSET(wds, "all:words:set")
   }
 
   test("RedisKVRDD - standalone") {
