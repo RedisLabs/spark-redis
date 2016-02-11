@@ -123,51 +123,47 @@ object RedisContext extends Serializable {
     }
   }
 
-  private def connecttionForKey(key: String, clusterInfo: ClusterInfo): Jedis = {
-    val host = clusterInfo.getHost(key)
-    new Jedis(host._1, host._2)
-  }
 
   /**
-    * @param hashName
+    * @param key
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to hashName(list type) to the target host
     */
-  def setHash(hashName: String, arr: Iterator[(String, String)], clusterInfo: ClusterInfo) {
+  def setHash(key: String, arr: Iterator[(String, String)], clusterInfo: ClusterInfo) {
 
 
-    val jedis = connecttionForKey(hashName, clusterInfo)
+    val jedis = clusterInfo.connecttionForKey(key)
     val pipeline = jedis.pipelined
-    arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
+    arr.foreach(x => pipeline.hset(key, x._1, x._2))
     pipeline.sync
     jedis.close
   }
 
   /**
-    * @param zsetName
+    * @param key
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to zsetName(zset type) to the target host
     */
-  def setZset(zsetName: String, arr: Iterator[(String, String)], clusterInfo: ClusterInfo) {
+  def setZset(key: String, arr: Iterator[(String, String)], clusterInfo: ClusterInfo) {
 
-    val jedis = connecttionForKey(zsetName, clusterInfo)
+    val jedis = clusterInfo.connecttionForKey(key)
     val pipeline = jedis.pipelined
-    arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
+    arr.foreach(x => pipeline.zadd(key, x._2.toDouble, x._1))
     pipeline.sync
     jedis.close
   }
 
   /**
-    * @param setName
+    * @param key
     * @param arr values which should be saved in the target host
     *            save all the values to setName(set type) to the target host
     */
-  def setSet(setName: String, arr: Iterator[String], clusterInfo: ClusterInfo) {
+  def setSet(key: String, arr: Iterator[String], clusterInfo: ClusterInfo) {
 
 
-    val jedis = connecttionForKey(setName, clusterInfo)
+    val jedis = clusterInfo.connecttionForKey(key)
     val pipeline = jedis.pipelined
-    arr.foreach(pipeline.sadd(setName, _))
+    arr.foreach(pipeline.sadd(key, _))
     pipeline.sync
     jedis.close
   }
@@ -179,7 +175,7 @@ object RedisContext extends Serializable {
     */
   def setList(listName: String, arr: Iterator[String], clusterInfo: ClusterInfo) {
 
-    val jedis = connecttionForKey(listName, clusterInfo: ClusterInfo)
+    val jedis = clusterInfo.connecttionForKey(listName)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
@@ -187,18 +183,19 @@ object RedisContext extends Serializable {
   }
 
   /**
-    * @param listName
+    * @param key
     * @param listSize
     * @param arr values which should be saved in the target host
     *            save all the values to listName(list type) to the target host
     */
-  def setFixedList(listName: String, listSize: Int, arr: Iterator[String], clusterInfo: ClusterInfo) {
+  def setFixedList(key: String, listSize: Int, arr: Iterator[String],
+                   clusterInfo: ClusterInfo) {
 
-    val jedis = connecttionForKey(listName, clusterInfo: ClusterInfo)
+    val jedis = clusterInfo.connecttionForKey(key)
     val pipeline = jedis.pipelined
-    arr.foreach(pipeline.lpush(listName, _))
+    arr.foreach(pipeline.lpush(key, _))
     if (listSize > 0) {
-      pipeline.ltrim(listName, 0, listSize - 1)
+      pipeline.ltrim(key, 0, listSize - 1)
     }
     pipeline.sync
     jedis.close

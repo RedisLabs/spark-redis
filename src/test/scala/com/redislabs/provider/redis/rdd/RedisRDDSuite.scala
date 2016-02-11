@@ -20,6 +20,7 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
 
     val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
       reduceByKey(_ + _).map(x => (x._1, x._2.toString))
+    
     val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
 
     sc.toRedisKV(wcnts)

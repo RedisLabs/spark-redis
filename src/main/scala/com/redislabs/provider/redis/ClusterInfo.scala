@@ -23,6 +23,13 @@ class ClusterInfo(initialHost: (String, Int)) extends  Serializable {
     val rnd = scala.util.Random.nextInt().abs % hosts.length
     hosts(rnd)
   }
+
+  /** Get a jedis connection for a given key */
+  def connecttionForKey(key: String): Jedis = {
+    val host = getHost(key)
+    new Jedis(host._1, host._2)
+  }
+
   /**
     * @param initialHost any addr and port of a cluster or a single server
     * @return true if the target server is in cluster mode
