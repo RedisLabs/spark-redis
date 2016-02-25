@@ -5,7 +5,6 @@ import org.apache.spark.rdd.RDD
 import redis.clients.jedis.Jedis
 
 import redis.clients.util.{SafeEncoder, JedisClusterCRC16}
-import scala.collection.JavaConversions._
 import com.redislabs.provider.redis.rdd._
 
 
@@ -16,23 +15,21 @@ import com.redislabs.provider.redis.rdd._
 class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
   import com.redislabs.provider.redis.RedisContext._
-  implicit val clusterInfo = new ClusterInfo(
-    (sc.getConf.get("redis.host", "localhost"),
-      sc.getConf.get("redis.port", "6379").toInt)
-  )
+
+
+  val clusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))
 
   /**
-    * @param initialHost  any addr and port of a cluster or a single server
     * @param keyPattern
     * @param partitionNum number of partitions
     * @return RedisKeysRDD of simple Keys stored in redis server
     */
-  def fromRedisKeyPattern(initialHost: (String, Int),
-                          keyPattern: String = "*",
-                          partitionNum: Int = 3): RedisKeysRDD = {
+  def fromRedisKeyPattern(keyPattern: String = "*",
+                          partitionNum: Int = 3)
+                         (implicit clusterInfo: ClusterInfo = this.clusterInfo): RedisKeysRDD = {
 
 
-    new RedisKeysRDD(sc, initialHost, keyPattern, partitionNum);
+    new RedisKeysRDD(sc, keyPattern, partitionNum);
 
   }
 

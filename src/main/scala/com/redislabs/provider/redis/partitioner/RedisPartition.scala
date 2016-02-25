@@ -1,8 +1,9 @@
 package com.redislabs.provider.redis.partitioner
 
+import com.redislabs.provider.redis.ClusterInfo
 import org.apache.spark.Partition
-import com.redislabs.provider._
+
 
 case class RedisPartition(index: Int,
-                          redisConfig: RedisConfig,
+                          clusterInfo: ClusterInfo,
                           slots: (Int, Int)) extends Partition
