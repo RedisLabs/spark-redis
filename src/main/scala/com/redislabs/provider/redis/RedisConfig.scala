@@ -30,10 +30,6 @@ class RedisEndpoint(val host: String, val port: Int, val auth: String = "", val 
     this(URI.create(uri))
   }
 
-  def this(host: String, port: Int) {
-    this(host, port, "", 0)
-  }
-
 
   /**
     * Connect tries to open a connection to the redis endpoint,
@@ -60,10 +56,10 @@ class RedisEndpoint(val host: String, val port: Int, val auth: String = "", val 
 }
 
 /**
-  * ClusterInfo holds the state of the cluster nodes, and uses consistent hashing to map
+  * RedisConfig holds the state of the cluster nodes, and uses consistent hashing to map
   * keys to nodes
   */
-class ClusterInfo(initialHost: RedisEndpoint) extends  Serializable {
+class RedisConfig(initialHost: RedisEndpoint) extends  Serializable {
 
 
   val currentAddr = initialHost.host

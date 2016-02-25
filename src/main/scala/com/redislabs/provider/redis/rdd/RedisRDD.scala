@@ -2,7 +2,7 @@ package com.redislabs.provider.redis.rdd
 
 import java.util
 
-import com.redislabs.provider.redis.{RedisEndpoint, ClusterInfo}
+import com.redislabs.provider.redis.{RedisEndpoint, RedisConfig}
 import org.apache.spark.rdd.RDD
 import org.apache.spark._
 import redis.clients.jedis._
@@ -22,7 +22,7 @@ class RedisKVRDD(prev: RDD[String],
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
-    val nodes = partition.clusterInfo.getNodesBySlots(sPos, ePos)
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     val keys = firstParent[String].iterator(split, context)
     rddType match {
       case "kv"   => getKV(nodes, keys);
@@ -86,7 +86,7 @@ class RedisListRDD(prev: RDD[String],
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
-    val nodes = partition.clusterInfo.getNodesBySlots(sPos, ePos)
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     val keys = firstParent[String].iterator(split, context)
     rddType match {
       case "set"  => getSET(nodes, keys)
@@ -123,15 +123,15 @@ class RedisListRDD(prev: RDD[String],
 }
 
 class RedisKeysRDD(sc: SparkContext,
-                   val clusterInfo: ClusterInfo,
+                   val redisConfig: RedisConfig,
                    val keyPattern: String = "*",
                    val partitionNum: Int = 3)
     extends RDD[String](sc, Seq.empty) with Logging with Keys {
 
-//  val clusterInfo  =  new ClusterInfo(new RedisEndpoint(sc.getConf))
+//  val redisConfig  =  new ClusterInfo(new RedisEndpoint(sc.getConf))
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
-    Seq(split.asInstanceOf[RedisPartition].clusterInfo.currentAddr)
+    Seq(split.asInstanceOf[RedisPartition].redisConfig.currentAddr)
   }
 
   /**
@@ -154,7 +154,7 @@ class RedisKeysRDD(sc: SparkContext,
     }
 
 
-    val hosts = clusterInfo.hosts
+    val hosts = redisConfig.hosts
 
     if (hosts.size == partitionNum) {
       hosts
@@ -188,7 +188,7 @@ class RedisKeysRDD(sc: SparkContext,
     val hosts = scaleHostsWithPartitionNum()
     (0 until partitionNum).map(i => {
       new RedisPartition(i,
-        clusterInfo,
+        redisConfig,
         (hosts(i)._3, hosts(i)._4)).asInstanceOf[Partition]
     }).toArray
   }
@@ -197,7 +197,7 @@ class RedisKeysRDD(sc: SparkContext,
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
-    val nodes = partition.clusterInfo.getNodesBySlots(sPos, ePos)
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     getKeys(nodes, sPos, ePos, keyPattern).iterator;
   }
   def getSet(): RDD[String] = {
