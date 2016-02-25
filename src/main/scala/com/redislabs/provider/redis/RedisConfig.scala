@@ -75,17 +75,27 @@ class RedisEndpoint(val host: String, val port: Int, val auth: String = "", val 
   }
 }
 
+class Node
+
 /**
   * RedisConfig holds the state of the cluster nodes, and uses consistent hashing to map
   * keys to nodes
   */
-class RedisConfig(initialHost: RedisEndpoint) extends  Serializable {
+class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
 
 
   val currentAddr = initialHost.host
 
   val hosts = getHosts(initialHost)
   val slots = getSlots(initialHost)
+
+  def getAuth: String = {
+    initialHost.auth
+  }
+
+  def getDB :Int = {
+    initialHost.dbNum
+  }
 
   def getRandomNode() : (String, Int, Int, Int) = {
 
@@ -105,7 +115,7 @@ class RedisConfig(initialHost: RedisEndpoint) extends  Serializable {
   /** Get a jedis connection for a given key */
   def connecttionForKey(key: String): Jedis = {
     val host = getHost(key)
-    new Jedis(host._1, host._2)
+    host.connect
   }
 
   /**
@@ -134,11 +144,11 @@ class RedisConfig(initialHost: RedisEndpoint) extends  Serializable {
     * @param key
     * @return host whose slots should involve key
     */
-  def getHost(key: String): (String, Int) = {
+  def getHost(key: String): RedisEndpoint = {
     val slot = JedisClusterCRC16.getSlot(key)
     val hosts = slots.filter(x => x._3 == 0 && x._5 <= slot && x._6 >= slot).
       map(x => (x._1, x._2))
-    hosts(0)
+    new RedisEndpoint(hosts(0)._1, hosts(0)._2, initialHost.auth, initialHost.dbNum)
   }
 
   /**
@@ -165,6 +175,7 @@ class RedisConfig(initialHost: RedisEndpoint) extends  Serializable {
   private def getClusterSlots(initialHost: RedisEndpoint):
   Array[(String, Int, Int, Int, Int, Int)] = {
     val conn = initialHost.connect()
+    val slots = conn.clusterSlots()
     val res = conn.clusterSlots().flatMap {
       slotInfoObj => {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]

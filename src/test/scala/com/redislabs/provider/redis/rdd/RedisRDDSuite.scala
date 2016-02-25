@@ -13,14 +13,15 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
 
     sc = new SparkContext(new SparkConf()
       .setMaster("local").setAppName(getClass.getName)
-      .set("redis.host", "localhost")
+      .set("redis.host", "127.0.0.1")
       .set("redis.port", "6379")
-      .set("redis.auth", "")
+      .set("redis.auth", "passwd")
     )
     content = fromInputStream(getClass.getClassLoader.getResourceAsStream("blog")).
       getLines.toArray.mkString("\n")
 
-    redisConfigStandalone = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379))
+    redisConfigStandalone = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
+    // THERE IS NOT AUTH FOR CLUSTER
     redisConfigCluster = new RedisConfig(new RedisEndpoint("127.0.0.1", 7379))
 
     val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).

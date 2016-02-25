@@ -6,6 +6,7 @@ pidfile /tmp/redis_standalone_node_for_spark-redis.pid
 logfile /tmp/redis_standalone_node_for_spark-redis.log
 save ""
 appendonly no
+requirepass passwd
 endef
 
 # CLUSTER REDIS NODES

@@ -129,11 +129,13 @@ object RedisContext extends Serializable {
     arr.map(kv => (redisConfig.findHost(kv._1), kv)).toArray.groupBy(_._1).
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
-        val jedis = new Jedis(x._1._1, x._1._2)
-        val pipeline = jedis.pipelined
+        val ep = new RedisEndpoint(x._1._1, x._1._2,
+          redisConfig.initialHost.auth, redisConfig.initialHost.dbNum)
+        val conn = ep.connect()
+        val pipeline = conn.pipelined
         x._2.foreach(x => pipeline.set(x._1, x._2))
         pipeline.sync
-        jedis.close
+        conn.close
       }
     }
   }
@@ -147,11 +149,11 @@ object RedisContext extends Serializable {
   def setHash(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
 
 
-    val jedis = redisConfig.connecttionForKey(key)
-    val pipeline = jedis.pipelined
+    val conn = redisConfig.connecttionForKey(key)
+    val pipeline = conn.pipelined
     arr.foreach(x => pipeline.hset(key, x._1, x._2))
     pipeline.sync
-    jedis.close
+    conn.close
   }
 
   /**
