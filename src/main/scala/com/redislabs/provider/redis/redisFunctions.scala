@@ -24,7 +24,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   val redisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))
 
   /**
-    * @param keyPattern
+    * @param keyPattern a key pattern to match, or a single key
     * @param partitionNum number of partitions
     * @return RedisKeysRDD of simple Keys stored in redis server
     */
@@ -33,7 +33,17 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
                          (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
   RedisKeysRDD = {
 
-    new RedisKeysRDD(sc, redisConfig, keyPattern, partitionNum);
+    new RedisKeysRDD(sc, redisConfig, keyPattern, partitionNum, null);
+
+  }
+
+
+  def fromRedisKeys(keys: Array[String],
+                          partitionNum: Int = 3)
+                         (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RedisKeysRDD = {
+
+    new RedisKeysRDD(sc, redisConfig, "", partitionNum, keys);
 
   }
 

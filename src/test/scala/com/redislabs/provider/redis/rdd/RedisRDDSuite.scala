@@ -58,6 +58,14 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
     kvContents should be (wcnts)
   }
 
+//  test("RedisKVRDD - with keys list") {
+//    implicit val c: RedisConfig = redisConfigStandalone
+//    val redisKVRDD = sc.fromRedisKeys(Array("cluster", "RDD"))
+//    val kvContents = redisKVRDD.collect
+//    val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+//      map(x => (x._1, x._2.map(_._2).reduce(_ + _).toString)).toArray.sortBy(_._1)
+//    kvContents should be (wcnts)
+//  }
   test("RedisKVRDD - cluster") {
     implicit val c: RedisConfig = redisConfigCluster
     val redisKVRDD = sc.fromRedisKeyPattern("*").getKV
