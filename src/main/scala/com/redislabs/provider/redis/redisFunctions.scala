@@ -26,18 +26,18 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     */
   def fromRedisKeyPattern(keyPattern: String = "*",
                           partitionNum: Int = 3)
-                         (implicit clusterInfo: ClusterInfo = this.clusterInfo): RedisKeysRDD = {
+                         (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))):
+  RedisKeysRDD = {
 
-
-    new RedisKeysRDD(sc, keyPattern, partitionNum);
+    new RedisKeysRDD(sc, clusterInfo, keyPattern, partitionNum);
 
   }
 
   /**
     * @param kvs Pair RDD of K/V
     */
-  def toRedisKV(kvs: RDD[(String, String)]) {
-
+  def toRedisKV(kvs: RDD[(String, String)])
+     (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     kvs.foreachPartition(partition => setKVs(partition, clusterInfo))
   }
@@ -47,7 +47,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     * @param hashName target hash's name which hold all the kvs
     */
   def toRedisHASH(kvs: RDD[(String, String)],
-                  hashName: String) {
+                  hashName: String)
+    (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     kvs.foreachPartition(partition => setHash(hashName, partition, clusterInfo))
   }
@@ -57,7 +58,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     * @param zsetName target zset's name which hold all the kvs
     */
   def toRedisZSET(kvs: RDD[(String, String)],
-                  zsetName: String) {
+                  zsetName: String)
+    (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     kvs.foreachPartition(partition => setZset(zsetName, partition, clusterInfo))
   }
@@ -67,7 +69,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     * @param setName target set's name which hold all the vs
     */
   def toRedisSET(vs: RDD[String],
-                 setName: String) {
+                 setName: String)
+    (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     vs.foreachPartition(partition => setSet(setName, partition, clusterInfo))
   }
@@ -77,8 +80,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     * @param listName target list's name which hold all the vs
     */
   def toRedisLIST(vs: RDD[String],
-                  listName: String
-                 ) {
+                  listName: String)
+    (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     vs.foreachPartition(partition => setList(listName, partition, clusterInfo))
   }
@@ -91,7 +94,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     */
   def toRedisFixedLIST(vs: RDD[String],
                        listName: String,
-                       listSize: Int = 0) {
+                       listSize: Int = 0)
+    (implicit clusterInfo: ClusterInfo = new ClusterInfo(new RedisEndpoint(sc.getConf))) {
 
     vs.foreachPartition(partition => setFixedList(listName, listSize, partition, clusterInfo))
   }

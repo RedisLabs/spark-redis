@@ -123,11 +123,12 @@ class RedisListRDD(prev: RDD[String],
 }
 
 class RedisKeysRDD(sc: SparkContext,
+                   val clusterInfo: ClusterInfo,
                    val keyPattern: String = "*",
                    val partitionNum: Int = 3)
     extends RDD[String](sc, Seq.empty) with Logging with Keys {
 
-  val clusterInfo  =  new ClusterInfo(new RedisEndpoint(sc.getConf))
+//  val clusterInfo  =  new ClusterInfo(new RedisEndpoint(sc.getConf))
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(split.asInstanceOf[RedisPartition].clusterInfo.currentAddr)
