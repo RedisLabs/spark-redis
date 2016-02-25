@@ -36,13 +36,13 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new Jedis(x._1._1, x._1._2)
-          val stringKeys = filterKeysByType(jedis, x._2, "string")
-          val pipeline = jedis.pipelined
+          val conn = new Jedis(x._1._1, x._1._2)
+          val stringKeys = filterKeysByType(conn, x._2, "string")
+          val pipeline = conn.pipelined
           stringKeys.foreach(pipeline.get)
           val res = stringKeys.zip(pipeline.syncAndReturnAll).iterator.
             asInstanceOf[Iterator[(String, String)]]
-          jedis.close
+          conn.close
           res
         }
     }.iterator
@@ -52,10 +52,10 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new Jedis(x._1._1, x._1._2)
-          val hashKeys = filterKeysByType(jedis, x._2, "hash")
-          val res = hashKeys.flatMap(jedis.hgetAll).iterator
-          jedis.close
+          val conn = new Jedis(x._1._1, x._1._2)
+          val hashKeys = filterKeysByType(conn, x._2, "hash")
+          val res = hashKeys.flatMap(conn.hgetAll).iterator
+          conn.close
           res
         }
     }.iterator
@@ -65,11 +65,11 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new Jedis(x._1._1, x._1._2)
-          val zsetKeys = filterKeysByType(jedis, x._2, "zset")
-          val res = zsetKeys.flatMap(k => jedis.zrangeWithScores(k, 0, -1)).
+          val conn = new Jedis(x._1._1, x._1._2)
+          val zsetKeys = filterKeysByType(conn, x._2, "zset")
+          val res = zsetKeys.flatMap(k => conn.zrangeWithScores(k, 0, -1)).
             map(tup => (tup.getElement, tup.getScore.toString)).iterator
-          jedis.close
+          conn.close
           res
         }
     }.iterator
@@ -99,10 +99,10 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new Jedis(x._1._1, x._1._2)
-          val setKeys = filterKeysByType(jedis, x._2, "set")
-          val res = setKeys.flatMap(jedis.smembers).iterator
-          jedis.close
+          val conn = new Jedis(x._1._1, x._1._2)
+          val setKeys = filterKeysByType(conn, x._2, "set")
+          val res = setKeys.flatMap(conn.smembers).iterator
+          conn.close
           res
         }
     }.iterator
@@ -112,10 +112,10 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val jedis = new Jedis(x._1._1, x._1._2)
-          val listKeys = filterKeysByType(jedis, x._2, "list")
-          val res = listKeys.flatMap(jedis.lrange(_, 0, -1)).iterator
-          jedis.close
+          val conn = new Jedis(x._1._1, x._1._2)
+          val listKeys = filterKeysByType(conn, x._2, "list")
+          val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
+          conn.close
           res
         }
     }.iterator
@@ -272,13 +272,13 @@ trait Keys {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
-        val jedis = new Jedis(node._1, node._2)
+        val conn = new Jedis(node._1, node._2)
         val params = new ScanParams().`match`(keyPattern)
-        val res = keys.addAll(scanKeys(jedis, params).filter(key => {
+        val res = keys.addAll(scanKeys(conn, params).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         }))
-        jedis.close
+        conn.close
         res
       })
     } else {
@@ -305,13 +305,13 @@ trait Keys {
   }
 
   /**
-   * @param jedis
+   * @param conn
    * @param keys
    * keys are guaranteed that they belongs with the server jedis connected to.
    * Filter all the keys of "t" type.
    */
-  def filterKeysByType(jedis: Jedis, keys:Array[String], t:String): Array[String] = {
-    val pipeline = jedis.pipelined
+  def filterKeysByType(conn: Jedis, keys:Array[String], t:String): Array[String] = {
+    val pipeline = conn.pipelined
     keys.foreach(pipeline.`type`)
     val types = pipeline.syncAndReturnAll
     (keys).zip(types).filter(x => (x._2 == t)).map(x => x._1)
