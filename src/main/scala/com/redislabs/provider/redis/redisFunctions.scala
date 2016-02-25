@@ -12,6 +12,10 @@ import com.redislabs.provider.redis.rdd._
 //import com.redislabs.provider.redis.NodesInfo._
 
 
+/**
+  * RedisContext extends sparkContext's functionality with redis functions
+  * @param sc a spark context
+  */
 class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
   import com.redislabs.provider.redis.RedisContext._
