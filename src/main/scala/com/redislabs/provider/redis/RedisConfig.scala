@@ -115,7 +115,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
   }
 
   /** Get a jedis connection for a given key */
-  def connecttionForKey(key: String): Jedis = {
+  def connectionForKey(key: String): Jedis = {
     val host = getHost(key).endpoint
     host.connect
   }

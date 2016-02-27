@@ -7,11 +7,6 @@ import redis.clients.jedis.Jedis
 import redis.clients.util.{SafeEncoder, JedisClusterCRC16}
 import com.redislabs.provider.redis.rdd._
 
-
-
-//import com.redislabs.provider.redis.NodesInfo._
-
-
 /**
   * RedisContext extends sparkContext's functionality with redis functions
   * @param sc a spark context
@@ -144,7 +139,7 @@ object RedisContext extends Serializable {
   def setHash(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
 
 
-    val conn = redisConfig.connecttionForKey(key)
+    val conn = redisConfig.connectionForKey(key)
     val pipeline = conn.pipelined
     arr.foreach(x => pipeline.hset(key, x._1, x._2))
     pipeline.sync
@@ -158,7 +153,7 @@ object RedisContext extends Serializable {
     */
   def setZset(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
 
-    val jedis = redisConfig.connecttionForKey(key)
+    val jedis = redisConfig.connectionForKey(key)
     val pipeline = jedis.pipelined
     arr.foreach(x => pipeline.zadd(key, x._2.toDouble, x._1))
     pipeline.sync
@@ -173,7 +168,7 @@ object RedisContext extends Serializable {
   def setSet(key: String, arr: Iterator[String], redisConfig: RedisConfig) {
 
 
-    val jedis = redisConfig.connecttionForKey(key)
+    val jedis = redisConfig.connectionForKey(key)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.sadd(key, _))
     pipeline.sync
@@ -187,7 +182,7 @@ object RedisContext extends Serializable {
     */
   def setList(listName: String, arr: Iterator[String], redisConfig: RedisConfig) {
 
-    val jedis = redisConfig.connecttionForKey(listName)
+    val jedis = redisConfig.connectionForKey(listName)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     pipeline.sync
@@ -203,7 +198,7 @@ object RedisContext extends Serializable {
   def setFixedList(key: String, listSize: Int, arr: Iterator[String],
                    redisConfig: RedisConfig) {
 
-    val jedis = redisConfig.connecttionForKey(key)
+    val jedis = redisConfig.connectionForKey(key)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.lpush(key, _))
     if (listSize > 0) {
