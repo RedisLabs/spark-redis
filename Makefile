@@ -55,8 +55,12 @@ start:
 	echo "$$REDIS_CLUSTER_NODE3_CONF" | redis-server -
 	redis-cli -p 7380 cluster meet 127.0.0.1 7379 > /dev/null
 	redis-cli -p 7381 cluster meet 127.0.0.1 7379 > /dev/null
-	slots=$$(seq 0 5460); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7379 cluster addslots $$slots > /dev/null
-	slots=$$(seq 5461 10922); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7380 cluster addslots $$slots > /dev/null
+	slots=$$(seq 0 2047); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7379 cluster addslots $$slots > /dev/null
+	slots=$$(seq 2048 3333); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7380 cluster addslots $$slots > /dev/null
+	slots=$$(seq 3334 5460); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7379 cluster addslots $$slots > /dev/null
+	slots=$$(seq 5461 7777); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7380 cluster addslots $$slots > /dev/null
+	slots=$$(seq 7778 9999); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7381 cluster addslots $$slots > /dev/null
+	slots=$$(seq 10000 10922); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7380 cluster addslots $$slots > /dev/null
 	slots=$$(seq 10923 16383); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7381 cluster addslots $$slots > /dev/null
 
 stop:

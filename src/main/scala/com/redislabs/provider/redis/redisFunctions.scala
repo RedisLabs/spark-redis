@@ -20,9 +20,6 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
   import com.redislabs.provider.redis.RedisContext._
 
-
-  val redisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))
-
   /**
     * @param keyPattern a key pattern to match, or a single key
     * @param partitionNum number of partitions
@@ -39,8 +36,8 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
 
   def fromRedisKeys(keys: Array[String],
-                          partitionNum: Int = 3)
-                         (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+                    partitionNum: Int = 3)
+                   (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
   RedisKeysRDD = {
 
     new RedisKeysRDD(sc, redisConfig, "", partitionNum, keys);
@@ -126,13 +123,11 @@ object RedisContext extends Serializable {
   def setKVs(arr: Iterator[(String, String)], redisConfig: RedisConfig) {
 
 
-    arr.map(kv => (redisConfig.findHost(kv._1), kv)).toArray.groupBy(_._1).
+    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
-        val ep = new RedisEndpoint(x._1._1, x._1._2,
-          redisConfig.initialHost.auth, redisConfig.initialHost.dbNum)
-        val conn = ep.connect()
-        val pipeline = conn.pipelined
+        val conn = x._1.endpoint.connect()
+        val pipeline = x._1.endpoint.connect.pipelined
         x._2.foreach(x => pipeline.set(x._1, x._2))
         pipeline.sync
         conn.close

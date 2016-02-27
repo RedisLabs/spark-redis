@@ -2,7 +2,7 @@ package com.redislabs.provider.redis.rdd
 
 import java.util
 
-import com.redislabs.provider.redis.{RedisEndpoint, RedisConfig}
+import com.redislabs.provider.redis.{RedisNode, RedisEndpoint, RedisConfig}
 import org.apache.spark.rdd.RDD
 import org.apache.spark._
 import redis.clients.jedis._
@@ -27,20 +27,19 @@ class RedisKVRDD(prev: RDD[String],
     val auth = partition.redisConfig.getAuth
     val db = partition.redisConfig.getDB
     rddType match {
-      case "kv"   => getKV(nodes, keys, partition.redisConfig);
-      case "hash" => getHASH(nodes, keys,  partition.redisConfig);
-      case "zset" => getZSET(nodes, keys, partition.redisConfig);
+      case "kv"   => getKV(nodes, keys)
+      case "hash" => getHASH(nodes, keys)
+      case "zset" => getZSET(nodes, keys)
     }
   }
 
-  def getKV(nodes: Array[(String, Int, Int, Int, Int, Int)],
-            keys: Iterator[String],
-            config: RedisConfig): Iterator[(String, String)] = {
+  def getKV(nodes: Array[RedisNode],
+            keys: Iterator[String]): Iterator[(String, String)] = {
 
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val conn = new RedisEndpoint(x._1._1, x._1._2, config.getAuth, config.getDB).connect()
+          val conn = x._1.endpoint.connect()
           val stringKeys = filterKeysByType(conn, x._2, "string")
           val pipeline = conn.pipelined
           stringKeys.foreach(pipeline.get)
@@ -51,13 +50,12 @@ class RedisKVRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getHASH(nodes: Array[(String, Int, Int, Int, Int, Int)],
-              keys: Iterator[String],
-              config: RedisConfig): Iterator[(String, String)] = {
+  def getHASH(nodes: Array[RedisNode],
+              keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val conn = new RedisEndpoint(x._1._1, x._1._2, config.getAuth, config.getDB).connect()
+          val conn = x._1.endpoint.connect()
           val hashKeys = filterKeysByType(conn, x._2, "hash")
           val res = hashKeys.flatMap(conn.hgetAll).iterator
           conn.close
@@ -65,13 +63,12 @@ class RedisKVRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getZSET(nodes: Array[(String, Int, Int, Int, Int, Int)],
-              keys: Iterator[String],
-              config: RedisConfig): Iterator[(String, String)] = {
+  def getZSET(nodes: Array[RedisNode],
+              keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val conn = new RedisEndpoint(x._1._1, x._1._2, config.getAuth, config.getDB).connect()
+          val conn = x._1.endpoint.connect()
           val zsetKeys = filterKeysByType(conn, x._2, "zset")
           val res = zsetKeys.flatMap(k => conn.zrangeWithScores(k, 0, -1)).
             map(tup => (tup.getElement, tup.getScore.toString)).iterator
@@ -95,18 +92,17 @@ class RedisListRDD(prev: RDD[String],
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     val keys = firstParent[String].iterator(split, context)
     rddType match {
-      case "set"  => getSET(nodes, keys, partition.redisConfig)
-      case "list" => getLIST(nodes, keys, partition.redisConfig)
+      case "set"  => getSET(nodes, keys)
+      case "list" => getLIST(nodes, keys)
     }
   }
 
-  def getSET(nodes: Array[(String, Int, Int, Int, Int, Int)],
-             keys: Iterator[String],
-             config: RedisConfig): Iterator[String] = {
+  def getSET(nodes: Array[RedisNode],
+             keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val conn = new RedisEndpoint(x._1._1, x._1._2, config.getAuth, config.getDB).connect()
+          val conn = x._1.endpoint.connect()
           val setKeys = filterKeysByType(conn, x._2, "set")
           val res = setKeys.flatMap(conn.smembers).iterator
           conn.close
@@ -114,13 +110,12 @@ class RedisListRDD(prev: RDD[String],
         }
     }.iterator
   }
-  def getLIST(nodes: Array[(String, Int, Int, Int, Int, Int)],
-              keys: Iterator[String],
-              config: RedisConfig): Iterator[String] = {
+  def getLIST(nodes: Array[RedisNode],
+              keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
       x =>
         {
-          val conn = new RedisEndpoint(x._1._1, x._1._2, config.getAuth, config.getDB).connect()
+          val conn = x._1.endpoint.connect()
           val listKeys = filterKeysByType(conn, x._2, "list")
           val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
           conn.close
@@ -149,23 +144,23 @@ class RedisKeysRDD(sc: SparkContext,
    * @return hosts
    */
   private def scaleHostsWithPartitionNum(): Seq[(String, Int, Int, Int)] = {
-    def split(host: (String, Int, Int, Int), cnt: Int) = {
-      val start = host._3
-      val end = host._4
+    def split(host: RedisNode, cnt: Int) = {
+      val endpoint = host.endpoint
+      val start = host.startSlot
+      val end = host.endSlot
       val range = (end - start) / cnt
       (0 until cnt).map(i => {
-        (host._1,
-          host._2,
+        (endpoint.host,
+          endpoint.port,
           if (i == 0) start else (start + range * i + 1),
           if (i != cnt - 1) (start + range * (i + 1)) else end)
       })
     }
 
-
-    val hosts = redisConfig.hosts
+    val hosts = redisConfig.hosts.sortBy(_.startSlot)
 
     if (hosts.size == partitionNum) {
-      hosts
+      hosts.map(x => (x.endpoint.host, x.endpoint.port, x.startSlot, x.endSlot))
     } else if (hosts.size < partitionNum) {
       val presExtCnt = partitionNum / hosts.size
       val lastExtCnt = if (presExtCnt * hosts.size < partitionNum) (presExtCnt + 1) else presExtCnt
@@ -178,14 +173,14 @@ class RedisKeysRDD(sc: SparkContext,
       val presExtCnt = hosts.size / partitionNum
       (0 until partitionNum).map{
         idx => {
-          val ip = hosts(idx * presExtCnt)._1
-          val port = hosts(idx * presExtCnt)._2
-          val start = hosts(idx * presExtCnt)._3
+          val ip = hosts(idx * presExtCnt).endpoint.host
+          val port = hosts(idx * presExtCnt).endpoint.port
+          val start = hosts(idx * presExtCnt).startSlot
           val end = hosts(if (idx == partitionNum - 1) {
                             (hosts.size-1)
                           } else {
                             ((idx + 1) * presExtCnt - 1)
-                          }). _4
+                          }).endSlot
           (ip, port, start, end)
         }
       }
@@ -279,7 +274,7 @@ trait Keys {
    * @param keyPattern
    * return keys whose slot is in [sPos, ePos]
    */
-  def getKeys(nodes: Array[(String, Int, Int, Int, Int, Int)],
+  def getKeys(nodes: Array[RedisNode],
               sPos: Int,
               ePos: Int,
               keyPattern: String,
@@ -287,8 +282,7 @@ trait Keys {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
-
-        val conn = new RedisEndpoint(node._1, node._2, config.getAuth, config.getDB).connect()
+        val conn = node.endpoint.connect()
         val params = new ScanParams().`match`(keyPattern)
         val res = keys.addAll(scanKeys(conn, params).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
@@ -309,12 +303,12 @@ trait Keys {
    * @param keys list of keys
    * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
    */
-  def groupKeysByNode(nodes: Array[(String, Int, Int, Int, Int, Int)], keys: Iterator[String]):
-  Array[((String, Int, Int, Int, Int, Int), Array[String])] = {
-    def getNode(key: String) = {
+  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]):
+  Array[(RedisNode, Array[String])] = {
+    def getNode(key: String): RedisNode = {
       val slot = JedisClusterCRC16.getSlot(key)
       /* Master only */
-      nodes.filter(node => { node._5 <= slot && node._6 >= slot }).filter(_._3 == 0)(0)
+      nodes.filter(node => { node.startSlot <= slot && node.endSlot >= slot }).filter(_.idx == 0)(0)
     }
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).
       map(x => (x._1, x._2.map(_._2))).toArray

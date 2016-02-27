@@ -75,7 +75,11 @@ class RedisEndpoint(val host: String, val port: Int, val auth: String = "", val 
   }
 }
 
-class Node
+case class RedisNode(val endpoint: RedisEndpoint,
+                     val startSlot: Int,
+                     val endSlot: Int,
+                     val idx: Int,
+                     val total: Int)
 
 /**
   * RedisConfig holds the state of the cluster nodes, and uses consistent hashing to map
@@ -87,7 +91,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
   val currentAddr = initialHost.host
 
   val hosts = getHosts(initialHost)
-  val slots = getSlots(initialHost)
+  val nodes = getNodes(initialHost)
 
   def getAuth: String = {
     initialHost.auth
@@ -97,24 +101,22 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
     initialHost.dbNum
   }
 
-  def getRandomNode() : (String, Int, Int, Int) = {
-
+  def getRandomNode(): RedisNode = {
     val rnd = scala.util.Random.nextInt().abs % hosts.length
     hosts(rnd)
   }
 
-  def getNodesBySlots(sPos: Int, ePos: Int): Array[(String, Int, Int, Int, Int, Int)] = {
+  def getNodesBySlots(sPos: Int, ePos: Int): Array[RedisNode] = {
     def inter(sPos1: Int, ePos1: Int, sPos2: Int, ePos2: Int) =
       if (sPos1 <= sPos2) ePos1 >= sPos2 else ePos2 >= sPos1
 
-    val node = getRandomNode
-    slots.filter(node => inter(sPos, ePos, node._5, node._6)).
-      filter(_._3 == 0) //master only now
+    nodes.filter(node => inter(sPos, ePos, node.startSlot, node.endSlot)).
+      filter(_.idx == 0) //master only now
   }
 
   /** Get a jedis connection for a given key */
   def connecttionForKey(key: String): Jedis = {
-    val host = getHost(key)
+    val host = getHost(key).endpoint
     host.connect
   }
 
@@ -133,89 +135,27 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
     * @param key
     * @return host whose slots should involve key
     */
-  def findHost(key: String): (String, Int, Int, Int) = {
+  def getHost(key: String): RedisNode = {
     val slot = JedisClusterCRC16.getSlot(key)
     hosts.filter(host => {
-      host._3 <= slot && host._4 >= slot
+      host.startSlot <= slot && host.endSlot >= slot
     })(0)
   }
 
-  /**
-    * @param key
-    * @return host whose slots should involve key
-    */
-  def getHost(key: String): RedisEndpoint = {
-    val slot = JedisClusterCRC16.getSlot(key)
-    val hosts = slots.filter(x => x._3 == 0 && x._5 <= slot && x._6 >= slot).
-      map(x => (x._1, x._2))
-    new RedisEndpoint(hosts(0)._1, hosts(0)._2, initialHost.auth, initialHost.dbNum)
-  }
 
   /**
     * @param initialHost any addr and port of a cluster or a single server
     * @return list of hosts(addr, port, startSlot, endSlot)
     */
-  private def getHosts(initialHost: RedisEndpoint): Array[(String, Int, Int, Int)] = {
-    getSlots(initialHost).filter(_._3 == 0).map(x => (x._1, x._2, x._5, x._6))
+  private def getHosts(initialHost: RedisEndpoint): Array[RedisNode] = {
+    getNodes(initialHost).filter(_.idx == 0)
   }
 
   /**
     * @param initialHost any addr and port of a single server
     * @return list of nodes(addr, port, index, range, startSlot, endSlot)
     */
-  private def getNonClusterSlots(initialHost: RedisEndpoint):
-  Array[(String, Int, Int, Int, Int, Int)] = {
-    getNonClusterNodes(initialHost).map(x => (x._1, x._2, x._3, x._4, 0, 16383)).toArray
-  }
-
-  /**
-    * @param initialHost any addr and port of a cluster server
-    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
-    */
-  private def getClusterSlots(initialHost: RedisEndpoint):
-  Array[(String, Int, Int, Int, Int, Int)] = {
-    val conn = initialHost.connect()
-    val slots = conn.clusterSlots()
-    val res = conn.clusterSlots().flatMap {
-      slotInfoObj => {
-        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
-        val sPos = slotInfo.get(0).toString.toInt
-        val ePos = slotInfo.get(1).toString.toInt
-        (0 until (slotInfo.size - 2)).map(i => {
-          val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
-          (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
-            node.get(1).toString.toInt,
-            i,
-            slotInfo.size - 2,
-            sPos,
-            ePos)
-        })
-      }
-    }.toArray
-    conn.close()
-    res
-  }
-
-  /**
-    * @param initialHost any addr and port of a cluster or a single server
-    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
-    */
-  def getSlots(initialHost: RedisEndpoint): Array[(String, Int, Int, Int, Int, Int)] = {
-    if (clusterEnabled(initialHost)) {
-      getClusterSlots(initialHost)
-    } else {
-      getNonClusterSlots(initialHost)
-    }
-  }
-
-
-  /** Get all the nodes from a non cluster setup, i.e. master/slaves or single master.
-    * If the initial host is a master we return the node and its slaves. If it
-    *
-    * @param initialHost any addr and port of a single server
-    * @return list of nodes(addr, port, index, range)
-    */
-  private def getNonClusterNodes(initialHost: RedisEndpoint): Array[(String, Int, Int, Int)] = {
+  private def getNonClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val master = (initialHost.host, initialHost.port)
     val conn = initialHost.connect()
 
@@ -243,43 +183,49 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
 
       val nodes = master +: slaves
       val range = nodes.size
-      (0 until range).map(i => (nodes(i)._1, nodes(i)._2, i, range)).toArray
+      (0 until range).map(i =>
+        RedisNode(new RedisEndpoint(nodes(i)._1, nodes(i)._2, initialHost.auth, initialHost.dbNum),
+          0, 16383, i, range)).toArray
     }
   }
 
   /**
     * @param initialHost any addr and port of a cluster server
-    * @return list of nodes(addr, port, index, range)
+    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
     */
-  private def getClusterNodes(initialHost: RedisEndpoint): Array[(String, Int, Int, Int)] = {
+  private def getClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val conn = initialHost.connect()
-    val res = conn.clusterSlots().asInstanceOf[java.util.List[java.lang.Object]].flatMap {
+    val slots = conn.clusterSlots()
+    val res = conn.clusterSlots().flatMap {
       slotInfoObj => {
-        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]].drop(2)
-        val range = slotInfo.size
-        (0 until range).map(i => {
-          var node = slotInfo(i).asInstanceOf[java.util.List[java.lang.Object]]
-          (SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]]),
-            node.get(1).toString.toInt,
-            i,
-            range)
+        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
+        val sPos = slotInfo.get(0).toString.toInt
+        val ePos = slotInfo.get(1).toString.toInt
+        (0 until (slotInfo.size - 2)).map(i => {
+          val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
+          val host = SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]])
+          val port = node.get(1).toString.toInt
+          RedisNode(new RedisEndpoint(host, port, initialHost.auth, initialHost.dbNum),
+                    sPos,
+                    ePos,
+                    i,
+                    slotInfo.size - 2)
         })
       }
-    }.distinct.toArray
+    }.toArray
     conn.close()
     res
   }
 
   /**
     * @param initialHost any addr and port of a cluster or a single server
-    * @return list of nodes(addr, port, index, range)
+    * @return list of nodes(addr, port, index, range, startSlot, endSlot)
     */
-  private def getNodes(initialHost: RedisEndpoint): Array[(String, Int, Int, Int)] = {
+  def getNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     if (clusterEnabled(initialHost)) {
       getClusterNodes(initialHost)
     } else {
       getNonClusterNodes(initialHost)
     }
   }
-
 }
