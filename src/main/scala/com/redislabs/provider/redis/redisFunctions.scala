@@ -2,9 +2,7 @@ package com.redislabs.provider.redis
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.Jedis
 
-import redis.clients.util.{SafeEncoder, JedisClusterCRC16}
 import com.redislabs.provider.redis.rdd._
 
 /**
@@ -26,17 +24,19 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   RedisKeysRDD = {
 
     new RedisKeysRDD(sc, redisConfig, keyPattern, partitionNum, null);
-
   }
 
-
+  /**
+    * @param keys an array of keys
+    * @param partitionNum number of partitions
+    * @return RedisKeysRDD of simple Keys stored in redis server
+    */
   def fromRedisKeys(keys: Array[String],
                     partitionNum: Int = 3)
                    (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
   RedisKeysRDD = {
 
     new RedisKeysRDD(sc, redisConfig, "", partitionNum, keys);
-
   }
 
   /**
@@ -117,7 +117,6 @@ object RedisContext extends Serializable {
     */
   def setKVs(arr: Iterator[(String, String)], redisConfig: RedisConfig) {
 
-
     arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
@@ -137,7 +136,6 @@ object RedisContext extends Serializable {
     *            save all the k/vs to hashName(list type) to the target host
     */
   def setHash(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
-
 
     val conn = redisConfig.connectionForKey(key)
     val pipeline = conn.pipelined
@@ -166,7 +164,6 @@ object RedisContext extends Serializable {
     *            save all the values to setName(set type) to the target host
     */
   def setSet(key: String, arr: Iterator[String], redisConfig: RedisConfig) {
-
 
     val jedis = redisConfig.connectionForKey(key)
     val pipeline = jedis.pipelined
@@ -207,8 +204,6 @@ object RedisContext extends Serializable {
     pipeline.sync
     jedis.close
   }
-
-
 }
 
 trait RedisFunctions {
