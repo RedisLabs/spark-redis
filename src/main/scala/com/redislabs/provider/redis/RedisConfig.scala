@@ -113,6 +113,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
     * @return a list of RedisNode whose slots union [sPos, ePos] is not null
     */
   def getNodesBySlots(sPos: Int, ePos: Int): Array[RedisNode] = {
+    /* This function judges if [sPos1, ePos1] union [sPos2, ePos2] is not null */
     def inter(sPos1: Int, ePos1: Int, sPos2: Int, ePos2: Int) =
       if (sPos1 <= sPos2) ePos1 >= sPos2 else ePos2 >= sPos1
 
@@ -210,6 +211,15 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
         val sPos = slotInfo.get(0).toString.toInt
         val ePos = slotInfo.get(1).toString.toInt
+        /*
+         * We will get all the nodes with the slots range [sPos, ePos],
+         * and create RedisNode for each nodes, the total field of all
+         * RedisNode are the number of the nodes whose slots range is
+         * as above, and the idx field is just an index for each node
+         * which will be used for adding support for slaves and so on.
+         * And the idx of a master is always 0, we rely on this fact to
+         * filter master.
+         */
         (0 until (slotInfo.size - 2)).map(i => {
           val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
           val host = SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]])
