@@ -125,7 +125,7 @@ class RedisKeysRDD(sc: SparkContext,
     extends RDD[String](sc, Seq.empty) with Logging with Keys {
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
-    Seq(split.asInstanceOf[RedisPartition].redisConfig.currentAddr)
+    Seq(split.asInstanceOf[RedisPartition].redisConfig.initialAddr)
   }
 
   /**
