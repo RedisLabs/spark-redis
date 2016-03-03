@@ -174,6 +174,53 @@ class RedisRDDSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
     setContents should be (ws)
   }
 
+  test("Expire - default(standalone)") {
+    val expireTime = 1
+    val prefix = s"#expire in ${expireTime}#:"
+    val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
+      reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
+    val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
+    sc.toRedisKV(wcnts, expireTime)
+    sc.toRedisZSET(wcnts, prefix + "all:words:cnt:sortedset", expireTime)
+    sc.toRedisHASH(wcnts, prefix + "all:words:cnt:hash", expireTime)
+    sc.toRedisLIST(wds, prefix + "all:words:list", expireTime)
+    sc.toRedisSET(wds, prefix + "all:words:set", expireTime)
+    Thread.sleep(expireTime * 1000 + 1)
+    sc.fromRedisKeyPattern(prefix + "*").count should be (0)
+  }
+
+  test("Expire - standalone") {
+    val expireTime = 1
+    val prefix = s"#expire in ${expireTime}#:"
+    implicit val c: RedisConfig = redisConfigStandalone
+    val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
+      reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
+    val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
+    sc.toRedisKV(wcnts, expireTime)
+    sc.toRedisZSET(wcnts, prefix + "all:words:cnt:sortedset", expireTime)
+    sc.toRedisHASH(wcnts, prefix + "all:words:cnt:hash", expireTime)
+    sc.toRedisLIST(wds, prefix + "all:words:list", expireTime)
+    sc.toRedisSET(wds, prefix + "all:words:set", expireTime)
+    Thread.sleep(expireTime * 1000 + 1)
+    sc.fromRedisKeyPattern(prefix + "*").count should be (0)
+  }
+
+  test("Expire - cluster") {
+    val expireTime = 1
+    val prefix = s"#expire in ${expireTime}#:"
+    implicit val c: RedisConfig = redisConfigCluster
+    val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
+      reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
+    val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
+    sc.toRedisKV(wcnts, expireTime)
+    sc.toRedisZSET(wcnts, prefix + "all:words:cnt:sortedset", expireTime)
+    sc.toRedisHASH(wcnts, prefix + "all:words:cnt:hash", expireTime)
+    sc.toRedisLIST(wds, prefix + "all:words:list", expireTime)
+    sc.toRedisSET(wds, prefix + "all:words:set", expireTime)
+    Thread.sleep(expireTime * 1000 + 1)
+    sc.fromRedisKeyPattern(prefix + "*").count should be (0)
+  }
+
   override def afterAll(): Unit = {
     sc.stop
     System.clearProperty("spark.driver.port")

@@ -41,55 +41,56 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
   /**
     * @param kvs Pair RDD of K/V
+    * @param ttl time to live
     */
-  def toRedisKV(kvs: RDD[(String, String)])
+  def toRedisKV(kvs: RDD[(String, String)], ttl: Int = 0)
      (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
 
-    kvs.foreachPartition(partition => setKVs(partition, redisConfig))
+    kvs.foreachPartition(partition => setKVs(partition, ttl, redisConfig))
   }
 
   /**
     * @param kvs      Pair RDD of K/V
     * @param hashName target hash's name which hold all the kvs
+    * @param ttl time to live
     */
-  def toRedisHASH(kvs: RDD[(String, String)],
-                  hashName: String)
+  def toRedisHASH(kvs: RDD[(String, String)], hashName: String, ttl: Int = 0)
     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
 
-    kvs.foreachPartition(partition => setHash(hashName, partition, redisConfig))
+    kvs.foreachPartition(partition => setHash(hashName, partition, ttl, redisConfig))
   }
 
   /**
     * @param kvs      Pair RDD of K/V
     * @param zsetName target zset's name which hold all the kvs
+    * @param ttl time to live
     */
-  def toRedisZSET(kvs: RDD[(String, String)],
-                  zsetName: String)
+  def toRedisZSET(kvs: RDD[(String, String)], zsetName: String, ttl: Int = 0)
     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
 
-    kvs.foreachPartition(partition => setZset(zsetName, partition, redisConfig))
+    kvs.foreachPartition(partition => setZset(zsetName, partition, ttl, redisConfig))
   }
 
   /**
     * @param vs      RDD of values
     * @param setName target set's name which hold all the vs
+    * @param ttl time to live
     */
-  def toRedisSET(vs: RDD[String],
-                 setName: String)
+  def toRedisSET(vs: RDD[String], setName: String, ttl: Int = 0)
     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
 
-    vs.foreachPartition(partition => setSet(setName, partition, redisConfig))
+    vs.foreachPartition(partition => setSet(setName, partition, ttl, redisConfig))
   }
 
   /**
     * @param vs       RDD of values
     * @param listName target list's name which hold all the vs
+    * @param ttl time to live
     */
-  def toRedisLIST(vs: RDD[String],
-                  listName: String)
+  def toRedisLIST(vs: RDD[String], listName: String, ttl: Int = 0)
     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
 
-    vs.foreachPartition(partition => setList(listName, partition, redisConfig))
+    vs.foreachPartition(partition => setList(listName, partition, ttl, redisConfig))
   }
 
   /**
@@ -114,15 +115,21 @@ object RedisContext extends Serializable {
   /**
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to the target host
+    * @param ttl time to live
     */
-  def setKVs(arr: Iterator[(String, String)], redisConfig: RedisConfig) {
+  def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
 
     arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
         val conn = x._1.endpoint.connect()
         val pipeline = x._1.endpoint.connect.pipelined
-        x._2.foreach(x => pipeline.set(x._1, x._2))
+        if (ttl <= 0) {
+          x._2.foreach(x => pipeline.set(x._1, x._2))
+        }
+        else {
+          x._2.foreach(x => pipeline.setex(x._1, ttl, x._2))
+        }
         pipeline.sync
         conn.close
       }
@@ -131,43 +138,49 @@ object RedisContext extends Serializable {
 
 
   /**
-    * @param key
+    * @param hashName
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to hashName(list type) to the target host
+    * @param ttl time to live
     */
-  def setHash(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
+  def setHash(hashName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
 
-    val conn = redisConfig.connectionForKey(key)
+    val conn = redisConfig.connectionForKey(hashName)
     val pipeline = conn.pipelined
-    arr.foreach(x => pipeline.hset(key, x._1, x._2))
+    arr.foreach(x => pipeline.hset(hashName, x._1, x._2))
+    if (ttl > 0) pipeline.expire(hashName, ttl)
     pipeline.sync
     conn.close
   }
 
   /**
-    * @param key
+    * @param zsetName
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to zsetName(zset type) to the target host
+    * @param ttl time to live
     */
-  def setZset(key: String, arr: Iterator[(String, String)], redisConfig: RedisConfig) {
+  def setZset(zsetName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
 
-    val jedis = redisConfig.connectionForKey(key)
+    val jedis = redisConfig.connectionForKey(zsetName)
     val pipeline = jedis.pipelined
-    arr.foreach(x => pipeline.zadd(key, x._2.toDouble, x._1))
+    arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
+    if (ttl > 0) pipeline.expire(zsetName, ttl)
     pipeline.sync
     jedis.close
   }
 
   /**
-    * @param key
+    * @param setName
     * @param arr values which should be saved in the target host
     *            save all the values to setName(set type) to the target host
+    * @param ttl time to live
     */
-  def setSet(key: String, arr: Iterator[String], redisConfig: RedisConfig) {
+  def setSet(setName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig) {
 
-    val jedis = redisConfig.connectionForKey(key)
+    val jedis = redisConfig.connectionForKey(setName)
     val pipeline = jedis.pipelined
-    arr.foreach(pipeline.sadd(key, _))
+    arr.foreach(pipeline.sadd(setName, _))
+    if (ttl > 0) pipeline.expire(setName, ttl)
     pipeline.sync
     jedis.close
   }
@@ -176,12 +189,14 @@ object RedisContext extends Serializable {
     * @param listName
     * @param arr values which should be saved in the target host
     *            save all the values to listName(list type) to the target host
+    * @param ttl time to live
     */
-  def setList(listName: String, arr: Iterator[String], redisConfig: RedisConfig) {
+  def setList(listName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig) {
 
     val jedis = redisConfig.connectionForKey(listName)
     val pipeline = jedis.pipelined
     arr.foreach(pipeline.rpush(listName, _))
+    if (ttl > 0) pipeline.expire(listName, ttl)
     pipeline.sync
     jedis.close
   }
