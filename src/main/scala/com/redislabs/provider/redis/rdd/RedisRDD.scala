@@ -1,15 +1,21 @@
 package com.redislabs.provider.redis.rdd
 
-import java.util
-
-import com.redislabs.provider.redis.{RedisNode, RedisConfig}
-import org.apache.spark.rdd.RDD
-import org.apache.spark._
 import redis.clients.jedis._
 import redis.clients.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
+import java.util
+import java.util.concurrent.ConcurrentHashMap
+
+import com.redislabs.provider.redis.{RedisNode, RedisConfig}
 import com.redislabs.provider.redis.partitioner._
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark._
+
+import scala.reflect.ClassTag
 
 
 class RedisKVRDD(prev: RDD[String],
@@ -29,7 +35,6 @@ class RedisKVRDD(prev: RDD[String],
     rddType match {
       case "kv"   => getKV(nodes, keys)
       case "hash" => getHASH(nodes, keys)
-      case "zset" => getZSET(nodes, keys)
     }
   }
 
@@ -55,19 +60,6 @@ class RedisKVRDD(prev: RDD[String],
           val conn = x._1.endpoint.connect()
           val hashKeys = filterKeysByType(conn, x._2, "hash")
           val res = hashKeys.flatMap(conn.hgetAll).iterator
-          conn.close
-          res
-        }
-    }.iterator
-  }
-  def getZSET(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
-    groupKeysByNode(nodes, keys).flatMap {
-      x =>
-        {
-          val conn = x._1.endpoint.connect()
-          val zsetKeys = filterKeysByType(conn, x._2, "zset")
-          val res = zsetKeys.flatMap(k => conn.zrangeWithScores(k, 0, -1)).
-            map(tup => (tup.getElement, tup.getScore.toString)).iterator
           conn.close
           res
         }
@@ -113,6 +105,78 @@ class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](p
           conn.close
           res
         }
+    }.iterator
+  }
+}
+
+class RedisZSetRDD[K](prev: RDD[String],
+                      zsetConf: RedisZSetConf,
+                      rddType: K)
+                     (implicit val kClassTag: ClassTag[K])
+  extends RDD[K](prev) with Keys {
+
+  override def getPartitions: Array[Partition] = prev.partitions
+
+  override def compute(split: Partition, context: TaskContext): Iterator[K] = {
+    val partition: RedisPartition = split.asInstanceOf[RedisPartition]
+    val sPos = partition.slots._1
+    val ePos = partition.slots._2
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
+    val keys = firstParent[String].iterator(split, context)
+    val auth = partition.redisConfig.getAuth
+    val db = partition.redisConfig.getDB
+    zsetConf.getType match {
+      case "byRange" => getZSetByRange(nodes, keys, zsetConf.getStartPos, zsetConf.getEndPos).
+        asInstanceOf[Iterator[K]]
+      case "byScore" => getZSetByScore(nodes, keys, zsetConf.getMinScore, zsetConf.getMaxScore).
+        asInstanceOf[Iterator[K]]
+    }
+  }
+
+  private def getZSetByRange(nodes: Array[RedisNode],
+                     keys: Iterator[String],
+                     startPos: Long,
+                     endPos: Long) = {
+    groupKeysByNode(nodes, keys).flatMap {
+      x =>
+      {
+        val conn = x._1.endpoint.connect()
+        val zsetKeys = filterKeysByType(conn, x._2, "zset")
+        val res = {
+          if (zsetConf.getWithScore) {
+            zsetKeys.flatMap(k => conn.zrangeWithScores(k, startPos, endPos)).
+              map(tup => (tup.getElement, tup.getScore)).iterator
+          }
+          else {
+            zsetKeys.flatMap(k => conn.zrange(k, startPos, endPos)).iterator
+          }
+        }
+        conn.close
+        res
+      }
+    }.iterator
+  }
+
+  private def getZSetByScore(nodes: Array[RedisNode],
+                     keys: Iterator[String],
+                     startScore: Double,
+                     endScore: Double) = {
+    groupKeysByNode(nodes, keys).flatMap {
+      x =>
+      {
+        val conn = x._1.endpoint.connect()
+        val zsetKeys = filterKeysByType(conn, x._2, "zset")
+        val res = {
+          if (zsetConf.getWithScore) {
+            zsetKeys.flatMap(k => conn.zrangeByScoreWithScores(k, startScore, endScore)).
+              map(tup => (tup.getElement, tup.getScore)).iterator
+          } else {
+            zsetKeys.flatMap(k => conn.zrangeByScore(k, startScore, endScore)).iterator
+          }
+        }
+        conn.close
+        res
+      }
     }.iterator
   }
 }
@@ -212,10 +276,117 @@ class RedisKeysRDD(sc: SparkContext,
   def getHash(): RDD[(String, String)] = {
     new RedisKVRDD(this, "hash")
   }
-  def getZSet(): RDD[(String, String)] = {
-    new RedisKVRDD(this, "zset")
+  def getZSet(): RDD[(String, Double)] = {
+    val zsetConf: RedisZSetConf = new RedisZSetConf().
+      set("withScore", "true").
+      set("type", "byRange").
+      set("startPos", "0").
+      set("endPos", "-1")
+    new RedisZSetRDD(this, zsetConf, ("String", 0.1))
+  }
+  def getZSetByRange(startPos: Long, endPos: Long, withScore: Boolean) = {
+    val zsetConf: RedisZSetConf = new RedisZSetConf().
+      set("withScore", withScore.toString).
+      set("type", "byRange").
+      set("startPos", startPos.toString).
+      set("endPos", endPos.toString)
+//    new RedisZSetRDD(this, zsetConf, ("String", 0.1))
+    new RedisZSetRDD(this, zsetConf, if (withScore) ("String", 0.1) else "String")
+  }
+  def getZSetByScore(min: Double, max: Double, withScore: Boolean) = {
+    val zsetConf: RedisZSetConf = new RedisZSetConf().
+      set("withScore", withScore.toString).
+      set("type", "byScore").
+      set("minScore", min.toString).
+      set("maxScore", max.toString)
+//    new RedisZSetRDD(this, zsetConf, ("String", 0.1))
+    new RedisZSetRDD(this, zsetConf, if (withScore) ("String", 0.1) else "String")
   }
 }
+
+
+class RedisZSetConf() extends Serializable {
+
+  private val settings = new ConcurrentHashMap[String, String]()
+
+  def set(key: String, value: String): RedisZSetConf = {
+    if (key == null) {
+      throw new NullPointerException("null key")
+    }
+    if (value == null) {
+      throw new NullPointerException("null value for " + key)
+    }
+    settings.put(key, value)
+    this
+  }
+
+  def remove(key: String): RedisZSetConf = {
+    settings.remove(key)
+    this
+  }
+
+  def contains(key: String): Boolean = {
+    settings.containsKey(key)
+  }
+
+  def get(key: String): String = {
+    Option(settings.get(key)).getOrElse(throw new NoSuchElementException(key))
+  }
+
+  def get(key: String, defaultValue: String): String = {
+    Option(settings.get(key)).getOrElse(defaultValue)
+  }
+
+  def getInt(key: String): Int = {
+    get(key).toInt
+  }
+
+  def getInt(key: String, defaultValue: Int): Int = {
+    get(key, defaultValue.toString).toInt
+  }
+
+  def getLong(key: String): Long = {
+    get(key).toLong
+  }
+
+  def getLong(key: String, defaultValue: Long): Long = {
+    get(key, defaultValue.toString).toLong
+  }
+
+  def getDouble(key: String): Double = {
+    get(key).toDouble
+  }
+
+  def getDouble(key: String, defaultValue: Double): Double = {
+    get(key, defaultValue.toString).toDouble
+  }
+
+  def getBoolean(key: String): Boolean = {
+    get(key).toBoolean
+  }
+
+  def getBoolean(key: String, defaultValue: Boolean): Boolean = {
+    get(key, defaultValue.toString).toBoolean
+  }
+
+  def getAll: Array[(String, String)] = {
+    settings.entrySet().asScala.map(x => (x.getKey, x.getValue)).toArray
+  }
+
+  def getType: String = get("type")
+
+  def getWithScore = getBoolean("withScore")
+
+  def getStartPos: Long = getLong("startPos", 0)
+
+  def getEndPos: Long = getLong("endPos", -1)
+
+  def getMinScore: Double = getDouble("minScore")
+
+  def getMaxScore: Double = getDouble("maxScore")
+}
+
+
 
 trait Keys {
   /**
@@ -230,12 +401,12 @@ trait Keys {
         escape match {
           case true => judge(key.substring(1), false)
           case false => key.charAt(0) match {
-                          case '*'  => true
-                          case '?'  => true
-                          case '['  => true
-                          case '\\' => judge(key.substring(1), true)
-                          case _    => judge(key.substring(1), false)
-                        }
+            case '*'  => true
+            case '?'  => true
+            case '['  => true
+            case '\\' => judge(key.substring(1), true)
+            case _    => judge(key.substring(1), false)
+          }
         }
       }
     }
