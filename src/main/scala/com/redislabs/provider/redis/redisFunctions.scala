@@ -40,6 +40,136 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisKVRDD of simple Key-Values stored in redis server
+    */
+  def fromRedisKV[T](keysOrKeyPattern: T,
+                  partitionNum: Int = 3)
+                 (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[(String, String)] = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getKV
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getKV
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisListRDD of related values stored in redis server
+    */
+  def fromRedisList[T](keysOrKeyPattern: T,
+                    partitionNum: Int = 3)
+                   (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[String] = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getList
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getList
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisSetRDD of related values stored in redis server
+    */
+  def fromRedisSet[T](keysOrKeyPattern: T,
+                   partitionNum: Int = 3)
+                  (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[String] = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getSet
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getSet
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisHashRDD of related Key-Values stored in redis server
+    */
+  def fromRedisHash[T](keysOrKeyPattern: T,
+                    partitionNum: Int = 3)
+                   (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[(String, String)] = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getHash
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getHash
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisZSetRDD of related Key-Scores stored in redis server
+    */
+  def fromRedisZSet[T](keysOrKeyPattern: T,
+                    withScore: Boolean = true,
+                    partitionNum: Int = 3)
+                   (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getZSet
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getZSet
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param start start position of target zsets
+    * @param end end position of target zsets
+    * @param withScore
+    * @param partitionNum number of partitions
+    * @return RedisZSetRDD of related Key-Scores stored in redis server
+    */
+  def fromRedisZRange[T](keysOrKeyPattern: T,
+                      start: Int,
+                      end: Int,
+                      withScore: Boolean = true,
+                      partitionNum: Int = 3)
+                     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getZSetByRange(start, end, withScore)
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getZSetByRange(start, end, withScore)
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+  /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param min min score of target zsets
+    * @param max max score of target zsets
+    * @param withScore
+    * @param partitionNum number of partitions
+    * @return RedisZSetRDD of related Key-Scores stored in redis server
+    */
+  def fromRedisZRangeByScore[T](keysOrKeyPattern: T,
+                             min: Double,
+                             max: Double,
+                             withScore: Boolean = true,
+                             partitionNum: Int = 3)
+                            (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) = {
+    if (keysOrKeyPattern.isInstanceOf[String])
+      fromRedisKeyPattern(keysOrKeyPattern.asInstanceOf[String], partitionNum)(redisConfig).getZSetByScore(min, max, withScore)
+    else if (keysOrKeyPattern.isInstanceOf[Array[String]])
+      fromRedisKeys(keysOrKeyPattern.asInstanceOf[Array[String]], partitionNum)(redisConfig).getZSetByScore(min, max, withScore)
+    else
+      throw new Exception("KeysOrKeyPattern should be String or Array[String]")
+  }
+
+
+  /**
     * @param kvs Pair RDD of K/V
     * @param ttl time to live
     */
