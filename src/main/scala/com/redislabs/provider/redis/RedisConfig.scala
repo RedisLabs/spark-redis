@@ -145,7 +145,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
     val conn = initialHost.connect()
     val info = conn.info.split("\n")
     val version = info.filter(_.contains("redis_version:"))(0)
-    val clusterEnable = info.filter(_.contains("cluster_enable:"))
+    val clusterEnable = info.filter(_.contains("cluster_enabled:"))
     val mainVersion = version.substring(14, version.indexOf(".")).toInt
     val res = mainVersion>2 && clusterEnable.length>0 && clusterEnable(0).contains("1")
     conn.close
