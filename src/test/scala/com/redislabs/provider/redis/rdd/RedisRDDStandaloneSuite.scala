@@ -51,7 +51,7 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("RedisZsetRDD - default(standalone)") {
-    val redisZSetRDD = sc.fromRedisZSet("all:words:cnt:sortedset")
+    val redisZSetRDD = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
     val zsetContents = redisZSetRDD.sortByKey().collect
     val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble)).toArray.sortBy(_._1)
@@ -60,7 +60,7 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("RedisZsetRDD - standalone") {
     implicit val c: RedisConfig = redisConfig
-    val redisZSetRDD = sc.fromRedisZSet("all:words:cnt:sortedset")
+    val redisZSetRDD = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
     val zsetContents = redisZSetRDD.sortByKey().collect
     val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble)).toArray.sortBy(_._1)
