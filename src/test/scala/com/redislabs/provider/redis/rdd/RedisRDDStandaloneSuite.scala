@@ -24,7 +24,14 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
     val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
 
-    redisConfig= new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
+    redisConfig = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
+
+    // Flush all the hosts
+    redisConfig.hosts.foreach( node => {
+      val conn = node.connect
+      conn.flushAll
+      conn.close
+    })
 
     sc.toRedisKV(wcnts)(redisConfig)
     sc.toRedisZSET(wcnts, "all:words:cnt:sortedset")(redisConfig)
@@ -51,20 +58,64 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("RedisZsetRDD - default(standalone)") {
-    val redisZSetRDD = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
-    val zsetContents = redisZSetRDD.sortByKey().collect
+    val redisZSetWithScore = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
+    val zsetWithScore = redisZSetWithScore.sortByKey().collect
+
+    val redisZSet = sc.fromRedisZSet("all:words:cnt:sortedset")
+    val zset = redisZSet.collect.sorted
+
+    val redisZRangeWithScore = sc.fromRedisZRangeWithScore("all:words:cnt:sortedset", 0, 15)
+    val zrangeWithScore = redisZRangeWithScore.collect.sortBy(x => (x._2, x._1))
+
+    val redisZRange = sc.fromRedisZRange("all:words:cnt:sortedset", 0, 15)
+    val zrange = redisZRange.collect.sorted
+
+    val redisZRangeByScoreWithScore = sc.fromRedisZRangeByScoreWithScore("all:words:cnt:sortedset", 3, 9)
+    val zrangeByScoreWithScore = redisZRangeByScoreWithScore.collect.sortBy(x => (x._2, x._1))
+
+    val redisZRangeByScore = sc.fromRedisZRangeByScore("all:words:cnt:sortedset", 3, 9)
+    val zrangeByScore = redisZRangeByScore.collect.sorted
+
     val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble)).toArray.sortBy(_._1)
-    zsetContents should be (wcnts)
+      map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble))
+
+    zsetWithScore should be (wcnts.toArray.sortBy(_._1))
+    zset should be (wcnts.map(_._1).toArray.sorted)
+    zrangeWithScore should be (wcnts.toArray.sortBy(x => (x._2, x._1)).take(16))
+    zrange should be (wcnts.toArray.sortBy(x => (x._2, x._1)).take(16).map(_._1))
+    zrangeByScoreWithScore should be (wcnts.toArray.filter(x => (x._2 >= 3 && x._2 <= 9)).sortBy(x => (x._2, x._1)))
+    zrangeByScore should be (wcnts.toArray.filter(x => (x._2 >= 3 && x._2 <= 9)).map(_._1).sorted)
   }
 
   test("RedisZsetRDD - standalone") {
     implicit val c: RedisConfig = redisConfig
-    val redisZSetRDD = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
-    val zsetContents = redisZSetRDD.sortByKey().collect
+    val redisZSetWithScore = sc.fromRedisZSetWithScore("all:words:cnt:sortedset")
+    val zsetWithScore = redisZSetWithScore.sortByKey().collect
+
+    val redisZSet = sc.fromRedisZSet("all:words:cnt:sortedset")
+    val zset = redisZSet.collect.sorted
+
+    val redisZRangeWithScore = sc.fromRedisZRangeWithScore("all:words:cnt:sortedset", 0, 15)
+    val zrangeWithScore = redisZRangeWithScore.collect.sortBy(x => (x._2, x._1))
+
+    val redisZRange = sc.fromRedisZRange("all:words:cnt:sortedset", 0, 15)
+    val zrange = redisZRange.collect.sorted
+
+    val redisZRangeByScoreWithScore = sc.fromRedisZRangeByScoreWithScore("all:words:cnt:sortedset", 3, 9)
+    val zrangeByScoreWithScore = redisZRangeByScoreWithScore.collect.sortBy(x => (x._2, x._1))
+
+    val redisZRangeByScore = sc.fromRedisZRangeByScore("all:words:cnt:sortedset", 3, 9)
+    val zrangeByScore = redisZRangeByScore.collect.sorted
+
     val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble)).toArray.sortBy(_._1)
-    zsetContents should be (wcnts)
+      map(x => (x._1, x._2.map(_._2).reduce(_ + _).toDouble))
+
+    zsetWithScore should be (wcnts.toArray.sortBy(_._1))
+    zset should be (wcnts.map(_._1).toArray.sorted)
+    zrangeWithScore should be (wcnts.toArray.sortBy(x => (x._2, x._1)).take(16))
+    zrange should be (wcnts.toArray.sortBy(x => (x._2, x._1)).take(16).map(_._1))
+    zrangeByScoreWithScore should be (wcnts.toArray.filter(x => (x._2 >= 3 && x._2 <= 9)).sortBy(x => (x._2, x._1)))
+    zrangeByScore should be (wcnts.toArray.filter(x => (x._2 >= 3 && x._2 <= 9)).map(_._1).sorted)
   }
 
   test("RedisHashRDD - default(standalone)") {
