@@ -6,7 +6,6 @@ import redis.clients.util.JedisClusterCRC16
 import scala.collection.JavaConversions._
 
 import java.util
-import java.util.concurrent.ConcurrentHashMap
 
 import com.redislabs.provider.redis.{RedisNode, RedisConfig}
 import com.redislabs.provider.redis.partitioner._
@@ -108,31 +107,38 @@ class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](p
   }
 }
 
-class RedisZSetConf() extends Serializable {
-  private val settings = new ConcurrentHashMap[String, String]()
-  def set(key: String, value: String): RedisZSetConf = {
-    if (key == null) {
-      throw new NullPointerException("null key")
-    }
-    if (value == null) {
-      throw new NullPointerException("null value for " + key)
-    }
-    settings.put(key, value)
-    this
-  }
-  def get(key: String, defaultValue: String): String = {
-    Option(settings.get(key)).getOrElse(defaultValue)
-  }
-  def getStartPos: Long = get("startPos", "0").toLong
-  def getEndPos: Long = get("endPos", "-1").toLong
-  def getMinScore: Double = get("minScore", Double.MinValue.toString).toDouble
-  def getMaxScore: Double = get("maxScore", Double.MaxValue.toString).toDouble
-  def getWithScore: Boolean = get("withScore", "true").toBoolean
-  def getType: String = get("type", "byRange")
-}
+case class ZSetContext(val startPos: Long,
+                       val endPos: Long,
+                       val min: Double,
+                       val max: Double,
+                       val withScore: Boolean,
+                       val typ: String)
+
+//class ZSetContext() extends Serializable {
+//  private val settings = new ConcurrentHashMap[String, String]()
+//  def set(key: String, value: String): ZSetContext = {
+//    if (key == null) {
+//      throw new NullPointerException("null key")
+//    }
+//    if (value == null) {
+//      throw new NullPointerException("null value for " + key)
+//    }
+//    settings.put(key, value)
+//    this
+//  }
+//  def get(key: String, defaultValue: String): String = {
+//    Option(settings.get(key)).getOrElse(defaultValue)
+//  }
+//  def getStartPos: Long = get("startPos", "0").toLong
+//  def getEndPos: Long = get("endPos", "-1").toLong
+//  def getMinScore: Double = get("minScore", Double.MinValue.toString).toDouble
+//  def getMaxScore: Double = get("maxScore", Double.MaxValue.toString).toDouble
+//  def getWithScore: Boolean = get("withScore", "true").toBoolean
+//  def getType: String = get("type", "byRange")
+//}
 
 class RedisZSetRDD[T: ClassTag](prev: RDD[String],
-                                zsetConf: RedisZSetConf,
+                                zsetContext: ZSetContext,
                                 rddType: Class[T])
   extends RDD[T](prev) with Keys {
 
@@ -146,9 +152,9 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
     val keys = firstParent[String].iterator(split, context)
     val auth = partition.redisConfig.getAuth
     val db = partition.redisConfig.getDB
-    zsetConf.getType match {
-      case "byRange" => getZSetByRange(nodes, keys, zsetConf.getStartPos, zsetConf.getEndPos)
-      case "byScore" => getZSetByScore(nodes, keys, zsetConf.getMinScore, zsetConf.getMaxScore)
+    zsetContext.typ match {
+      case "byRange" => getZSetByRange(nodes, keys, zsetContext.startPos, zsetContext.endPos)
+      case "byScore" => getZSetByScore(nodes, keys, zsetContext.min, zsetContext.max)
     }
   }
 
@@ -289,65 +295,89 @@ class RedisKeysRDD(sc: SparkContext,
     }
   }
 
+  /**
+    * filter the 'set' type keys and get all the elements of them
+    * @return RedisSetRDD[String]
+    */
   def getSet(): RDD[String] = {
     new RedisListRDD(this, "set")
   }
+  /**
+    * filter the 'list' type keys and get all the elements of them
+    * @return RedisListRDD[String]
+    */
   def getList(): RDD[String] = {
     new RedisListRDD(this, "list")
   }
+  /**
+    * filter the 'plain k/v' type keys and get all the k/v
+    * @return RedisKVRDD[(String, String)]
+    */
   def getKV(): RDD[(String, String)] = {
     new RedisKVRDD(this, "kv")
   }
+  /**
+    * filter the 'hash' type keys and get all the elements of them
+    * @return RedisHashRDD[(String, String)]
+    */
   def getHash(): RDD[(String, String)] = {
     new RedisKVRDD(this, "hash")
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(without scores) of them
+    * @return RedisZSetRDD[String]
+    */
   def getZSet(): RDD[String] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "false").
-      set("type", "byRange").
-      set("startPos", "0").
-      set("endPos", "-1")
-    new RedisZSetRDD(this, zsetConf, classOf[String])
+    val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, false, "byRange")
+    new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(with scores) of them
+    * @return RedisZSetRDD[(String, Double)]
+    */
   def getZSetWithScore(): RDD[(String, Double)] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "true").
-      set("type", "byRange").
-      set("startPos", "0").
-      set("endPos", "-1")
-    new RedisZSetRDD(this, zsetConf, classOf[(String, Double)])
+    val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, true, "byRange")
+    new RedisZSetRDD(this, zsetContext, classOf[(String, Double)])
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(without scores) of range [startPos, endPos]
+    * @param startPos start position of zsets
+    * @param endPos end position of zsets
+    * @return RedisZSetRDD[String]
+    */
   def getZSetByRange(startPos: Long, endPos: Long): RDD[String] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "false").
-      set("type", "byRange").
-      set("startPos", startPos.toString).
-      set("endPos", endPos.toString)
-    new RedisZSetRDD(this, zsetConf, classOf[String])
+    val zsetContext: ZSetContext = new ZSetContext(startPos, endPos, Double.MinValue, Double.MaxValue, false, "byRange")
+    new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(with scores) of range [startPos, endPos]
+    * @param startPos start position of zsets
+    * @param endPos end position of zsets
+    * @return RedisZSetRDD[(String, Double)]
+    */
   def getZSetByRangeWithScore(startPos: Long, endPos: Long): RDD[(String, Double)] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "true").
-      set("type", "byRange").
-      set("startPos", startPos.toString).
-      set("endPos", endPos.toString)
-    new RedisZSetRDD(this, zsetConf, classOf[(String, Double)])
+    val zsetContext: ZSetContext = new ZSetContext(startPos, endPos, Double.MinValue, Double.MaxValue, true, "byRange")
+    new RedisZSetRDD(this, zsetContext, classOf[(String, Double)])
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(without scores) of score range [min, max]
+    * @param min start position of zsets
+    * @param max end position of zsets
+    * @return RedisZSetRDD[String]
+    */
   def getZSetByScore(min: Double, max: Double): RDD[String] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "false").
-      set("type", "byScore").
-      set("minScore", min.toString).
-      set("maxScore", max.toString)
-    new RedisZSetRDD(this, zsetConf, classOf[String])
+    val zsetContext: ZSetContext = new ZSetContext(0, -1, min, max, false, "byScore")
+    new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+  /**
+    * filter the 'zset' type keys and get all the elements(with scores) of score range [min, max]
+    * @param min start position of zsets
+    * @param max end position of zsets
+    * @return RedisZSetRDD[(String, Double)]
+    */
   def getZSetByScoreWithScore(min: Double, max: Double): RDD[(String, Double)] = {
-    val zsetConf: RedisZSetConf = new RedisZSetConf().
-      set("withScore", "true").
-      set("type", "byScore").
-      set("minScore", min.toString).
-      set("maxScore", max.toString)
-    new RedisZSetRDD(this, zsetConf, classOf[(String, Double)])
+    val zsetContext: ZSetContext = new ZSetContext(0, -1, min, max, true, "byScore")
+    new RedisZSetRDD(this, zsetContext, classOf[(String, Double)])
   }
 }
 
