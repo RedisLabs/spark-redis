@@ -72,8 +72,8 @@ var notAtAllAMagicNumber = 1234
     <check level="warning" class="org.scalastyle.scalariform.NoWhitespaceBeforeLeftBracketChecker" enabled="true"></check>
     <check level="warning" class="org.scalastyle.scalariform.NoWhitespaceAfterLeftBracketChecker" enabled="true"></check>
     <check level="warning" class="org.scalastyle.scalariform.ReturnChecker" enabled="true"></check>
-    <check level="warning" class="org.scalastyle.scalariform.NullChecker" enabled="true"></check>
-    <check level="warning" class="org.scalastyle.scalariform.NoCloneChecker" enabled="true"></check>
+    <!--<check level="warning" class="org.scalastyle.scalariform.NullChecker" enabled="true"></check>-->
+    <!--<check level="warning" class="org.scalastyle.scalariform.NoCloneChecker" enabled="true"></check>-->
     <check level="warning" class="org.scalastyle.scalariform.NoFinalizeChecker" enabled="true"></check>
     <check level="warning" class="org.scalastyle.scalariform.CovariantEqualsChecker" enabled="true"></check>
     <check level="warning" class="org.scalastyle.scalariform.StructuralTypeChecker" enabled="true"></check>
