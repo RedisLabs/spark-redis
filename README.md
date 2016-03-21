@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
 
 # Spark-Redis
-A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/), for Spark SQL and DataFrames.
+A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/)
 
 Spark-Redis provides access to all of Redis' data structures - String, Hash, List, Set and Sorted Set - from Spark as RDDs. The library can be used both with Redis stand-alone as well as clustered databases. When used with Redis cluster, Spark-Redis is aware of its partitioning scheme and adjusts in response to resharding and node failure events.
 
@@ -98,9 +98,10 @@ Since data access in Redis is based on keys, to use Spark-Redis you'll first nee
 import com.redislabs.provider.redis._
 
 val keysRDD = sc.fromRedisKeyPattern("foo*", 5)
+val keysRDD = sc.fromRedisKeys(Array("foo", "bar"), 5)
 ```
 
-The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`). Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
+The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`) or the keys can be listed by an Array. Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
 
 
 ### Reading data
@@ -111,39 +112,85 @@ Each of Redis' data types can be read to an RDD. The following snippet demonstra
 
 ```
 import com.redislabs.provider.redis._
-val keysRDD = sc.fromRedisKeyPattern("keyPattern*", 5)
-
-val stringRDD = keysRDD.getKV
+val stringRDD = sc.fromRedisKV("keyPattern*")
+val stringRDD = sc.fromRedisKV(Array("foo", "bar"))
 ```
 
-Once run, `stringRDD` will contain the string values of all keys whose names are in provided in `keysRDD`. To read other data types, replace the last line in the example above with one of the following lines according to the actual type that's used.
+Once run, `stringRDD: RDD[(String, String)]` will contain the string values of all keys whose names are provided by keyPattern or Array[String].
 
 #### Hashes
 ```
-val hashRDD = keysRDD.getHash
+val hashRDD = sc.fromRedisHash("keyPattern*")
+val hashRDD = sc.fromRedisHash(Array("foo", "bar"))
 ```
 
-This will populate `hashRDD` with the fields and values of the Redis Hashes given by `keysRDD`.
+This will populate `hashRDD: RDD[(String, String)]` with the fields and values of the Redis Hashes, the hashes' names are provided by keyPattern or Array[String]
 
 #### Lists
 ```
-val listRDD = keysRDD.getList
+val listRDD = sc.fromRedisList("keyPattern*")
+val listRDD = sc.fromRedisList(Array("foo", "bar"))
 ```
-The contents (members) of the Redis Lists in `keysRDD` will be stored in `listRDD`
+The contents (members) of the Redis Lists in whose names are provided by keyPattern or Array[String] will be stored in `listRDD: RDD[String]`
 
 #### Sets
 ```
-val setRDD = keysRDD.getSet
+val setRDD = sc.fromRedisSet("keyPattern*")
+val setRDD = sc.fromRedisSet(Array("foo", "bar"))
 ```
 
-The Redis Sets' members will be written to `setRDD`.
+The Redis Sets' members will be written to `setRDD: RDD[String]`.
 
 #### Sorted Sets
 ```
-val zsetRDD = keysRDD.getZSet
+val zsetRDD = sc.fromRedisZSetWithScore("keyPattern*")
+val zsetRDD = sc.fromRedisZSetWithScore(Array("foo", "bar"))
 ```
 
-Using `getZSet` will store in `zsetRDD`, an RDD that consists of members and their scores, from the Redis Sorted Sets in `keysRDD`.
+Using `fromRedisZSetWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and their scores, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+
+```
+val zsetRDD = sc.fromRedisZSet("keyPattern*")
+val zsetRDD = sc.fromRedisZSet(Array("foo", "bar"))
+```
+
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+
+```
+val startPos: Int = _
+val endPos: Int = _
+val zsetRDD = sc.fromRedisZRangeWithScore("keyPattern*", startPos, endPos)
+val zsetRDD = sc.fromRedisZRangeWithScore(Array("foo", "bar"), startPos, endPos)
+```
+
+Using `fromRedisZRangeWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+
+```
+val startPos: Int = _
+val endPos: Int = _
+val zsetRDD = sc.fromRedisZRange("keyPattern*", startPos, endPos)
+val zsetRDD = sc.fromRedisZRange(Array("foo", "bar"), startPos, endPos)
+```
+
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+
+```
+val min: Double = _
+val max: Double = _
+val zsetRDD = sc.fromRedisZRangeByScoreWithScore("keyPattern*", min, max)
+val zsetRDD = sc.fromRedisZRangeByScoreWithScore(Array("foo", "bar"), min, max)
+```
+
+Using `fromRedisZRangeByScoreWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' scores are within [min, max], from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+
+```
+val min: Double = _
+val max: Double = _
+val zsetRDD = sc.fromRedisZRangeByScore("keyPattern*", min, max)
+val zsetRDD = sc.fromRedisZRangeByScore(Array("foo", "bar"), min, max)
+```
+
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' scores are within [min, max], from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ### Writing data
 To write data from Spark to Redis, you'll need to prepare the appropriate RDD depending on the data type you want to use for storing the data in it.
@@ -200,6 +247,26 @@ sc.toRedisZSET(zsetRDD, zsetName)
 ```
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
+
+### Connecting to Multiple Redis Clusters/Instances
+
+```
+def twoEndpointExample ( sc: SparkContext) = {
+  val redisConfig1 = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
+  val redisConfig2 = new RedisConfig(new RedisEndpoint("127.0.0.1", 7379))
+  val rddFromEndpoint1 = {
+    //endpoint("127.0.0.1", 6379) as the default connection in this block
+    implicit val c = redisConfig1
+    sc.fromRedisKV("*")
+  }
+  val rddFromEndpoint2 = {
+    //endpoint("127.0.0.1", 7379) as the default connection in this block
+    implicit val c = redisConfig2
+    sc.fromRedisKV("*")
+  }
+}
+```
+If you want to use multiple redis clusters/instances, an implicit RedisConfig can be used in a code block to specify the target cluster/instance in that block.
 
 ## Contributing
 
