@@ -114,29 +114,6 @@ case class ZSetContext(val startPos: Long,
                        val withScore: Boolean,
                        val typ: String)
 
-//class ZSetContext() extends Serializable {
-//  private val settings = new ConcurrentHashMap[String, String]()
-//  def set(key: String, value: String): ZSetContext = {
-//    if (key == null) {
-//      throw new NullPointerException("null key")
-//    }
-//    if (value == null) {
-//      throw new NullPointerException("null value for " + key)
-//    }
-//    settings.put(key, value)
-//    this
-//  }
-//  def get(key: String, defaultValue: String): String = {
-//    Option(settings.get(key)).getOrElse(defaultValue)
-//  }
-//  def getStartPos: Long = get("startPos", "0").toLong
-//  def getEndPos: Long = get("endPos", "-1").toLong
-//  def getMinScore: Double = get("minScore", Double.MinValue.toString).toDouble
-//  def getMaxScore: Double = get("maxScore", Double.MaxValue.toString).toDouble
-//  def getWithScore: Boolean = get("withScore", "true").toBoolean
-//  def getType: String = get("type", "byRange")
-//}
-
 class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                                 zsetContext: ZSetContext,
                                 rddType: Class[T])
