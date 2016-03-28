@@ -1,12 +1,17 @@
 package com.redislabs.provider.redis
 
+import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
 import com.redislabs.provider.redis.rdd._
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.StreamingContext
+import redis.clients.util.RedisInputStream
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
+  *
   * @param sc a spark context
   */
 class RedisContext(@transient val sc: SparkContext) extends Serializable {
@@ -212,6 +217,12 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
       case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
     }
   }
+
+  def createRedisStream(ssc: StreamingContext, keys: Array[String], storageLevel: StorageLevel)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    new RedisInputDStream(ssc, keys, redisConfig, storageLevel)
+  }
+
 
 
   /**
