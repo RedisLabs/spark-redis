@@ -385,13 +385,31 @@ object RedisContext extends Serializable {
   }
 }
 
+/**
+  * RedisStreamingContext extends StreamingContext's functionality with Redis
+  *
+  * @param ssc a spark StreamingContext
+  */
 class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serializable {
-  def createRedisStream(keys: Array[String], storageLevel: StorageLevel)
+  /**
+    * @param keys an Array[String] which consists all the Lists we want to listen to
+    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
+    * @param withStreamName if it is true the streaming will be (listName, value),
+    *                       else the streaming will be only (value)
+    *                       default as true
+    */
+  def createRedisStream(keys: Array[String],
+                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2,
+                        withStreamName: Boolean = true)
                        (implicit redisConfig: RedisConfig = new RedisConfig(new
                            RedisEndpoint(ssc.sparkContext.getConf))) = {
-    new RedisInputDStream(ssc, keys, redisConfig, storageLevel)
+    withStreamName match {
+      case true => new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[(String, String)])
+      case false => new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
+    }
   }
 }
+
 trait RedisFunctions {
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
   implicit def toRedisStreamingContext(ssc: StreamingContext): RedisStreamingContext = new RedisStreamingContext(ssc)
