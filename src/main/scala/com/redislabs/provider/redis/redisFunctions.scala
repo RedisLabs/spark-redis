@@ -7,7 +7,6 @@ import org.apache.spark.rdd.RDD
 import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
-import redis.clients.util.RedisInputStream
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -218,13 +217,6 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     }
   }
 
-  def createRedisStream(ssc: StreamingContext, keys: Array[String], storageLevel: StorageLevel)
-                       (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
-    new RedisInputDStream(ssc, keys, redisConfig, storageLevel)
-  }
-
-
-
   /**
     * @param kvs Pair RDD of K/V
     * @param ttl time to live
@@ -393,7 +385,15 @@ object RedisContext extends Serializable {
   }
 }
 
+class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serializable {
+  def createRedisStream(keys: Array[String], storageLevel: StorageLevel)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new
+                           RedisEndpoint(ssc.sparkContext.getConf))) = {
+    new RedisInputDStream(ssc, keys, redisConfig, storageLevel)
+  }
+}
 trait RedisFunctions {
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
+  implicit def toRedisStreamingContext(ssc: StreamingContext): RedisStreamingContext = new RedisStreamingContext(ssc)
 }
 

@@ -11,8 +11,6 @@ import redis.clients.jedis._
 
 import scala.util.control.NonFatal
 
-import scala.collection.JavaConversions._
-
 class RedisInputDStream(_ssc: StreamingContext,
                         keys: Array[String],
                         redisConfig: RedisConfig,
@@ -48,8 +46,10 @@ private class RedisReceiver(keys: Array[String],
       val keys: Array[String] = Array(key)
       try {
         while(!isStopped) {
-          conn.blpop(keys: _*).toList.foreach{ x =>
-            store((key, x))
+          val res = conn.blpop(Integer.MAX_VALUE, keys:_*)
+          res match {
+            case null => "Really?"
+            case _ => store((res.get(0), res.get(1)))
           }
         }
       } catch {

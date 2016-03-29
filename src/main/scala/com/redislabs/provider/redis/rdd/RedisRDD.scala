@@ -191,7 +191,7 @@ class RedisKeysRDD(sc: SparkContext,
                    val keyPattern: String = "*",
                    val partitionNum: Int = 3,
                    val keys: Array[String] = null)
-  extends RDD[String](sc, Seq.empty) with Logging with Keys {
+  extends RDD[String](sc, Seq.empty) with Keys {
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(split.asInstanceOf[RedisPartition].redisConfig.initialAddr)
