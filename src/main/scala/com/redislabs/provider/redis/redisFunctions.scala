@@ -1,12 +1,16 @@
 package com.redislabs.provider.redis
 
+import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
 import com.redislabs.provider.redis.rdd._
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.StreamingContext
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
+  *
   * @param sc a spark context
   */
 class RedisContext(@transient val sc: SparkContext) extends Serializable {
@@ -213,7 +217,6 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     }
   }
 
-
   /**
     * @param kvs Pair RDD of K/V
     * @param ttl time to live
@@ -382,7 +385,38 @@ object RedisContext extends Serializable {
   }
 }
 
+/**
+  * RedisStreamingContext extends StreamingContext's functionality with Redis
+  *
+  * @param ssc a spark StreamingContext
+  */
+class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serializable {
+  /**
+    * @param keys an Array[String] which consists all the Lists we want to listen to
+    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
+    * @return a stream of (listname, value)
+    */
+  def createRedisStream(keys: Array[String],
+                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new
+                           RedisEndpoint(ssc.sparkContext.getConf))) = {
+      new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[(String, String)])
+  }
+  /**
+    * @param keys an Array[String] which consists all the Lists we want to listen to
+    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
+    * @return a stream of (value)
+    */
+  def createRedisStreamWithoutListname(keys: Array[String],
+                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new
+                           RedisEndpoint(ssc.sparkContext.getConf))) = {
+      new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
+  }
+}
+
 trait RedisFunctions {
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
+  implicit def toRedisStreamingContext(ssc: StreamingContext): RedisStreamingContext = new RedisStreamingContext(ssc)
 }
 
