@@ -1,14 +1,16 @@
 package com.redislabs.provider.redis.streaming
 
+import com.redislabs.provider.redis.RedisConfig
 import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.receiver.Receiver
 import org.apache.spark.streaming.dstream.ReceiverInputDStream
+
 import redis.clients.jedis._
+
 import scala.reflect.{ClassTag, classTag}
 import scala.util.control.NonFatal
-import com.redislabs.provider.redis.RedisConfig
 
 class RedisInputDStream[T: ClassTag](_ssc: StreamingContext,
                                      keys: Array[String],

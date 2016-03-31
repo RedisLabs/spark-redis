@@ -394,19 +394,24 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
   /**
     * @param keys an Array[String] which consists all the Lists we want to listen to
     * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
-    * @param withStreamName if it is true the streaming will be (listName, value),
-    *                       else the streaming will be only (value)
-    *                       default as true
+    * @return a stream of (listname, value)
     */
   def createRedisStream(keys: Array[String],
-                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2,
-                        withStreamName: Boolean = true)
+                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
                        (implicit redisConfig: RedisConfig = new RedisConfig(new
                            RedisEndpoint(ssc.sparkContext.getConf))) = {
-    withStreamName match {
-      case true => new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[(String, String)])
-      case false => new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
-    }
+      new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[(String, String)])
+  }
+  /**
+    * @param keys an Array[String] which consists all the Lists we want to listen to
+    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
+    * @return a stream of (value)
+    */
+  def createRedisStreamWithoutListname(keys: Array[String],
+                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new
+                           RedisEndpoint(ssc.sparkContext.getConf))) = {
+      new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
   }
 }
 
