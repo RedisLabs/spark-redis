@@ -49,19 +49,16 @@ private class RedisReceiver[T: ClassTag](keys: Array[String],
     def run() {
       try {
         while(!isStopped) {
-          val res = {
-            val response = conn.blpop(0, key)
-            if (classTag[T] == classTag[String]) {
-              response.get(1)
-            }
-            else if (classTag[T] == classTag[(String, String)]) {
-              (response.get(0), response.get(1))
-            }
-            else {
-              throw new scala.Exception("Unknown Redis Streaming type")
-            }
+          val response = conn.blpop(2, key)
+          if (response == null) {
+
+          } else if (classTag[T] == classTag[String]) {
+            store(response.get(1).asInstanceOf[T])
+          } else if (classTag[T] == classTag[(String, String)]) {
+            store((response.get(0), response.get(1)).asInstanceOf[T])
+          } else {
+            throw new scala.Exception("Unknown Redis Streaming type")
           }
-          store(res.asInstanceOf[T])
         }
       } catch {
         case NonFatal(e) =>
