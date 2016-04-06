@@ -72,6 +72,12 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
     }
     pool.getResource
   }
+  def disconnect() {
+    if (pool != null) {
+      pool.destroy()
+      pool = null
+    }
+  }
 }
 
 case class RedisNode(val endpoint: RedisEndpoint,
@@ -80,9 +86,11 @@ case class RedisNode(val endpoint: RedisEndpoint,
                      val idx: Int,
                      val total: Int) {
   def connect(): Jedis = {
-    endpoint.connect
+    endpoint.connect()
   }
-
+  def disconnect() {
+    endpoint.disconnect()
+  }
 }
 
 /**
@@ -96,6 +104,11 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
   val hosts = getHosts(initialHost)
   val nodes = getNodes(initialHost)
 
+  initialHost.disconnect()
+
+  def cleanUp(): Unit = {
+    nodes.foreach(_.disconnect())
+  }
   /**
     * @return initialHost's auth
     */

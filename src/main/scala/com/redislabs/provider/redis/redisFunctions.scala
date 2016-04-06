@@ -293,7 +293,7 @@ object RedisContext extends Serializable {
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
         val conn = x._1.endpoint.connect()
-        val pipeline = x._1.endpoint.connect.pipelined
+        val pipeline = conn.pipelined
         if (ttl <= 0) {
           x._2.foreach(x => pipeline.set(x._1, x._2))
         }
@@ -304,6 +304,7 @@ object RedisContext extends Serializable {
         conn.close
       }
     }
+    redisConfig.cleanUp()
   }
 
 
