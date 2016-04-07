@@ -321,6 +321,7 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(hashName, ttl)
     pipeline.sync
     conn.close
+    redisConfig.cleanUp()
   }
 
   /**
@@ -330,12 +331,13 @@ object RedisContext extends Serializable {
     * @param ttl time to live
     */
   def setZset(zsetName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
-    val jedis = redisConfig.connectionForKey(zsetName)
-    val pipeline = jedis.pipelined
+    val conn = redisConfig.connectionForKey(zsetName)
+    val pipeline = conn.pipelined
     arr.foreach(x => pipeline.zadd(zsetName, x._2.toDouble, x._1))
     if (ttl > 0) pipeline.expire(zsetName, ttl)
     pipeline.sync
-    jedis.close
+    conn.close
+    redisConfig.cleanUp()
   }
 
   /**
@@ -345,12 +347,13 @@ object RedisContext extends Serializable {
     * @param ttl time to live
     */
   def setSet(setName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig) {
-    val jedis = redisConfig.connectionForKey(setName)
-    val pipeline = jedis.pipelined
+    val conn = redisConfig.connectionForKey(setName)
+    val pipeline = conn.pipelined
     arr.foreach(pipeline.sadd(setName, _))
     if (ttl > 0) pipeline.expire(setName, ttl)
     pipeline.sync
-    jedis.close
+    conn.close
+    redisConfig.cleanUp()
   }
 
   /**
@@ -360,12 +363,13 @@ object RedisContext extends Serializable {
     * @param ttl time to live
     */
   def setList(listName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig) {
-    val jedis = redisConfig.connectionForKey(listName)
-    val pipeline = jedis.pipelined
+    val conn = redisConfig.connectionForKey(listName)
+    val pipeline = conn.pipelined
     arr.foreach(pipeline.rpush(listName, _))
     if (ttl > 0) pipeline.expire(listName, ttl)
     pipeline.sync
-    jedis.close
+    conn.close
+    redisConfig.cleanUp()
   }
 
   /**
@@ -375,14 +379,15 @@ object RedisContext extends Serializable {
     *            save all the values to listName(list type) to the target host
     */
   def setFixedList(key: String, listSize: Int, arr: Iterator[String], redisConfig: RedisConfig) {
-    val jedis = redisConfig.connectionForKey(key)
-    val pipeline = jedis.pipelined
+    val conn = redisConfig.connectionForKey(key)
+    val pipeline = conn.pipelined
     arr.foreach(pipeline.lpush(key, _))
     if (listSize > 0) {
       pipeline.ltrim(key, 0, listSize - 1)
     }
     pipeline.sync
-    jedis.close
+    conn.close
+    redisConfig.cleanUp()
   }
 }
 
