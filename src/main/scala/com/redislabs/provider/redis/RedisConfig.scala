@@ -4,6 +4,7 @@ import java.net.URI
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.apache.spark.SparkConf
+import redis.clients.jedis.exceptions.JedisConnectionException
 import redis.clients.jedis.{JedisPool, Jedis, Protocol}
 import redis.clients.util.{JedisURIHelper, SafeEncoder, JedisClusterCRC16}
 import scala.collection.JavaConversions._
@@ -70,7 +71,21 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
     if (pool == null) {
       pool = new JedisPool(new GenericObjectPoolConfig(), host, port, timeout, auth, dbNum)
     }
-    pool.getResource
+    var sleepTime: Int = 4
+    var jedis: Jedis = null
+    while (jedis == null) {
+      try {
+        jedis = pool.getResource
+      }
+      catch {
+        case e: JedisConnectionException if e.getCause.toString.contains("ERR max number of clients reached") => {
+          if (sleepTime < 500) sleepTime *= 2
+          Thread.sleep(sleepTime)
+        }
+        case e: Exception => throw e
+      }
+    }
+    jedis
   }
   def disconnect() {
     if (pool != null) {
