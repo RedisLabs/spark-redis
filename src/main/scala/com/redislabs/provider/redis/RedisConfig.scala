@@ -5,7 +5,7 @@ import java.net.URI
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.apache.spark.SparkConf
 import redis.clients.jedis.exceptions.JedisConnectionException
-import redis.clients.jedis.{JedisPool, Jedis, Protocol}
+import redis.clients.jedis.{JedisPoolConfig, JedisPool, Jedis, Protocol}
 import redis.clients.util.{JedisURIHelper, SafeEncoder, JedisClusterCRC16}
 import scala.collection.JavaConversions._
 
@@ -69,7 +69,16 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
     */
   def connect(): Jedis = {
     if (pool == null) {
-      pool = new JedisPool(new GenericObjectPoolConfig(), host, port, timeout, auth, dbNum)
+      val conf: JedisPoolConfig = new JedisPoolConfig
+      conf.setMaxTotal(250)
+      conf.setTestOnBorrow(false)
+      conf.setTestOnReturn(false)
+      conf.setTestWhileIdle(false)
+      conf.setMinEvictableIdleTimeMillis(60000)
+      conf.setTimeBetweenEvictionRunsMillis(30000)
+      conf.setNumTestsPerEvictionRun(-1)
+
+      pool = new JedisPool(conf, host, port, timeout, auth, dbNum)
     }
     var sleepTime: Int = 4
     var jedis: Jedis = null
