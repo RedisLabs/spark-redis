@@ -122,6 +122,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
   initialHost.disconnect()
 
   def cleanUp(): Unit = {
+    hosts.foreach(_.disconnect())
     nodes.foreach(_.disconnect())
   }
   /**
