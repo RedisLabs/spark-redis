@@ -304,7 +304,6 @@ object RedisContext extends Serializable {
         conn.close
       }
     }
-    redisConfig.cleanUp()
   }
 
 
@@ -321,7 +320,6 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(hashName, ttl)
     pipeline.sync
     conn.close
-    redisConfig.cleanUp()
   }
 
   /**
@@ -337,7 +335,6 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(zsetName, ttl)
     pipeline.sync
     conn.close
-    redisConfig.cleanUp()
   }
 
   /**
@@ -353,7 +350,6 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(setName, ttl)
     pipeline.sync
     conn.close
-    redisConfig.cleanUp()
   }
 
   /**
@@ -369,7 +365,6 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(listName, ttl)
     pipeline.sync
     conn.close
-    redisConfig.cleanUp()
   }
 
   /**
@@ -387,7 +382,6 @@ object RedisContext extends Serializable {
     }
     pipeline.sync
     conn.close
-    redisConfig.cleanUp()
   }
 }
 

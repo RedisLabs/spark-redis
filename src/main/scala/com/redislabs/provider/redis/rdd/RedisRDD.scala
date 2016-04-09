@@ -359,9 +359,6 @@ class RedisKeysRDD(sc: SparkContext,
 }
 
 
-
-
-
 trait Keys {
   /**
     * @param key

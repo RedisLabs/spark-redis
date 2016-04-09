@@ -2,10 +2,8 @@ package com.redislabs.provider.redis
 
 import java.net.URI
 
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.apache.spark.SparkConf
-import redis.clients.jedis.exceptions.JedisConnectionException
-import redis.clients.jedis.{JedisPool, Jedis, Protocol}
+import redis.clients.jedis.{Jedis, Protocol}
 import redis.clients.util.{JedisURIHelper, SafeEncoder, JedisClusterCRC16}
 import scala.collection.JavaConversions._
 
@@ -25,8 +23,6 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
                          val dbNum: Int = Protocol.DEFAULT_DATABASE,
                          val timeout: Int = Protocol.DEFAULT_TIMEOUT)
   extends Serializable {
-
-  @transient private var pool: JedisPool = null
 
   /**
     * Constructor from spark config. set params with redis.host, redis.port, redis.auth and redis.db
@@ -68,30 +64,7 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
     * @return a new Jedis instance
     */
   def connect(): Jedis = {
-    if (pool == null) {
-      pool = new JedisPool(new GenericObjectPoolConfig(), host, port, timeout, auth, dbNum)
-    }
-    var sleepTime: Int = 4
-    var jedis: Jedis = null
-    while (jedis == null) {
-      try {
-        jedis = pool.getResource
-      }
-      catch {
-        case e: JedisConnectionException if e.getCause.toString.contains("ERR max number of clients reached") => {
-          if (sleepTime < 500) sleepTime *= 2
-          Thread.sleep(sleepTime)
-        }
-        case e: Exception => throw e
-      }
-    }
-    jedis
-  }
-  def disconnect() {
-    if (pool != null) {
-      pool.destroy()
-      pool = null
-    }
+    ConnectionPool.connect(this)
   }
 }
 
@@ -102,9 +75,6 @@ case class RedisNode(val endpoint: RedisEndpoint,
                      val total: Int) {
   def connect(): Jedis = {
     endpoint.connect()
-  }
-  def disconnect() {
-    endpoint.disconnect()
   }
 }
 
@@ -119,12 +89,6 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
   val hosts = getHosts(initialHost)
   val nodes = getNodes(initialHost)
 
-  initialHost.disconnect()
-
-  def cleanUp(): Unit = {
-    hosts.foreach(_.disconnect())
-    nodes.foreach(_.disconnect())
-  }
   /**
     * @return initialHost's auth
     */
@@ -160,6 +124,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends  Serializable {
 
   /**
     * @param key
+    * *IMPORTANT* Please remember to close after using
     * @return jedis who is a connection for a given key
     */
   def connectionForKey(key: String): Jedis = {
