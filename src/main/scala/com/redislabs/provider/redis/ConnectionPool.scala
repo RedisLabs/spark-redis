@@ -15,10 +15,14 @@ object ConnectionPool {
     val pool = pools.getOrElseUpdate(re,
       {
         val poolConfig: JedisPoolConfig = new JedisPoolConfig();
-        poolConfig.setMaxTotal(128)
+        poolConfig.setMaxTotal(250)
         poolConfig.setMaxIdle(32)
-        poolConfig.setMinEvictableIdleTimeMillis(5000)
-        poolConfig.setTimeBetweenEvictionRunsMillis(2500)
+        poolConfig.setTestOnBorrow(false)
+        poolConfig.setTestOnReturn(false)
+        poolConfig.setTestWhileIdle(false)
+        poolConfig.setMinEvictableIdleTimeMillis(60000)
+        poolConfig.setTimeBetweenEvictionRunsMillis(30000)
+        poolConfig.setNumTestsPerEvictionRun(-1)
         new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum)
       }
     )
