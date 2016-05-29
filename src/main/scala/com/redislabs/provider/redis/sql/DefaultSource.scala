@@ -1,5 +1,7 @@
 package com.redislabs.provider.redis.sql
 
+import java.util
+
 import scala.collection.JavaConversions._
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
@@ -44,47 +46,71 @@ case class RedisRelation(parameters: Map[String, String], userSchema: StructType
     /* Master only */
     redisConfig.hosts.filter(node => { node.startSlot <= slot && node.endSlot >= slot }).filter(_.idx == 0)(0)
   }
+
   def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    data.foreach{
-      row => {
-        val key = tableName + ":" + MessageDigest.getInstance("MD5").digest(System.currentTimeMillis.toString.getBytes)
-        val conn = getNode(key).endpoint.connect
-        conn.hmset(key, row.getValuesMap(row.schema.fieldNames).map(x => (x._1, x._2.toString)))
-        conn.close
+    data.foreachPartition{
+      partition => {
+        val m: Map[String, Row] = partition.map {
+          row => {
+            val tn = tableName + ":" + MessageDigest.getInstance("MD5").digest(
+              row.getValuesMap(schema.fieldNames).map(_._2.toString).reduce(_ + " " + _).getBytes)
+            (tn, row)
+          }
+        }.toMap
+        groupKeysByNode(redisConfig.hosts, m.keysIterator).foreach{
+          case(node, keys) => {
+            val conn = node.connect
+            val pipeline = conn.pipelined
+            keys.foreach{
+              key => {
+                val row = m.get(key).get
+                pipeline.hmset(key, row.getValuesMap(row.schema.fieldNames).map(x => (x._1, x._2.toString)))
+              }
+            }
+            pipeline.sync
+            conn.close
+          }
+        }
       }
     }
   }
 
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
+    val colsForFilter = filters.map(getAttr(_)).sorted.distinct
+    val colsForFilterWithIndex = colsForFilter.zipWithIndex.toMap
+    val requiredColumnsType = requiredColumns.map(getDataType(_))
     new RedisKeysRDD(sqlContext.sparkContext, redisConfig, tableName + ":*", partitionNum, null).
       mapPartitions {
         partition: Iterator[String] => {
           groupKeysByNode(redisConfig.hosts, partition).flatMap {
             x => {
               val conn = x._1.endpoint.connect()
-              val rowKeys: Array[String] = filterKeysByType(conn, x._2, "hash")
-              val res = rowKeys.map {
-                key => {
-                  val res = conn.hmget(key, schema.fieldNames: _*)
-                  val pass = filters.zip(filters.map(filter => res.get((schema.fieldIndex(getAttr(filter)))))).forall{
-                    x => parseFilter(x._1, x._2)
-                  }
-                  if (pass) {
-                    requiredColumns.map{
-                      c => {
-                        val idx = schema.fieldIndex(c)
-                        castToTarget(res.get(idx), schema.fields(idx))
-                      }
+              val pipeline = conn.pipelined
+              val keys: Array[String] = filterKeysByType(conn, x._2, "hash")
+              val rowKeys = if (colsForFilter.length == 0) {
+                keys
+              } else {
+                keys.foreach(key => pipeline.hmget(key, colsForFilter:_*))
+                keys.zip(pipeline.syncAndReturnAll).filter {
+                  x => {
+                    val content = x._2.asInstanceOf[util.ArrayList[String]]
+                    filters.forall {
+                      filter => parseFilter(filter, content(colsForFilterWithIndex.get(getAttr(filter)).get))
                     }
-                  } else {
-                    null
                   }
+                }.map(_._1)
+              }
+
+              rowKeys.foreach(pipeline.hmget(_, requiredColumns:_*))
+              val res = pipeline.syncAndReturnAll.map{
+                _.asInstanceOf[util.ArrayList[String]].zip(requiredColumnsType).map {
+                  case(col, targetType) => castToTarget(col, targetType)
                 }
               }
               conn.close
-              res.filter(_!=null)
+              res
             }
-          }.toIterator.map(x => Row.fromSeq(x))
+          }.toIterator.map(Row.fromSeq(_))
         }
       }
   }
@@ -105,8 +131,8 @@ case class RedisRelation(parameters: Map[String, String], userSchema: StructType
     }
   }
 
-  private def castToTarget(value: String, field: StructField) = {
-    field.dataType match {
+  private def castToTarget(value: String, dataType: DataType) = {
+    dataType match {
       case IntegerType => value.toString.toInt
       case DoubleType => value.toString.toDouble
       case StringType => value.toString
