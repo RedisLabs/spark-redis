@@ -227,6 +227,15 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param kvs Pair RDD of K/V
+    * @param ttl time to live
+    */
+  def toRedisBinaryKV(kvs: RDD[(Array[Byte], Array[Byte])], ttl: Int = 0)
+               (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
+    kvs.foreachPartition(partition => setBinaryKVs(partition, ttl, redisConfig))
+  }
+
+  /**
     * @param kvs      Pair RDD of K/V
     * @param hashName target hash's name which hold all the kvs
     * @param ttl time to live
@@ -290,6 +299,29 @@ object RedisContext extends Serializable {
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
     arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
+      mapValues(a => a.map(p => p._2)).foreach {
+      x => {
+        val conn = x._1.endpoint.connect()
+        val pipeline = conn.pipelined
+        if (ttl <= 0) {
+          x._2.foreach(x => pipeline.set(x._1, x._2))
+        }
+        else {
+          x._2.foreach(x => pipeline.setex(x._1, ttl, x._2))
+        }
+        pipeline.sync
+        conn.close
+      }
+    }
+  }
+
+  /**
+    * @param arr k/vs which should be saved in the target host
+    *            save all the k/vs to the target host
+    * @param ttl time to live
+    */
+  def setBinaryKVs(arr: Iterator[(Array[Byte], Array[Byte])], ttl: Int, redisConfig: RedisConfig) {
+    arr.map(kv => (redisConfig.getHost(new String(kv._1)), kv)).toArray.groupBy(_._1).
       mapValues(a => a.map(p => p._2)).foreach {
       x => {
         val conn = x._1.endpoint.connect()

@@ -3,7 +3,7 @@
 
 scalaVersion := "2.10.4"
 
-sparkVersion := "1.4.0"
+sparkVersion := "1.5.0"
 
 spName := "RedisLabs/spark-redis"
 
@@ -24,7 +24,7 @@ organizationName := "Redis Labs, Inc."
 organizationHomepage := Some(url("https://redislabs.com"))
 
 // Add Spark components this package depends on, e.g, "mllib", ....
-// sparkComponents ++= Seq("sql", "mllib")
+sparkComponents ++= Seq("sql", "mllib", "streaming")
 
 libraryDependencies ++= Seq( "redis.clients" % "jedis" % "2.7.2")
 
