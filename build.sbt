@@ -10,7 +10,7 @@ spName := "RedisLabs/spark-redis"
 description := "A library for reading and writing data from and to Redis with Apache Spark, for Spark SQL and DataFrames."
 
 // Don't forget to set the version
-version := "0.1.1"
+version := "0.3.1"
 
 homepage := Some(url("https://github.com/RedisLabs/spark-redis"))
 
@@ -24,7 +24,7 @@ organizationName := "Redis Labs, Inc."
 organizationHomepage := Some(url("https://redislabs.com"))
 
 // Add Spark components this package depends on, e.g, "mllib", ....
-// sparkComponents ++= Seq("sql", "mllib")
+sparkComponents ++= Seq("sql", "streaming")
 
 libraryDependencies ++= Seq( "redis.clients" % "jedis" % "2.7.2")
 
