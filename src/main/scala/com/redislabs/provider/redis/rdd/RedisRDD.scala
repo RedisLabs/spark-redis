@@ -31,15 +31,14 @@ class RedisKVRDD(prev: RDD[String],
     val auth = partition.redisConfig.getAuth
     val db = partition.redisConfig.getDB
     rddType match {
-      case "kv"   => getKV(nodes, keys)
+      case "kv" => getKV(nodes, keys)
       case "hash" => getHASH(nodes, keys)
     }
   }
 
   def getKV(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val stringKeys = filterKeysByType(conn, x._2, "string")
         val pipeline = conn.pipelined
@@ -51,10 +50,10 @@ class RedisKVRDD(prev: RDD[String],
       }
     }.iterator
   }
+
   def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val hashKeys = filterKeysByType(conn, x._2, "hash")
         val res = hashKeys.flatMap(conn.hgetAll).iterator
@@ -76,15 +75,14 @@ class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](p
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     val keys = firstParent[String].iterator(split, context)
     rddType match {
-      case "set"  => getSET(nodes, keys)
+      case "set" => getSET(nodes, keys)
       case "list" => getLIST(nodes, keys)
     }
   }
 
   def getSET(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val setKeys = filterKeysByType(conn, x._2, "set")
         val res = setKeys.flatMap(conn.smembers).iterator
@@ -93,10 +91,10 @@ class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](p
       }
     }.iterator
   }
+
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val listKeys = filterKeysByType(conn, x._2, "list")
         val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
@@ -140,8 +138,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              startPos: Long,
                              endPos: Long): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val zsetKeys = filterKeysByType(conn, x._2, "zset")
         val res = {
@@ -165,8 +162,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              startScore: Double,
                              endScore: Double): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
+      x => {
         val conn = x._1.endpoint.connect()
         val zsetKeys = filterKeysByType(conn, x._2, "zset")
         val res = {
@@ -224,20 +220,20 @@ class RedisKeysRDD(sc: SparkContext,
     } else if (hosts.size < partitionNum) {
       val presExtCnt = partitionNum / hosts.size
       val lastExtCnt = if (presExtCnt * hosts.size < partitionNum) (presExtCnt + 1) else presExtCnt
-      hosts.zipWithIndex.flatMap{
-        case(host, idx) => {
+      hosts.zipWithIndex.flatMap {
+        case (host, idx) => {
           split(host, if (idx == hosts.size - 1) lastExtCnt else presExtCnt)
         }
       }
     } else {
       val presExtCnt = hosts.size / partitionNum
-      (0 until partitionNum).map{
+      (0 until partitionNum).map {
         idx => {
           val ip = hosts(idx * presExtCnt).endpoint.host
           val port = hosts(idx * presExtCnt).endpoint.port
           val start = hosts(idx * presExtCnt).startSlot
           val end = hosts(if (idx == partitionNum - 1) {
-            (hosts.size-1)
+            (hosts.size - 1)
           } else {
             ((idx + 1) * presExtCnt - 1)
           }).endSlot
@@ -274,70 +270,87 @@ class RedisKeysRDD(sc: SparkContext,
 
   /**
     * filter the 'set' type keys and get all the elements of them
+    *
     * @return RedisSetRDD[String]
     */
   def getSet(): RDD[String] = {
     new RedisListRDD(this, "set")
   }
+
   /**
     * filter the 'list' type keys and get all the elements of them
+    *
     * @return RedisListRDD[String]
     */
   def getList(): RDD[String] = {
     new RedisListRDD(this, "list")
   }
+
   /**
     * filter the 'plain k/v' type keys and get all the k/v
+    *
     * @return RedisKVRDD[(String, String)]
     */
   def getKV(): RDD[(String, String)] = {
     new RedisKVRDD(this, "kv")
   }
+
   /**
     * filter the 'hash' type keys and get all the elements of them
+    *
     * @return RedisHashRDD[(String, String)]
     */
   def getHash(): RDD[(String, String)] = {
     new RedisKVRDD(this, "hash")
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(without scores) of them
+    *
     * @return RedisZSetRDD[String]
     */
   def getZSet(): RDD[String] = {
     val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, false, "byRange")
     new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(with scores) of them
+    *
     * @return RedisZSetRDD[(String, Double)]
     */
   def getZSetWithScore(): RDD[(String, Double)] = {
     val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, true, "byRange")
     new RedisZSetRDD(this, zsetContext, classOf[(String, Double)])
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(without scores) of range [startPos, endPos]
+    *
     * @param startPos start position of zsets
-    * @param endPos end position of zsets
+    * @param endPos   end position of zsets
     * @return RedisZSetRDD[String]
     */
   def getZSetByRange(startPos: Long, endPos: Long): RDD[String] = {
     val zsetContext: ZSetContext = new ZSetContext(startPos, endPos, Double.MinValue, Double.MaxValue, false, "byRange")
     new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(with scores) of range [startPos, endPos]
+    *
     * @param startPos start position of zsets
-    * @param endPos end position of zsets
+    * @param endPos   end position of zsets
     * @return RedisZSetRDD[(String, Double)]
     */
   def getZSetByRangeWithScore(startPos: Long, endPos: Long): RDD[(String, Double)] = {
     val zsetContext: ZSetContext = new ZSetContext(startPos, endPos, Double.MinValue, Double.MaxValue, true, "byRange")
     new RedisZSetRDD(this, zsetContext, classOf[(String, Double)])
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(without scores) of score range [min, max]
+    *
     * @param min start position of zsets
     * @param max end position of zsets
     * @return RedisZSetRDD[String]
@@ -346,8 +359,10 @@ class RedisKeysRDD(sc: SparkContext,
     val zsetContext: ZSetContext = new ZSetContext(0, -1, min, max, false, "byScore")
     new RedisZSetRDD(this, zsetContext, classOf[String])
   }
+
   /**
     * filter the 'zset' type keys and get all the elements(with scores) of score range [min, max]
+    *
     * @param min start position of zsets
     * @param max end position of zsets
     * @return RedisZSetRDD[(String, Double)]
@@ -372,11 +387,11 @@ trait Keys {
         escape match {
           case true => judge(key.substring(1), false)
           case false => key.charAt(0) match {
-            case '*'  => true
-            case '?'  => true
-            case '['  => true
+            case '*' => true
+            case '?' => true
+            case '[' => true
             case '\\' => judge(key.substring(1), true)
-            case _    => judge(key.substring(1), false)
+            case _ => judge(key.substring(1), false)
           }
         }
       }
@@ -400,12 +415,18 @@ trait Keys {
     keys
   }
 
+  private def getKeys(jedis: Jedis, params: String): util.HashSet[String] = {
+    val keys = new util.HashSet[String]
+    keys.addAll(jedis.keys(params))
+    keys
+  }
+
   /**
     * @param nodes list of RedisNode
-    * @param sPos start position of slots
-    * @param ePos end position of slots
+    * @param sPos  start position of slots
+    * @param ePos  end position of slots
     * @param keyPattern
-    * return keys whose slot is in [sPos, ePos]
+    *              return keys whose slot is in [sPos, ePos]
     */
   def getKeys(nodes: Array[RedisNode],
               sPos: Int,
@@ -415,8 +436,9 @@ trait Keys {
     if (isRedisRegex(keyPattern)) {
       nodes.foreach(node => {
         val conn = node.endpoint.connect()
-        val params = new ScanParams().`match`(keyPattern)
-        val res = keys.addAll(scanKeys(conn, params).filter(key => {
+//        val params = new ScanParams().`match`(keyPattern)
+//        val res = keys.addAll(scanKeys(conn, params).filter(key => {
+        val res = keys.addAll(getKeys(conn, keyPattern).filter(key => {
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         }))
@@ -432,15 +454,17 @@ trait Keys {
 
   /**
     * @param nodes list of RedisNode
-    * @param keys list of keys
-    * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
+    * @param keys  list of keys
+    *              return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
     */
   def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]):
   Array[(RedisNode, Array[String])] = {
     def getNode(key: String): RedisNode = {
       val slot = JedisClusterCRC16.getSlot(key)
       /* Master only */
-      nodes.filter(node => { node.startSlot <= slot && node.endSlot >= slot }).filter(_.idx == 0)(0)
+      nodes.filter(node => {
+        node.startSlot <= slot && node.endSlot >= slot
+      }).filter(_.idx == 0)(0)
     }
     keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).
       map(x => (x._1, x._2.map(_._2))).toArray
@@ -452,7 +476,7 @@ trait Keys {
     * keys are guaranteed that they belongs with the server jedis connected to.
     * return keys of "t" type
     */
-  def filterKeysByType(conn: Jedis, keys:Array[String], t:String): Array[String] = {
+  def filterKeysByType(conn: Jedis, keys: Array[String], t: String): Array[String] = {
     val pipeline = conn.pipelined
     keys.foreach(pipeline.`type`)
     val types = pipeline.syncAndReturnAll
