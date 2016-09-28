@@ -6,8 +6,7 @@ import scala.collection.JavaConversions._
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.sql.catalyst.expressions.Row
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import redis.clients.jedis.Protocol
