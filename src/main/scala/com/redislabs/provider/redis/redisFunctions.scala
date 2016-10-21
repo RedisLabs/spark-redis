@@ -3,10 +3,10 @@ package com.redislabs.provider.redis
 import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
 import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
+import redis.clients.jedis.Pipeline
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -289,20 +289,18 @@ object RedisContext extends Serializable {
     * @param ttl time to live
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
-    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
-      mapValues(a => a.map(p => p._2)).foreach {
-      x => {
-        val conn = x._1.endpoint.connect()
+    val setKV: (Pipeline, (String, String)) ⇒ Unit = if (ttl <= 0) {
+      (p, kv) ⇒ p.set(kv._1, kv._2)
+    } else {
+      (p, kv) ⇒ p.setex(kv._1, ttl, kv._2)
+    }
+    arr.toIterable.groupBy(kv ⇒ redisConfig.getHost(kv._1)).foreach {
+      case (redisNode, group: Iterable[(String, String)]) ⇒
+        val conn = redisNode.endpoint.connect()
         val pipeline = conn.pipelined
-        if (ttl <= 0) {
-          x._2.foreach(x => pipeline.set(x._1, x._2))
-        }
-        else {
-          x._2.foreach(x => pipeline.setex(x._1, ttl, x._2))
-        }
-        pipeline.sync
-        conn.close
-      }
+        group.foreach(setKV(pipeline, _))
+        pipeline.sync()
+        conn.close()
     }
   }
 
