@@ -1,18 +1,15 @@
 package com.redislabs.provider.redis.rdd
 
+import java.util
+
+import com.redislabs.provider.redis.partitioner._
+import com.redislabs.provider.redis.{RedisConfig, RedisNode}
+import org.apache.spark._
+import org.apache.spark.rdd.RDD
 import redis.clients.jedis._
 import redis.clients.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
-
-import java.util
-
-import com.redislabs.provider.redis.{RedisNode, RedisConfig}
-import com.redislabs.provider.redis.partitioner._
-
-import org.apache.spark.rdd.RDD
-import org.apache.spark._
-
 import scala.reflect.{ClassTag, classTag}
 
 
@@ -28,41 +25,32 @@ class RedisKVRDD(prev: RDD[String],
     val ePos = partition.slots._2
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
     val keys = firstParent[String].iterator(split, context)
-    val auth = partition.redisConfig.getAuth
-    val db = partition.redisConfig.getDB
     rddType match {
-      case "kv"   => getKV(nodes, keys)
+      case "kv" => getKV(nodes, keys)
       case "hash" => getHASH(nodes, keys)
     }
   }
 
-  def getKV(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
-    groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
-        val conn = x._1.endpoint.connect()
-        val stringKeys = filterKeysByType(conn, x._2, "string")
-        val pipeline = conn.pipelined
-        stringKeys.foreach(pipeline.get)
-        val res = stringKeys.zip(pipeline.syncAndReturnAll).iterator.
-          asInstanceOf[Iterator[(String, String)]]
-        conn.close
-        res
-      }
+  def getKV(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] =
+    groupKeysByNode(nodes, keys).flatMap { x ⇒ {
+      val conn = x._1.endpoint.connect()
+      val stringKeys = filterKeysByType(conn, x._2, "string")
+      val pipeline = conn.pipelined
+      val responses = stringKeys map pipeline.get
+      conn.close()
+      stringKeys zip responses.map(_.get)
+    }
     }.iterator
-  }
-  def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
-    groupKeysByNode(nodes, keys).flatMap {
-      x =>
-      {
-        val conn = x._1.endpoint.connect()
-        val hashKeys = filterKeysByType(conn, x._2, "hash")
-        val res = hashKeys.flatMap(conn.hgetAll).iterator
-        conn.close
-        res
-      }
+
+  def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] =
+    groupKeysByNode(nodes, keys).flatMap { x ⇒ {
+      val conn = x._1.endpoint.connect()
+      val hashKeys = filterKeysByType(conn, x._2, "hash")
+      val res = hashKeys flatMap conn.hgetAll
+      conn.close()
+      res
+    }
     }.iterator
-  }
 }
 
 class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](prev) with Keys {
@@ -452,10 +440,10 @@ trait Keys {
     * keys are guaranteed that they belongs with the server jedis connected to.
     * return keys of "t" type
     */
-  def filterKeysByType(conn: Jedis, keys:Array[String], t:String): Array[String] = {
+  def filterKeysByType(conn: Jedis, keys: Array[String], t: String): Array[String] = {
     val pipeline = conn.pipelined
-    keys.foreach(pipeline.`type`)
-    val types = pipeline.syncAndReturnAll
-    (keys).zip(types).filter(x => (x._2 == t)).map(x => x._1)
+    val typeResponses = keys map pipeline.`type`
+    pipeline.close()
+    keys.zip(typeResponses).filter(x ⇒ x._2.get == t).map(x ⇒ x._1)
   }
 }

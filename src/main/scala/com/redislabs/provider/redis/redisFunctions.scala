@@ -3,10 +3,11 @@ package com.redislabs.provider.redis
 import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
 import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.dstream.DStream
+import redis.clients.jedis.Pipeline
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -289,23 +290,40 @@ object RedisContext extends Serializable {
     * @param ttl time to live
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
-    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
-      mapValues(a => a.map(p => p._2)).foreach {
-      x => {
-        val conn = x._1.endpoint.connect()
+    val setKV: (Pipeline, (String, String)) ⇒ Unit = if (ttl <= 0) {
+      (p, kv) ⇒ p.set(kv._1, kv._2)
+    } else {
+      (p, kv) ⇒ p.setex(kv._1, ttl, kv._2)
+    }
+    arr.toIterable.groupBy(kv ⇒ redisConfig.getHost(kv._1)).foreach {
+      case (redisNode, group: Iterable[(String, String)]) ⇒
+        val conn = redisNode.endpoint.connect()
         val pipeline = conn.pipelined
-        if (ttl <= 0) {
-          x._2.foreach(x => pipeline.set(x._1, x._2))
-        }
-        else {
-          x._2.foreach(x => pipeline.setex(x._1, ttl, x._2))
-        }
-        pipeline.sync
-        conn.close
-      }
+        group.foreach(setKV(pipeline, _))
+        pipeline.sync()
+        conn.close()
     }
   }
 
+  /**
+    * @param arr k/vs with ttls which should be saved in the target host
+    *            save all the k/vs to the target host with individual ttl for each k/v
+    */
+  def setKVsWithIndividualTTLs(arr: Iterator[(String, String, Int)],
+                               redisConfig: RedisConfig): Unit =
+  arr.toIterable.groupBy(kvt ⇒ redisConfig.getHost(kvt._1)).foreach {
+    case (redisNode, group: Iterable[(String, String, Int)]) ⇒
+      val conn = redisNode.endpoint.connect()
+      val pipeline = conn.pipelined
+      group.foreach {
+        case (k, v, ttl) if ttl <= 0 ⇒
+          pipeline.set(k, v)
+        case (k, v, ttl) ⇒
+          pipeline.setex(k, ttl, v)
+      }
+      pipeline.sync()
+      conn.close()
+  }
 
   /**
     * @param hashName
@@ -413,6 +431,26 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
                            RedisEndpoint(ssc.sparkContext.getConf))) = {
       new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
   }
+
+  /**
+    * @param kvs Pair DStream of K/V
+    * @param ttl time to live
+    */
+  def toRedisKV(kvs: DStream[(String, String)], ttl: Int = 0)
+               (implicit redisConfig: RedisConfig = new RedisConfig(
+                 new RedisEndpoint(ssc.sparkContext.getConf))) {
+    kvs.foreachRDD(_.foreachPartition(RedisContext.setKVs(_, ttl, redisConfig)))
+  }
+
+  /**
+    * @param kvts Triple DStream of (K, V, TTL)
+    */
+  def toRedisKVwithIndividualTTLs(kvts: DStream[(String, String, Int)])
+                                 (implicit redisConfig: RedisConfig = new RedisConfig(
+                                   new RedisEndpoint(ssc.sparkContext.getConf))) {
+    kvts.foreachRDD(_.foreachPartition(RedisContext.setKVsWithIndividualTTLs(_, redisConfig)))
+  }
+
 }
 
 trait RedisFunctions {

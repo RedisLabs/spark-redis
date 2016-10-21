@@ -1,10 +1,10 @@
 package com.redislabs.provider.redis.rdd
 
 import com.redislabs.provider.redis._
-import org.scalatest.{FunSuite, ShouldMatchers}
+import org.scalatest.{FunSuite, Matchers}
 import redis.clients.util.JedisClusterCRC16
 
-class RedisConfigSuite extends FunSuite with ShouldMatchers {
+class RedisConfigSuite extends FunSuite with Matchers {
 
   val redisStandaloneConfig = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
   val redisClusterConfig = new RedisConfig(new RedisEndpoint("127.0.0.1", 7379))

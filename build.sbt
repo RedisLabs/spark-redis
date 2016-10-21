@@ -1,16 +1,18 @@
 // Your sbt build file. Guides on how to write one can be found at
 // http://www.scala-sbt.org/0.13/docs/index.html
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.8"
 
-sparkVersion := "1.4.0"
+sparkVersion := "2.0.1"
 
 spName := "RedisLabs/spark-redis"
 
-description := "A library for reading and writing data from and to Redis with Apache Spark, for Spark SQL and DataFrames."
+description :=
+  """A library for reading and writing data from and to Redis
+    | with Apache Spark, for Spark SQL and DataFrames.""".stripMargin
 
 // Don't forget to set the version
-version := "0.3.2"
+version := "0.3.3-SNAPSHOT"
 
 homepage := Some(url("https://github.com/RedisLabs/spark-redis"))
 
@@ -26,7 +28,12 @@ organizationHomepage := Some(url("https://redislabs.com"))
 // Add Spark components this package depends on, e.g, "mllib", ....
 sparkComponents ++= Seq("sql", "streaming")
 
-libraryDependencies ++= Seq( "redis.clients" % "jedis" % "2.7.2")
+libraryDependencies ++= Seq(
+  "redis.clients" % "jedis" % "2.8.1",
+  "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+)
+
+parallelExecution in Test := false
 
 // uncomment and change the value below to change the directory where your zip artifact will be created
 // spDistDirectory := target.value

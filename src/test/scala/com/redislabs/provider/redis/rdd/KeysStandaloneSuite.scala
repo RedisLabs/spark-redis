@@ -2,13 +2,13 @@ package com.redislabs.provider.redis.rdd
 
 import com.redislabs.provider.redis._
 import org.apache.spark.{SparkConf, SparkContext}
-import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import redis.clients.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
 import scala.io.Source.fromInputStream
 
-class KeysStandaloneSuite extends FunSuite with Keys with ENV with BeforeAndAfterAll with ShouldMatchers {
+class KeysStandaloneSuite extends FunSuite with Keys with ENV with BeforeAndAfterAll with Matchers {
 
   override def beforeAll() {
     super.beforeAll()

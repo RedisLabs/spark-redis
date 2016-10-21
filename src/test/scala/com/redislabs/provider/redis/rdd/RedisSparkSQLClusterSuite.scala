@@ -1,11 +1,11 @@
 package com.redislabs.provider.redis.rdd
 
 import org.apache.spark.{SparkContext, SparkConf}
-import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, FunSuite}
+import org.scalatest.{BeforeAndAfterAll, Matchers, FunSuite}
 import org.apache.spark.sql.SQLContext
 import com.redislabs.provider.redis._
 
-class RedisSparkSQLClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with ShouldMatchers {
+class RedisSparkSQLClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with Matchers {
 
   var sqlContext: SQLContext = null
   override def beforeAll() {
