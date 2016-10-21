@@ -7,10 +7,12 @@ sparkVersion := "2.0.1"
 
 spName := "RedisLabs/spark-redis"
 
-description := "A library for reading and writing data from and to Redis with Apache Spark, for Spark SQL and DataFrames."
+description :=
+  """A library for reading and writing data from and to Redis
+    | with Apache Spark, for Spark SQL and DataFrames.""".stripMargin
 
 // Don't forget to set the version
-version := "0.3.2"
+version := "0.3.3-SNAPSHOT"
 
 homepage := Some(url("https://github.com/RedisLabs/spark-redis"))
 

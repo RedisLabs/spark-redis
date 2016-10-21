@@ -6,6 +6,7 @@ import org.apache.spark.rdd.RDD
 import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.dstream.DStream
 import redis.clients.jedis.Pipeline
 
 /**
@@ -304,6 +305,25 @@ object RedisContext extends Serializable {
     }
   }
 
+  /**
+    * @param arr k/vs with ttls which should be saved in the target host
+    *            save all the k/vs to the target host with individual ttl for each k/v
+    */
+  def setKVsWithIndividualTTLs(arr: Iterator[(String, String, Int)],
+                               redisConfig: RedisConfig): Unit =
+  arr.toIterable.groupBy(kvt ⇒ redisConfig.getHost(kvt._1)).foreach {
+    case (redisNode, group: Iterable[(String, String, Int)]) ⇒
+      val conn = redisNode.endpoint.connect()
+      val pipeline = conn.pipelined
+      group.foreach {
+        case (k, v, ttl) if ttl <= 0 ⇒
+          pipeline.set(k, v)
+        case (k, v, ttl) ⇒
+          pipeline.setex(k, ttl, v)
+      }
+      pipeline.sync()
+      conn.close()
+  }
 
   /**
     * @param hashName
@@ -411,6 +431,26 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
                            RedisEndpoint(ssc.sparkContext.getConf))) = {
       new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
   }
+
+  /**
+    * @param kvs Pair DStream of K/V
+    * @param ttl time to live
+    */
+  def toRedisKV(kvs: DStream[(String, String)], ttl: Int = 0)
+               (implicit redisConfig: RedisConfig = new RedisConfig(
+                 new RedisEndpoint(ssc.sparkContext.getConf))) {
+    kvs.foreachRDD(_.foreachPartition(RedisContext.setKVs(_, ttl, redisConfig)))
+  }
+
+  /**
+    * @param kvts Triple DStream of (K, V, TTL)
+    */
+  def toRedisKVwithIndividualTTLs(kvts: DStream[(String, String, Int)])
+                                 (implicit redisConfig: RedisConfig = new RedisConfig(
+                                   new RedisEndpoint(ssc.sparkContext.getConf))) {
+    kvts.foreachRDD(_.foreachPartition(RedisContext.setKVsWithIndividualTTLs(_, redisConfig)))
+  }
+
 }
 
 trait RedisFunctions {
