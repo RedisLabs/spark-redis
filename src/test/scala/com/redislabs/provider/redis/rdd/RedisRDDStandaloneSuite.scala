@@ -23,6 +23,9 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
       reduceByKey(_ + _).map(x => (x._1, x._2.toString))
 
     val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
+    val hllRDD = sc.parallelize(
+      Seq( ("apple","gala"),("apple","red-delicious"),("pear","barlett"),("peach","freestone"))
+    )
 
     redisConfig = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
 
@@ -38,6 +41,8 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     sc.toRedisHASH(wcnts, "all:words:cnt:hash" )(redisConfig)
     sc.toRedisLIST(wds, "all:words:list" )(redisConfig)
     sc.toRedisSET(wds, "all:words:set")(redisConfig)
+    sc.toRedisHLL(hllRDD)
+
   }
 
   test("RedisKVRDD - default(standalone)") {
@@ -163,6 +168,20 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     val setContents = redisSetRDD.sortBy(x => x).collect
     val ws = content.split("\\W+").filter(!_.isEmpty).distinct.sorted
     setContents should be (ws)
+  }
+
+  test("RedisHLLRDD - standalone") {
+    implicit val c: RedisConfig = redisConfig
+    val redisSetRDD = sc.fromRedisHLL( "apple")
+    redisSetRDD.count() should be (1)
+    redisSetRDD.take(1)(0)._2 should be (2)
+
+    val redisSetRDDp = sc.fromRedisHLL("p*")
+    redisSetRDD.count() should be (2)
+    redisSetRDD.take(1)(0)._2 should be (1)
+
+    val all = sc.fromRedisHLL("*")
+    all.count() should be (3)
   }
 
   test("Expire - default(standalone)") {
