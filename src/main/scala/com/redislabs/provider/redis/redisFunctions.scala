@@ -236,6 +236,16 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     kvs.foreachPartition(partition => setHash(hashName, partition, ttl, redisConfig))
   }
 
+  def toRedisHASHIncrBy(kvs: RDD[(String, Long)], hashName: String, ttl: Int = 0)
+                     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    kvs.foreachPartition(partition => incrHash(hashName, partition, ttl, redisConfig))
+  }
+
+  def toRedisHASHIncrByFloat(kvs: RDD[(String, Double)], hashName: String, ttl: Int = 0)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    kvs.foreachPartition(partition => incrFloatHash(hashName, partition, ttl, redisConfig))
+  }
+
   /**
     * @param kvs      Pair RDD of K/V
     * @param zsetName target zset's name which hold all the kvs
@@ -320,6 +330,24 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(hashName, ttl)
     pipeline.sync
     conn.close
+  }
+
+  def incrHash(hashName: String, arr: Iterator[(String, Long)], ttl: Int, redisConfig: RedisConfig): Unit = {
+    val conn = redisConfig.connectionForKey(hashName)
+    val pipeline = conn.pipelined()
+    arr.foreach( x => pipeline.hincrBy(hashName, x._1, x._2))
+    if (ttl > 0) pipeline.expire(hashName, ttl)
+    pipeline.sync()
+    conn.close()
+  }
+
+  def incrFloatHash(hashName: String, arr: Iterator[(String, Double)], ttl: Int, redisConfig: RedisConfig): Unit = {
+    val conn = redisConfig.connectionForKey(hashName)
+    val pipeline = conn.pipelined()
+    arr.foreach( x => pipeline.hincrByFloat(hashName, x._1, x._2))
+    if (ttl > 0) pipeline.expire(hashName, ttl)
+    pipeline.sync()
+    conn.close()
   }
 
   /**

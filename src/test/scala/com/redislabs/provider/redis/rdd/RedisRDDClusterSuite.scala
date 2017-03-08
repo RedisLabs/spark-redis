@@ -19,8 +19,11 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
       getLines.toArray.mkString("\n")
 
 
-    val wcnts = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
-      reduceByKey(_ + _).map(x => (x._1, x._2.toString))
+    val wcnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
+      reduceByKey(_ + _)
+    val wcntl = wcnt.map(x => (x._1, x._2.toLong * 2))
+    val wcntd = wcnt.map(x => (x._1, x._2.toDouble * 0.31))
+    val wcnts = wcnt.map(x => (x._1, x._2.toString))
 
     val wds = sc.parallelize(content.split("\\W+").filter(!_.isEmpty))
 
@@ -39,6 +42,8 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     sc.toRedisHASH(wcnts, "all:words:cnt:hash")(redisConfig)
     sc.toRedisLIST(wds, "all:words:list" )(redisConfig)
     sc.toRedisSET(wds, "all:words:set")(redisConfig)
+    sc.toRedisHASHIncrBy(wcntl, "all:words:cnt:hash:incr:long")(redisConfig)
+    sc.toRedisHASHIncrByFloat(wcntd, "all:words:cnt:hash:incr:float")(redisConfig)
   }
 
   test("RedisKVRDD - default(cluster)") {
@@ -134,6 +139,40 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     val wcnts = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).reduce(_ + _).toString)).toArray.sortBy(_._1)
     hashContents should be (wcnts)
+  }
+
+  test("RedisHashIncrByLongRDD - default(cluster)") {
+    val redisHashRDD = sc.fromRedisHash( "all:words:cnt:hash:incr:long")
+    val hashContents = redisHashRDD.sortByKey().collect
+    val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 2).toString)).toArray.sortBy(_._1)
+    hashContents should be (wcntl)
+  }
+
+  test("RedisHashIncrByLongRDD - cluster") {
+    implicit val c: RedisConfig = redisConfig
+    val redisHashRDD = sc.fromRedisHash( "all:words:cnt:hash:incr:long")
+    val hashContents = redisHashRDD.sortByKey().collect
+    val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 2).toString)).toArray.sortBy(_._1)
+    hashContents should be (wcntl)
+  }
+
+  test("RedisHashIncrByFloatRDD - default(cluster)") {
+    val redisHashRDD = sc.fromRedisHash( "all:words:cnt:hash:incr:float")
+    val hashContents = redisHashRDD.sortByKey().collect
+    val wcntd = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 0.31).toString)).toArray.sortBy(_._1)
+    hashContents should be (wcntd)
+  }
+
+  test("RedisHashIncrByFloatRDD - cluster") {
+    implicit val c: RedisConfig = redisConfig
+    val redisHashRDD = sc.fromRedisHash( "all:words:cnt:hash:incr:float")
+    val hashContents = redisHashRDD.sortByKey().collect
+    val wcntd = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 0.31).toString)).toArray.sortBy(_._1)
+    hashContents should be (wcntd)
   }
 
   test("RedisListRDD - default(cluster)") {
