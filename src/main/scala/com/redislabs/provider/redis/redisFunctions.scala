@@ -236,7 +236,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     kvs.foreachPartition(partition => setHash(hashName, partition, ttl, redisConfig))
   }
 
-  def toRedisHASHIncrBy(kvs: RDD[(String, Long)], hashName: String, ttl: Int = 0)
+  /* def toRedisHASHIncrBy(kvs: RDD[(String, Long)], hashName: String, ttl: Int = 0)
                      (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
     kvs.foreachPartition(partition => incrHash(hashName, partition, ttl, redisConfig))
   }
@@ -244,8 +244,17 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   def toRedisHASHIncrByFloat(kvs: RDD[(String, Double)], hashName: String, ttl: Int = 0)
                        (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
     kvs.foreachPartition(partition => incrFloatHash(hashName, partition, ttl, redisConfig))
+  }*/
+
+  def toRedisHASHIncrByLong(keyMap: RDD[(String, Map[String, Long])], ttl: Int = 0)
+                       (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    keyMap.foreachPartition(partition => incrHash(partition, ttl, redisConfig))
   }
 
+  def toRedisHASHIncrByFloat(keyMap: RDD[(String, Map[String, Double])], ttl: Int = 0)
+                            (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    keyMap.foreachPartition(partition => incrFloatHash(partition, ttl, redisConfig))
+  }
   /**
     * @param kvs      Pair RDD of K/V
     * @param zsetName target zset's name which hold all the kvs
@@ -341,6 +350,24 @@ object RedisContext extends Serializable {
     conn.close()
   }
 
+  def incrHash(arr: Iterator[(String, Map[String, Long])], ttl: Int, redisConfig: RedisConfig): Unit = {
+    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
+      mapValues(a => a.map(p => p._2)).foreach {
+      x => {
+        val conn = x._1.endpoint.connect()
+        val pipeline = conn.pipelined
+        x._2.foreach(x => {
+          x._2.foreach(map => {
+            pipeline.hincrBy(x._1, map._1, map._2)
+          })
+          if (ttl > 0) pipeline.expire(x._1, ttl)
+        })
+        pipeline.sync
+        conn.close
+      }
+    }
+  }
+
   def incrFloatHash(hashName: String, arr: Iterator[(String, Double)], ttl: Int, redisConfig: RedisConfig): Unit = {
     val conn = redisConfig.connectionForKey(hashName)
     val pipeline = conn.pipelined()
@@ -348,6 +375,24 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(hashName, ttl)
     pipeline.sync()
     conn.close()
+  }
+
+  def incrFloatHash(arr: Iterator[(String, Map[String, Double])], ttl: Int, redisConfig: RedisConfig): Unit = {
+    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
+      mapValues(a => a.map(p => p._2)).foreach {
+      x => {
+        val conn = x._1.endpoint.connect()
+        val pipeline = conn.pipelined
+        x._2.foreach(x => {
+          x._2.foreach(map => {
+            pipeline.hincrByFloat(x._1, map._1, map._2)
+          })
+          if (ttl > 0) pipeline.expire(x._1, ttl)
+        })
+        pipeline.sync
+        conn.close
+      }
+    }
   }
 
   /**
