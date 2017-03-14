@@ -65,6 +65,32 @@ class RedisKVRDD(prev: RDD[String],
   }
 }
 
+class RedisKMapRDD(prev: RDD[String]) extends RDD[(String, Map[String, String])](prev) with Keys {
+
+  override def getPartitions: Array[Partition] = prev.partitions
+
+  override def compute(split: Partition,
+                       context: TaskContext): Iterator[(String, Map[String, String])] = {
+    val partition: RedisPartition = split.asInstanceOf[RedisPartition]
+    val sPos = partition.slots._1
+    val ePos = partition.slots._2
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
+    val keys = firstParent[String].iterator(split, context)
+    groupKeysByNode(nodes, keys).flatMap {
+      x => {
+        val conn = x._1.endpoint.connect()
+        val hashKeys = filterKeysByType(conn, x._2, "hash")
+        val res = hashKeys.map(x => {
+          val m: Map[String, String] = conn.hgetAll(x).toMap
+          (x, m)
+        }).iterator
+        conn.close
+        res
+      }
+    }.iterator
+  }
+}
+
 class RedisListRDD(prev: RDD[String], val rddType: String) extends RDD[String](prev) with Keys {
 
   override def getPartitions: Array[Partition] = prev.partitions
@@ -299,6 +325,10 @@ class RedisKeysRDD(sc: SparkContext,
     */
   def getHash(): RDD[(String, String)] = {
     new RedisKVRDD(this, "hash")
+  }
+
+  def getHashX(): RDD[(String, Map[String, String])] = {
+    new RedisKMapRDD(this)
   }
   /**
     * filter the 'zset' type keys and get all the elements(without scores) of them

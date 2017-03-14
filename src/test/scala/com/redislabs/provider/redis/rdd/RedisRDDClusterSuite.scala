@@ -22,12 +22,19 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     val wcnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
       reduceByKey(_ + _)
     val wcntl = wcnt.map(x => (x._1, x._2.toLong * 2))
-    val wcntd = wcnt.map(x => (x._1, x._2.toDouble * 0.31))
+    val wcntd = wcnt.map(x => (x._1, x._2.toDouble + 0.31))
     val wcnts = wcnt.map(x => (x._1, x._2.toString))
 
     val wcntl2 = wcntl.map(kv => {
       val m = Map{kv._1 -> kv._2}
       ("all:words:cnt:hash:incr:long:2", m)
+    }).reduceByKey((v1, v2) => {
+      v1 ++ v2
+    })
+
+    val wcntd2 = wcntd.map(kv => {
+      val m = Map{kv._1 -> kv._2}
+      ("all:words:cnt:hash:incr:float:2", m)
     }).reduceByKey((v1, v2) => {
       v1 ++ v2
     })
@@ -53,6 +60,9 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     // sc.toRedisHASHIncrByFloat(wcntd, "all:words:cnt:hash:incr:float")(redisConfig)
 
     sc.toRedisHASHIncrByLong(wcntl2)(redisConfig)
+    sc.toRedisHASHIncrByLong(wcntl2)(redisConfig)
+    sc.toRedisHASHIncrByFloat(wcntd2)(redisConfig)
+    sc.toRedisHASHIncrByFloat(wcntd2)(redisConfig)
   }
 
   test("RedisKVRDD - default(cluster)") {
@@ -162,7 +172,7 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     val redisHashRDD = sc.fromRedisHash("all:words:cnt:hash:incr:long:2")
     val hashContents = redisHashRDD.sortByKey().collect
     val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
-      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 2).toString)).toArray.sortBy(_._1)
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 4).toString)).toArray.sortBy(_._1)
     hashContents should be (wcntl)
   }
 
@@ -171,8 +181,47 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     val redisHashRDD = sc.fromRedisHash("all:words:cnt:hash:incr:long:2")
     val hashContents = redisHashRDD.sortByKey().collect
     val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
-      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 2).toString)).toArray.sortBy(_._1)
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 4).toString)).toArray.sortBy(_._1)
     hashContents should be (wcntl)
+  }
+
+  test("RedisHashIncrByLongRDD - key map X - default(cluster)") {
+    val redisHashRDD = sc.fromRedisHashX(Array("all:words:cnt:hash:incr:long:2",
+      "all:words:cnt:hash:incr:long:2"))
+    val hashContents = redisHashRDD.collect
+    val hashValue = hashContents(0)._2.toArray.sortBy(_._1)
+    val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 4).toString)).toArray.sortBy(_._1)
+    hashValue should be (wcntl)
+  }
+
+  test("RedisHashIncrByLongRDD - key map X - cluster") {
+    implicit val c: RedisConfig = redisConfig
+    val redisHashRDD = sc.fromRedisHashX(Array("all:words:cnt:hash:incr:long:2",
+      "all:words:cnt:hash:incr:long:2"))
+    val hashContents = redisHashRDD.collect
+    val hashValue = hashContents(0)._2.toArray.sortBy(_._1)
+    val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+      map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 4).toString)).toArray.sortBy(_._1)
+    hashValue should be (wcntl)
+  }
+
+  test("RedisHashIncrByRDD - X - default(cluster)") {
+    val redisHashRDD = sc.fromRedisHashX(Array("all:words:cnt:hash:incr:long:2",
+      "all:words:cnt:hash:incr:float:2"))
+    val hashContents = redisHashRDD.collect.foreach(x => {
+      if (x._1.equals("all:words:cnt:hash:incr:long:2")) {
+        val hashValue = x._2.toArray.sortBy(_._1)
+        val wcntl = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+          map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 4).toString)).toArray.sortBy(_._1)
+        hashValue should be (wcntl)
+      } else if (x._1.equals("all:words:cnt:hash:incr:float:2")) {
+        val hashValue = x._2.toArray.sortBy(_._1)
+        val wcntd = content.split("\\W+").filter(!_.isEmpty).map((_, 1)).groupBy(_._1).
+          map(x => (x._1, (x._2.map(_._2).reduce(_ + _) * 2 + 0.62).toString)).toArray.sortBy(_._1)
+        hashValue should be (wcntd)
+      }
+    })
   }
 
   /* test("RedisHashIncrByLongRDD - cluster") {

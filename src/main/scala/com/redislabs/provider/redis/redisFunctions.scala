@@ -105,6 +105,13 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     }
   }
 
+  def fromRedisHashX(keys: Array[String],
+                     partitionNum: Int = 3)
+                    (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[(String, Map[String, String])] = {
+    fromRedisKeys(keys.toSet.toArray, partitionNum)(redisConfig).getHashX
+  }
+
   /**
     * @param keysOrKeyPattern an array of keys or a key pattern
     * @param partitionNum number of partitions
