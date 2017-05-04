@@ -15,8 +15,8 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
 
     sc = new SparkContext(new SparkConf()
       .setMaster("local").setAppName(getClass.getName)
-      .set("redis.host", "127.0.0.1")
-      .set("redis.port", "7379")
+      .set("spark.redis.host", "127.0.0.1")
+      .set("spark.redis.port", "7379")
     )
     content = fromInputStream(getClass.getClassLoader.getResourceAsStream("blog")).
       getLines.toArray.mkString("\n")

@@ -76,13 +76,13 @@ sc = new SparkContext(new SparkConf()
       .setAppName("myApp")
 
       // initial redis host - can be any node in cluster mode
-      .set("redis.host", "localhost")
+      .set("spark.redis.host", "localhost")
 
       // initial redis port
-      .set("redis.port", "6379")
+      .set("spark.redis.port", "6379")
 
       // optional redis AUTH password
-      .set("redis.auth", "")
+      .set("spark.redis.auth", "")
   )
 ```
 

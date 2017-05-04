@@ -31,11 +31,11 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
     */
   def this(conf: SparkConf) {
       this(
-        conf.get("redis.host", Protocol.DEFAULT_HOST),
-        conf.getInt("redis.port", Protocol.DEFAULT_PORT),
-        conf.get("redis.auth", null),
-        conf.getInt("redis.db", Protocol.DEFAULT_DATABASE),
-        conf.getInt("redis.timeout", Protocol.DEFAULT_TIMEOUT)
+        conf.get("spark.redis.host", Protocol.DEFAULT_HOST),
+        conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
+        conf.get("spark.redis.auth", null),
+        conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
+        conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT)
       )
   }
 

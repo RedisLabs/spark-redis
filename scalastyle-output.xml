@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<checkstyle version="5.0">
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/RedisSparkSQLStandaloneSuite.scala">
+  <error line="8" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="39" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="17" line="50" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;score&quot; appears 6 times in the file."/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/main/scala/com/redislabs/provider/redis/sql/DefaultSource.scala">
+  <error line="47" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="67" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="98" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="202" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="14" line="118" source="org.scalastyle.scalariform.CyclomaticComplexityChecker" severity="warning" message="Cyclomatic complexity of 12 exceeds max of 10"/>
+  <error column="14" line="146" source="org.scalastyle.scalariform.CyclomaticComplexityChecker" severity="warning" message="Cyclomatic complexity of 33 exceeds max of 10"/>
+  <error column="14" line="146" source="org.scalastyle.scalariform.MethodLengthChecker" severity="warning" message="Method is longer than 50 lines"/>
+  <error column="6" line="202" source="org.scalastyle.scalariform.PublicMethodsHaveTypeChecker" severity="warning" message="Public method must have explicit type"/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/RedisSparkSQLClusterSuite.scala">
+  <error line="8" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="38" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="17" line="49" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;score&quot; appears 6 times in the file."/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/KeysClusterSuite.scala">
+  <error line="11" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/RedisRDDStandaloneSuite.scala">
+  <error line="73" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="86" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="104" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="117" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="45" line="22" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;\\W+&quot; appears 16 times in the file."/>
+  <error column="26" line="37" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;all:words:cnt:sortedset&quot; appears 15 times in the file."/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/main/scala/com/redislabs/provider/redis/redisFunctions.scala">
+  <error line="27" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="39" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="51" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="67" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="83" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="99" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="115" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="131" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="134" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="151" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="154" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="155" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="171" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="174" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="175" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="191" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="194" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="195" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="211" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="214" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="215" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="225" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="235" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="245" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="255" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="265" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="278" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="316" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="331" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="396" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="407" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="420" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="6" line="399" source="org.scalastyle.scalariform.PublicMethodsHaveTypeChecker" severity="warning" message="Public method must have explicit type"/>
+  <error column="6" line="410" source="org.scalastyle.scalariform.PublicMethodsHaveTypeChecker" severity="warning" message="Public method must have explicit type"/>
+  <error column="42" line="56" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;KeysOrKeyPattern should be String or Array[String]&quot; appears 10 times in the file."/>
+  <error column="2" line="18" source="org.scalastyle.scalariform.ImportGroupingChecker" severity="warning" message="Imports should be grouped together"/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/main/scala/com/redislabs/provider/redis/rdd/RedisRDD.scala">
+  <error line="308" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="316" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="320" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="326" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="336" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/KeysStandaloneSuite.scala">
+  <error line="11" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+ </file>
+ <file name="/Users/seizadi/projects/spark-redis/src/test/scala/com/redislabs/provider/redis/rdd/RedisRDDClusterSuite.scala">
+  <error line="74" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="87" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="105" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error line="118" source="org.scalastyle.file.FileLineLengthChecker" severity="warning" message="File line length exceeds 100 characters"/>
+  <error column="45" line="22" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;\\W+&quot; appears 16 times in the file."/>
+  <error column="26" line="38" source="org.scalastyle.scalariform.MultipleStringLiteralsChecker" severity="warning" message="The string literal &quot;all:words:cnt:sortedset&quot; appears 15 times in the file."/>
+ </file>
+</checkstyle>
