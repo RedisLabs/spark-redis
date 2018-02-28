@@ -1,3 +1,4 @@
+scalastyle-output.xml
 hs_err_pid*.log
 nohup.out
 .idea
