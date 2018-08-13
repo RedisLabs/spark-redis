@@ -32,3 +32,6 @@ src_managed/
 project/boot/
 project/plugins/project/
 build/*.jar
+
+# eclipse
+.project
