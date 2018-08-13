@@ -3,20 +3,56 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.redislabs</groupId>
 	<artifactId>spark-redis</artifactId>
-	<version>0.3.2</version>
+	<version>2.3.0-SNAPSHOT</version>
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
 	<url>http://github.com/RedisLabs/spark-redis</url>
+	
+	<organization>
+		<name>RedisLabs</name>
+		<url>www.redislabs.com</url>
+	</organization>
+	<ciManagement>
+		<system>CircleCI</system>
+		<url>https://circleci.com/gh/RedisLabs/spark-redis</url>
+	</ciManagement>
+	<issueManagement>
+		<url>https://github.com/RedisLabs/spark-redis/issues</url>
+		<system>Github</system>
+	</issueManagement>
+	<scm>
+		<url>https://github.com/RedisLabs/spark-redis</url>
+		<connection>scm:git:git://github.com/RedisLabs/spark-redis.git</connection>
+		<developerConnection>scm:git:git@github.com:RedisLabs/spark-redis.git</developerConnection>
+	</scm>
+	<licenses>
+		<license>
+			<name>BSD 3 Clause</name>
+			<url>https://opensource.org/licenses/BSD-3-Clause</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<java.version>1.7</java.version>
-		<scala.minor.version>2.10</scala.minor.version>
-		<scala.complete.version>${scala.minor.version}.4</scala.complete.version>
-		<jedis.version>2.7.2</jedis.version>
-		<spark.version>1.4.1</spark.version>
+		<java.version>1.8</java.version>
+		<scala.major.version>2.11</scala.major.version>
+		<scala.complete.version>${scala.major.version}.12</scala.complete.version>
+		<jedis.version>2.9.0</jedis.version>
+		<spark.version>2.3.1</spark.version>
 	</properties>
+
+	<distributionManagement>
+		<snapshotRepository>
+			<id>ossrh</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+		<repository>
+		    <id>ossrh</id>
+    		<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+  		</repository>
+	</distributionManagement>
 
 	<build>
 		<plugins>
@@ -184,6 +220,17 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.6.7</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                </configuration>
+            </plugin>
 		</plugins>
 	</build>
 	<dependencies>
@@ -216,24 +263,79 @@
 		</dependency>
 		<dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_${scala.minor.version}</artifactId>
+            <artifactId>spark-core_${scala.major.version}</artifactId>
             <version>${spark.version}</version>
+			<scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming_${scala.minor.version}</artifactId>
+            <artifactId>spark-streaming_${scala.major.version}</artifactId>
             <version>${spark.version}</version>
+			<scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_${scala.minor.version}</artifactId>
+            <artifactId>spark-sql_${scala.major.version}</artifactId>
             <version>${spark.version}</version>
+			<scope>provided</scope>
         </dependency>
 		<dependency>
 			<groupId>org.scalatest</groupId>
-			<artifactId>scalatest_${scala.minor.version}</artifactId>
+			<artifactId>scalatest_${scala.major.version}</artifactId>
 			<version>2.2.1</version>
 			<scope>test</scope>
 		</dependency>
     </dependencies>
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <!--Include sources and docs-->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>2.2.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>2.9.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!--Sign the components - this is required by maven central for releases-->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>1.5</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
