@@ -25,6 +25,16 @@
 		<connection>scm:git:git://github.com/RedisLabs/spark-redis.git</connection>
 		<developerConnection>scm:git:git@github.com:RedisLabs/spark-redis.git</developerConnection>
 	</scm>
+	<developers>
+		<developer>
+			<name>Sun He</name>
+			<organization>Redis Labs, Inc.</organization>
+		</developer>
+		<developer>
+			<name>Shay Nativ</name>
+			<organization>Redis Labs, Inc.</organization>
+		</developer>
+	</developers>
 	<licenses>
 		<license>
 			<name>BSD 3 Clause</name>
@@ -82,6 +92,12 @@
 						<phase>process-test-resources</phase>
 						<goals>
 							<goal>testCompile</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>attach-javadocs</id>
+						<goals>
+							<goal>doc-jar</goal>
 						</goals>
 					</execution>
 				</executions>
