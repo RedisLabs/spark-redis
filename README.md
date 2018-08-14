@@ -7,22 +7,20 @@ Spark-Redis provides access to all of Redis' data structures - String, Hash, Lis
 
 Spark-Redis also provides Spark-Streaming support.
 
-## Minimal requirements
-You'll need the the following to use Spark-Redis:
+## Version compatibility and branching
 
- - Apache Spark v1.4.0
- - Scala v2.10.4
- - Jedis v2.7
- - Redis v2.8.12 or v3.0.3
+The library has several branches, each corresponds to a different supported Spark version. For example, 'branch-2.3' works with any Spark 2.3.x version.
+The master branch contains the recent development for the next release.
+
+| Spark-Redis | Spark         | Redis            | Supported Scala Versions | 
+| ----------- | ------------- | ---------------- | ------------------------ |
+| 2.3         | 2.3           | >=2.9.0          | 2.11                     | 
+| 1.4         | 1.4           |                  | 2.10                     | 
+
 
 ## Known limitations
 
 * Java, Python and R API bindings are not provided at this time
-* The package was only tested with the following stack:
- - Apache Spark v1.4.0
- - Scala v2.10.4
- - Jedis v2.7 and v2.8 pre-release (see [below](#jedis-and-read-only-redis-cluster-slave-nodes) for details)
- - Redis v2.8.12 and v3.0.3
 
 ## Additional considerations
 This library is work in progress so the API may change before the official release.
@@ -35,29 +33,20 @@ cd spark-redis
 mvn clean package -DskipTests
 ```
 
-### Jedis and read-only Redis cluster slave nodes
-Jedis' current version - v2.7 - does not support reading from Redis cluster's slave nodes. This functionality will only be included in its upcoming version, v2.8.
-
-To use Spark-Redis with Redis cluster's slave nodes, the library's source includes a pre-release of Jedis v2.8 under the `with-slaves` branch. Switch to that branch by entering the following before running `mvn clean install`:
-```
-git checkout with-slaves
-```
-
 ## Using the library
 Add Spark-Redis to Spark with the `--jars` command line option. For example, use it from spark-shell, include it in the following manner:
 
 ```
-$ bin/spark-shell --jars <path-to>/spark-redis-<version>.jar,<path-to>/jedis-<version>.jar
+$ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
 
 Welcome to
       ____              __
      / __/__  ___ _____/ /__
     _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 1.4.0
+   /___/ .__/\_,_/_/ /_/\_\   version 2.3.1
       /_/
 
-Using Scala version 2.10.4 (OpenJDK 64-Bit Server VM, Java 1.7.0_79)
-...
+Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_101)
 ```
 
 The following sections contain code snippets that demonstrate the use of Spark-Redis. To use the sample code, you'll need to replace `your.redis.server` and `6379` with your Redis database's IP address or hostname and port, respectively.
