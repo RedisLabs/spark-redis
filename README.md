@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis)
 
 # Spark-Redis
 A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/)
