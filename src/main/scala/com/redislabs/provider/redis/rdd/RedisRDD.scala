@@ -431,18 +431,25 @@ trait Keys {
   }
 
   /**
-    * @param nodes list of RedisNode
-    * @param keys list of keys
-    * return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
+    * Master node for a key
+    *
+    * @param nodes list of all nodes
+    * @param key   key
+    * @return master node
     */
-  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]):
-  Array[(RedisNode, Array[String])] = {
-    def getNode(key: String): RedisNode = {
-      val slot = JedisClusterCRC16.getSlot(key)
-      /* Master only */
-      nodes.filter(node => { node.startSlot <= slot && node.endSlot >= slot }).filter(_.idx == 0)(0)
-    }
-    keys.map(key => (getNode(key), key)).toArray.groupBy(_._1).
+  def getMasterNode(nodes: Array[RedisNode], key: String): RedisNode = {
+    val slot = JedisClusterCRC16.getSlot(key)
+    /* Master only */
+    nodes.filter { node => node.startSlot <= slot && node.endSlot >= slot }.filter(_.idx == 0)(0)
+  }
+
+  /**
+    * @param nodes list of RedisNode
+    * @param keys  list of keys
+    * @return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
+    */
+  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Array[(RedisNode, Array[String])] = {
+    keys.map(key => (getMasterNode(nodes, key), key)).toArray.groupBy(_._1).
       map(x => (x._1, x._2.map(_._2))).toArray
   }
 
