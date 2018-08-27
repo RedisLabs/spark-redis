@@ -24,9 +24,9 @@ class RedisSqlSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
     val spark = SparkSession.builder().config(conf).getOrCreate()
 
     val df = spark.createDataFrame(Seq(1 -> "one", 2 -> "two"))
-    println(df.count())
     df.show(false)
     df.write.option("aa", "bbb").format("org.apache.spark.sql.redis").save("test")
+
 //    df.write.option("aa", "bbb").format("org.apache.spark.sql.redis").saveAsTable("zzz")
 //    df.write.option("aa", "bbb").format("org.apache.spark.sql.redis").save("yyy")
 
@@ -34,7 +34,11 @@ class RedisSqlSuite extends FunSuite with ENV with BeforeAndAfterAll with Should
 //    val df2 = spark.read.format("org.apache.spark.sql.redis").load("aaaa")
 //    df2.show()
 
-    println("Done")
+    val loadedDf = spark.read.format("org.apache.spark.sql.redis").load("test")
+    loadedDf.show(false)
+
+    loadedDf.count() should be(df.count())
+
 
   }
 

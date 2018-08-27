@@ -6,16 +6,15 @@ import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.Protocol
 
-//import scala.collection.JavaConverters._
-import RedisSourceRelation._
 import org.apache.commons.lang3.SerializationUtils
+import org.apache.spark.sql.redis.RedisSourceRelation._
+
 import scala.collection.JavaConversions._
 
-// TODO: extends
 class RedisSourceRelation(override val sqlContext: SQLContext,
                           parameters: Map[String, String],
                           userSpecifiedSchema: Option[StructType])
@@ -44,13 +43,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
 
   override def schema: StructType = {
-    // TODO:
-    userSpecifiedSchema.getOrElse(StructType(Array[StructField]()))
+    userSpecifiedSchema.getOrElse(loadSchema(tableName))
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     // write schema, so that we can load dataframe back
-    saveSchema(schema, tableName)
+    saveSchema(userSpecifiedSchema.getOrElse(data.schema), tableName)
 
     // write data
     data.foreachPartition { partition =>
@@ -62,10 +60,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         keys.foreach { key =>
           println(s"saving key $key")
           val row = rowsWithKey(key)
-          val hash = row
-            .getValuesMap[java.lang.Object](row.schema.fieldNames)
-            .map { case (fieldName, value) => (fieldName, value.toString) }
-          pipeline.hmset(key, hash)
+          // serialize the entire row to byte array
+          // TODO: remove schema from row
+          // TODO: save as a hash
+          val rowBytes = SerializationUtils.serialize(row)
+          pipeline.set(key.getBytes, rowBytes)
         }
         pipeline.sync()
         conn.close()
@@ -96,7 +95,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schemaNode = getMasterNode(redisConfig.hosts, schemaKey)
     val conn = schemaNode.connect()
     val schemaBytes = conn.get(schemaKey.getBytes)
-    val schema = SerializationUtils.deserialize(schemaBytes)
+    val schema = SerializationUtils.deserialize[StructType](schemaBytes)
     conn.close()
     schema
   }
@@ -104,23 +103,27 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     println("build scan")
     val schema = loadSchema(tableName)
+    val schemaKey = schemaRedisKey(tableName)
     // TODO: partition num
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, tableName + ":*")
     keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition).map { case (node, keys) =>
+      groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
         val conn = node.connect()
         val pipeline = conn.pipelined()
-        keys.foreach { key =>
-          // TODO
-        val a = pipeline.hmget(key, requiredColumns:_*)
+        keys
+          .filterNot(_.startsWith(schemaKey)) // skip schema key
+          .foreach { key =>
+          println(s"key $key")
+          pipeline.get(key.getBytes)
         }
-        pipeline.sync()
+        val rows = pipeline.syncAndReturnAll().map { resp =>
+          val value = resp.asInstanceOf[Array[Byte]]
+          SerializationUtils.deserialize[Row](value)
+        }
         conn.close()
-      }
-      ???
+        rows
+      }.iterator
     }
-
-    ???
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
@@ -130,6 +133,6 @@ object RedisSourceRelation {
 
   private val SchemaKey = "dataframe_schema"
 
-  def schemaRedisKey(tableName: String): String =  s"$tableName:$SchemaKey"
+  def schemaRedisKey(tableName: String): String = s"$tableName:$SchemaKey"
 
 }
