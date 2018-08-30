@@ -1,9 +1,8 @@
 package org.apache.spark.sql.redis
 
 import org.apache.spark.sql.SaveMode.{Append, ErrorIfExists, Ignore, Overwrite}
-import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
-import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider, SchemaRelationProvider}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
 class DefaultSource extends RelationProvider
   //  with SchemaRelationProvider
@@ -19,20 +18,16 @@ class DefaultSource extends RelationProvider
   override def createRelation(sqlContext: SQLContext, mode: SaveMode, parameters: Map[String, String], data: DataFrame): BaseRelation = {
     val relation = new RedisSourceRelation(sqlContext, parameters, userSpecifiedSchema = None)
 
-//    data.foreachPartition { iter =>
-//      aaa(iter)
-//    }
-
-        mode match {
-          case Append => relation.insert(data, overwrite = false)
-          case Overwrite => relation.insert(data, overwrite = true)
-          case ErrorIfExists =>
-            // TODO: check if exists
-            relation.insert(data, overwrite = false)
-          case Ignore =>
-            // TODO:
-            ???
-        }
+    mode match {
+      case Append => relation.insert(data, overwrite = false)
+      case Overwrite => relation.insert(data, overwrite = true)
+      case ErrorIfExists =>
+        // TODO: check if exists
+        relation.insert(data, overwrite = false)
+      case Ignore =>
+        // TODO:
+        ???
+    }
 
     relation
   }
