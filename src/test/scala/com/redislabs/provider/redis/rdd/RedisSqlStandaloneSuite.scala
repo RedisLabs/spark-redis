@@ -38,11 +38,13 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     loadedDf.show()
 
     loadedDf.count() should be(df.count())
+    loadedDf.schema should be(df.schema)
+
     val loadedArr = loadedDf.collect().map { row =>
       Person(row.getAs[String]("name"), row.getAs[Int]("age"), row.getAs[String]("address"), row.getAs[Double]("salary"))
     }
 
-    loadedArr should be(data.toArray)
+    loadedArr.sortBy(_.name) should be(data.toArray.sortBy(_.name))
   }
 
   override def afterAll(): Unit = {
