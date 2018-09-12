@@ -1,7 +1,7 @@
 sudo: required
 language: scala
 scala:
-    - 2.10.4
+    - 2.11.2
 before_install:
     - git clone https://github.com/antirez/redis.git redis_for_spark-redis_test || true
 install:
