@@ -21,39 +21,29 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     spark = SparkSession.builder().config(conf).getOrCreate()
   }
 
+  private val TableName = "person"
+
   private val data = Seq(
     Person("John", 30, "60 Wall Street", 150.5),
     Person("Peter", 35, "110 Wall Street", 200.3)
   )
 
   test("save and load dataframe") {
-
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
-
-    val data = Seq(
-      Person("John", 30, "60 Wall Street", 150.5),
-      Person("Peter", 35, "110 Wall Street", 200.3)
-    )
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
-
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
-
     loadedDf.count() should be(df.count())
     loadedDf.schema should be(df.schema)
-
-    val loadedArr = loadedDf.collect().map { row =>
-      Person(row.getAs[String]("name"), row.getAs[Int]("age"), row.getAs[String]("address"), row.getAs[Double]("salary"))
-    }
-
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) should be(data.toArray.sortBy(_.name))
   }
 
   test("overwrite data when it's empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .mode(SaveMode.Overwrite)
@@ -70,7 +60,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("overwrite data when it's not empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .save(tableName)
@@ -88,7 +78,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("ignore data when it's empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .mode(SaveMode.Ignore)
@@ -105,7 +95,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("ignore data when it's not empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .save(tableName)
@@ -126,7 +116,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("error if exists when it's empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .mode(SaveMode.ErrorIfExists)
@@ -143,7 +133,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
 
   test("error if exists when it's not empty") {
     // generate random table, so we can run test multiple times and not append/overwrite data
-    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .save(tableName)
@@ -160,4 +150,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     spark.stop
     System.clearProperty("spark.driver.port")
   }
+
+  private def generateTableName(prefix: String) =
+    prefix + UUID.randomUUID().toString.replace("-", "")
 }
