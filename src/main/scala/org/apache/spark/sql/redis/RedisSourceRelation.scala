@@ -3,16 +3,16 @@ package org.apache.spark.sql.redis
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
-import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint}
+import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, toRedisContext}
+import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.Protocol
 
-import org.apache.commons.lang3.SerializationUtils
-import org.apache.spark.sql.redis.RedisSourceRelation._
-
+import scala.collection.JavaConversions
 import scala.collection.JavaConversions._
 
 class RedisSourceRelation(override val sqlContext: SQLContext,
@@ -50,6 +50,19 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     // write schema, so that we can load dataframe back
     saveSchema(userSpecifiedSchema.getOrElse(data.schema), tableName)
 
+    if (overwrite) {
+      // truncate the table
+      redisConfig.hosts.foreach { node =>
+        val conn = node.connect()
+        val keys = conn.keys(dataKeyPattern(tableName))
+        if (keys.nonEmpty) {
+          val keySeq = JavaConversions.asScalaSet(keys).toSeq
+          conn.del(keySeq: _*)
+        }
+        conn.close()
+      }
+    }
+
     // write data
     data.foreachPartition { partition =>
       // TODO: allow user to specify key column
@@ -74,7 +87,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   def generateKey(prefix: String): String = {
     val uuid = UUID.randomUUID().toString.replace("-", "")
-    s"$prefix:$uuid"
+    s"$prefix:dataframe_data:$uuid"
   }
 
   // TODO: reuse connection to node?
@@ -134,5 +147,7 @@ object RedisSourceRelation {
   private val SchemaKey = "dataframe_schema"
 
   def schemaRedisKey(tableName: String): String = s"$tableName:$SchemaKey"
+
+  def dataKeyPattern(tableName: String): String = s"$tableName:dataframe_data:*"
 
 }
