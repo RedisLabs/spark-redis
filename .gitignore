@@ -38,3 +38,6 @@ build/*.jar
 .project
 .classpath
 /.settings/
+
+# Redis
+dump.rdb
