@@ -3,6 +3,7 @@ package com.redislabs.provider.redis.rdd
 import java.util.UUID
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.redis.RedisFormat
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
 
@@ -35,9 +36,9 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
       Person("Peter", 35, "110 Wall Street", 200.3)
     )
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis").save(tableName)
+    df.write.format(RedisFormat).save(tableName)
 
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis").load(tableName).cache()
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
 
     loadedDf.count() should be(df.count())
@@ -54,10 +55,10 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .mode(SaveMode.Overwrite)
       .save(tableName)
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    val loadedDf = spark.read.format(RedisFormat)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -71,12 +72,12 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .save(tableName)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .mode(SaveMode.Overwrite)
       .save(tableName)
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    val loadedDf = spark.read.format(RedisFormat)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -89,10 +90,10 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .mode(SaveMode.Ignore)
       .save(tableName)
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    val loadedDf = spark.read.format(RedisFormat)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -106,14 +107,14 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .save(tableName)
     // the modified information should not be persisted
     spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-      .write.format("org.apache.spark.sql.redis")
+      .write.format(RedisFormat)
       .mode(SaveMode.Ignore)
       .save(tableName)
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    val loadedDf = spark.read.format(RedisFormat)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -127,10 +128,10 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .mode(SaveMode.ErrorIfExists)
       .save(tableName)
-    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    val loadedDf = spark.read.format(RedisFormat)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -144,12 +145,12 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
     val df = spark.createDataFrame(data)
-    df.write.format("org.apache.spark.sql.redis")
+    df.write.format(RedisFormat)
       .save(tableName)
     // the modified information should not be persisted
     intercept[IllegalStateException] {
       spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-        .write.format("org.apache.spark.sql.redis")
+        .write.format(RedisFormat)
         .mode(SaveMode.ErrorIfExists)
         .save(tableName)
     }
