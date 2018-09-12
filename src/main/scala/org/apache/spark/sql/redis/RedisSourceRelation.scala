@@ -42,7 +42,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
 
-  private val tableKeys = s"$tableName:*"
 
   override def schema: StructType = {
     userSpecifiedSchema.getOrElse(loadSchema(tableName))
@@ -68,7 +67,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     // write data
     data.foreachPartition { partition =>
       // TODO: allow user to specify key column
-      val rowsWithKey: Map[String, Row] = partition.map(row => generateKey(tableName) -> row).toMap
+      val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
       groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
         val conn = node.connect()
         val pipeline = conn.pipelined()
@@ -87,35 +86,30 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
   }
 
-  def generateKey(prefix: String): String = {
-    val uuid = UUID.randomUUID().toString.replace("-", "")
-    s"$prefix:dataframe_data:$uuid"
-  }
-
   def isEmpty: Boolean =
-    sqlContext.sparkContext.fromRedisKeyPattern(tableKeys)
+    sqlContext.sparkContext.fromRedisKeyPattern(dataKeyPattern(tableName))
       .isEmpty()
 
   def nonEmpty: Boolean = !isEmpty
 
   // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): Unit = {
-    val schemaKey = schemaRedisKey(tableName)
-    println(s"saving schema $schemaKey")
-    val schemaNode = getMasterNode(redisConfig.hosts, schemaKey)
+    val key = schemaKey(tableName)
+    println(s"saving schema $key")
+    val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = SerializationUtils.serialize(schema)
-    conn.set(schemaKey.getBytes, schemaBytes)
+    conn.set(key.getBytes, schemaBytes)
     conn.close()
   }
 
   // TODO: reuse connection to node?
   def loadSchema(tableName: String): StructType = {
-    val schemaKey = schemaRedisKey(tableName)
-    println(s"loading schema $schemaKey")
-    val schemaNode = getMasterNode(redisConfig.hosts, schemaKey)
+    val key = schemaKey(tableName)
+    println(s"loading schema $key")
+    val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
-    val schemaBytes = conn.get(schemaKey.getBytes)
+    val schemaBytes = conn.get(key.getBytes)
     val schema = SerializationUtils.deserialize[StructType](schemaBytes)
     conn.close()
     schema
@@ -123,20 +117,17 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     println("build scan")
-    val schema = loadSchema(tableName)
-    val schemaKey = schemaRedisKey(tableName)
     // TODO: partition num
-    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, tableKeys)
+    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName))
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys
-          .filterNot(_.startsWith(schemaKey)) // skip schema key
           .foreach { key =>
-          println(s"key $key")
-          pipeline.get(key.getBytes)
-        }
+            println(s"key $key")
+            pipeline.get(key.getBytes)
+          }
         val rows = pipeline.syncAndReturnAll().map { resp =>
           val value = resp.asInstanceOf[Array[Byte]]
           SerializationUtils.deserialize[Row](value)
@@ -152,10 +143,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
 object RedisSourceRelation {
 
-  private val SchemaKey = "dataframe_schema"
+  private val SchemaNamespace = "dataframe_schema"
 
-  def schemaRedisKey(tableName: String): String = s"$tableName:$SchemaKey"
+  private val DataNamespace = "dataframe_data"
 
-  def dataKeyPattern(tableName: String): String = s"$tableName:dataframe_data:*"
+  def schemaKey(tableName: String): String = s"$tableName:$SchemaNamespace"
 
+  def dataKey(tableName: String): String = {
+    val uuid = UUID.randomUUID().toString.replace("-", "")
+    s"$tableName:$DataNamespace:$uuid"
+  }
+
+  def dataKeyPattern(tableName: String): String = s"$tableName:$DataNamespace:*"
 }
