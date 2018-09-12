@@ -22,7 +22,9 @@ class DefaultSource extends RelationProvider
       case Append => relation.insert(data, overwrite = false)
       case Overwrite => relation.insert(data, overwrite = true)
       case ErrorIfExists =>
-        // TODO: check if exists
+        if (relation.nonEmpty) {
+          throw new IllegalStateException("Relation is not empty")
+        }
         relation.insert(data, overwrite = false)
       case Ignore =>
         if (relation.isEmpty) {

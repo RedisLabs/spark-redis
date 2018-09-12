@@ -96,6 +96,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     sqlContext.sparkContext.fromRedisKeyPattern(tableKeys)
       .isEmpty()
 
+  def nonEmpty: Boolean = !isEmpty
+
   // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): Unit = {
     val schemaKey = schemaRedisKey(tableName)
