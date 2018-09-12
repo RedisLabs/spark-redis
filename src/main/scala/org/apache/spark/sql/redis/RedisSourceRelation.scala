@@ -30,10 +30,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         new RedisEndpoint(sqlContext.sparkContext.getConf)
       } else {
         val host = parameters.getOrElse("host", Protocol.DEFAULT_HOST)
-        val port = parameters.getOrElse("port", Protocol.DEFAULT_PORT.toString).toInt
+        val port = parameters.get("port").map(_.toInt).getOrElse(Protocol.DEFAULT_PORT)
         val auth = parameters.getOrElse("auth", null)
-        val dbNum = parameters.getOrElse("dbNum", Protocol.DEFAULT_DATABASE.toString).toInt
-        val timeout = parameters.getOrElse("timeout", Protocol.DEFAULT_TIMEOUT.toString).toInt
+        val dbNum = parameters.get("dbNum").map(_.toInt).getOrElse(Protocol.DEFAULT_DATABASE)
+        val timeout = parameters.get("timeout").map(_.toInt).getOrElse(Protocol.DEFAULT_TIMEOUT)
         RedisEndpoint(host, port, auth, dbNum, timeout)
       }
     )
@@ -41,6 +41,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
+
+  private val tableKeys = s"$tableName:*"
 
   override def schema: StructType = {
     userSpecifiedSchema.getOrElse(loadSchema(tableName))
@@ -90,6 +92,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     s"$prefix:dataframe_data:$uuid"
   }
 
+  def isEmpty: Boolean =
+    sqlContext.sparkContext.fromRedisKeyPattern(tableKeys)
+      .isEmpty()
+
   // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): Unit = {
     val schemaKey = schemaRedisKey(tableName)
@@ -118,7 +124,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schema = loadSchema(tableName)
     val schemaKey = schemaRedisKey(tableName)
     // TODO: partition num
-    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, tableName + ":*")
+    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, tableKeys)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
         val conn = node.connect()

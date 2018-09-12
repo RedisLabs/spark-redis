@@ -85,6 +85,44 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
+  test("ignore data when it's empty") {
+    // generate random table, so we can run test multiple times and not append/overwrite data
+    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val df = spark.createDataFrame(data)
+    df.write.format("org.apache.spark.sql.redis")
+      .mode(SaveMode.Ignore)
+      .save(tableName)
+    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+      .load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe df.count()
+    loadedDf.schema shouldBe df.schema
+    val loadedArr = loadedDf.as[Person]
+      .collect()
+    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+  }
+
+  test("ignore data when it's not empty") {
+    // generate random table, so we can run test multiple times and not append/overwrite data
+    val tableName = "person" + UUID.randomUUID().toString.replace("-", "")
+    val df = spark.createDataFrame(data)
+    df.write.format("org.apache.spark.sql.redis")
+      .save(tableName)
+    // the modified information should not be persisted
+    spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
+      .write.format("org.apache.spark.sql.redis")
+      .mode(SaveMode.Ignore)
+      .save(tableName)
+    val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+      .load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe df.count()
+    loadedDf.schema shouldBe df.schema
+    val loadedArr = loadedDf.as[Person]
+      .collect()
+    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+  }
+
   override def afterAll(): Unit = {
     spark.stop
     System.clearProperty("spark.driver.port")

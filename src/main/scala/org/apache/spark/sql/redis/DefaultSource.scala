@@ -25,8 +25,9 @@ class DefaultSource extends RelationProvider
         // TODO: check if exists
         relation.insert(data, overwrite = false)
       case Ignore =>
-        // TODO:
-        ???
+        if (relation.isEmpty) {
+          relation.insert(data, overwrite = false)
+        }
     }
 
     relation
