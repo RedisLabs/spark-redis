@@ -36,7 +36,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   )
 
   test("save and load dataframe") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
@@ -49,7 +48,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("overwrite data when it's empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
@@ -62,7 +60,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("overwrite data when it's not empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
@@ -78,7 +75,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("ignore data when it's empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
@@ -91,7 +87,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("ignore data when it's not empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat) .save(tableName)
@@ -107,7 +102,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("error if exists when it's empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
@@ -120,7 +114,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("error if exists when it's not empty") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
@@ -136,6 +129,8 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     System.clearProperty("spark.driver.port")
   }
 
-  private def generateTableName(prefix: String) =
+  private def generateTableName(prefix: String) = {
+    // generate random table, so we can run test multiple times and not append/overwrite data
     prefix + UUID.randomUUID().toString.replace("-", "")
+  }
 }
