@@ -41,6 +41,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
+  private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
+    .getOrElse(SqlOptionNumPartitionsDefault)
 
 
   override def schema: StructType = {
@@ -65,25 +67,27 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data.foreachPartition { partition =>
-      // TODO: allow user to specify key column
-      val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
-      groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-        val conn = node.connect()
-        val pipeline = conn.pipelined()
-        keys.foreach { key =>
-          println(s"saving key $key")
-          val row = rowsWithKey(key)
-          // serialize the entire row to byte array
-          // TODO: remove schema from row
-          // TODO: save as a hash
-          val rowBytes = SerializationUtils.serialize(row)
-          pipeline.set(key.getBytes, rowBytes)
+    data
+      .repartition(numPartitions = numPartitions)
+      .foreachPartition { partition =>
+        // TODO: allow user to specify key column
+        val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
+        groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
+          val conn = node.connect()
+          val pipeline = conn.pipelined()
+          keys.foreach { key =>
+            println(s"saving key $key")
+            val row = rowsWithKey(key)
+            // serialize the entire row to byte array
+            // TODO: remove schema from row
+            // TODO: save as a hash
+            val rowBytes = SerializationUtils.serialize(row)
+            pipeline.set(key.getBytes, rowBytes)
+          }
+          pipeline.sync()
+          conn.close()
         }
-        pipeline.sync()
-        conn.close()
       }
-    }
   }
 
   def isEmpty: Boolean =
@@ -119,23 +123,25 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     println("build scan")
     // TODO: partition num
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName))
-    keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
-        val conn = node.connect()
-        val pipeline = conn.pipelined()
-        keys
-          .foreach { key =>
-            println(s"key $key")
-            pipeline.get(key.getBytes)
+    keysRdd
+      .repartition(numPartitions)
+      .mapPartitions { partition =>
+        groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
+          val conn = node.connect()
+          val pipeline = conn.pipelined()
+          keys
+            .foreach { key =>
+              println(s"key $key")
+              pipeline.get(key.getBytes)
+            }
+          val rows = pipeline.syncAndReturnAll().map { resp =>
+            val value = resp.asInstanceOf[Array[Byte]]
+            SerializationUtils.deserialize[Row](value)
           }
-        val rows = pipeline.syncAndReturnAll().map { resp =>
-          val value = resp.asInstanceOf[Array[Byte]]
-          SerializationUtils.deserialize[Row](value)
-        }
-        conn.close()
-        rows
-      }.iterator
-    }
+          conn.close()
+          rows
+        }.iterator
+      }
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
