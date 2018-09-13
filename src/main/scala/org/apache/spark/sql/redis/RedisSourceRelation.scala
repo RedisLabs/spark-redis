@@ -122,9 +122,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     println("build scan")
     // TODO: partition num
-    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName))
+    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
+      partitionNum = numPartitions)
     keysRdd
-      .repartition(numPartitions)
       .mapPartitions { partition =>
         groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
           val conn = node.connect()
