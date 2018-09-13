@@ -50,7 +50,7 @@ private class RedisReceiver[T: ClassTag](keys: Array[String],
       try {
         while(!isStopped) {
           val response = conn.blpop(2, key)
-          if (response == null) {
+          if (response == null || response.size() == 0) {
 
           } else if (classTag[T] == classTag[String]) {
             store(response.get(1).asInstanceOf[T])
