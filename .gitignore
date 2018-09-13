@@ -1,5 +1,6 @@
 hs_err_pid*.log
 nohup.out
+scalastyle-output.xml
 .idea
 *.iml
 **/.idea
@@ -35,3 +36,5 @@ build/*.jar
 
 # eclipse
 .project
+.classpath
+/.settings/

@@ -27,6 +27,20 @@ The master branch contains the recent development for the next release.
 This library is work in progress so the API may change before the official release.
 
 ## Getting the library
+
+### Maven
+
+```xml
+  <dependencies>
+    <dependency>
+      <groupId>com.redislabs</groupId>
+      <artifactId>spark-redis</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+  </dependencies>
+```
+
+### Build form source
 You can download the library's source and build it:
 ```
 git clone https://github.com/RedisLabs/spark-redis.git
