@@ -4,10 +4,17 @@ import java.util.UUID
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.redis.RedisFormat
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.{SQLContext, SQLImplicits, SaveMode, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
 
 class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll with ShouldMatchers {
+
+  object TestSqlImplicits extends SQLImplicits {
+
+    override protected def _sqlContext: SQLContext = spark.sqlContext
+  }
+
+  import TestSqlImplicits._
 
   override def beforeAll() {
     super.beforeAll()
