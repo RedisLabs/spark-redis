@@ -67,27 +67,25 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data
-      .repartition(numPartitions = numPartitions)
-      .foreachPartition { partition =>
-        // TODO: allow user to specify key column
-        val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
-        groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-          val conn = node.connect()
-          val pipeline = conn.pipelined()
-          keys.foreach { key =>
-            println(s"saving key $key")
-            val row = rowsWithKey(key)
-            // serialize the entire row to byte array
-            // TODO: remove schema from row
-            // TODO: save as a hash
-            val rowBytes = SerializationUtils.serialize(row)
-            pipeline.set(key.getBytes, rowBytes)
-          }
-          pipeline.sync()
-          conn.close()
+    data.foreachPartition { partition =>
+      // TODO: allow user to specify key column
+      val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
+      groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
+        val conn = node.connect()
+        val pipeline = conn.pipelined()
+        keys.foreach { key =>
+          println(s"saving key $key")
+          val row = rowsWithKey(key)
+          // serialize the entire row to byte array
+          // TODO: remove schema from row
+          // TODO: save as a hash
+          val rowBytes = SerializationUtils.serialize(row)
+          pipeline.set(key.getBytes, rowBytes)
         }
+        pipeline.sync()
+        conn.close()
       }
+    }
   }
 
   def isEmpty: Boolean =

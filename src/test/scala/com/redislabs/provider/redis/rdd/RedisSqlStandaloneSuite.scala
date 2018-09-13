@@ -128,8 +128,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .option(SqlOptionNumPartitions, 1).save(tableName)
+    df.write.format(RedisFormat).save(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionNumPartitions, 1).load(tableName).cache()
     loadedDf.show()
