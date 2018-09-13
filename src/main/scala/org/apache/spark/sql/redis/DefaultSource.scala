@@ -24,7 +24,8 @@ class DefaultSource extends RelationProvider
       case Overwrite => relation.insert(data, overwrite = true)
       case ErrorIfExists =>
         if (relation.nonEmpty) {
-          throw new IllegalStateException("Relation is not empty")
+          throw new IllegalStateException("SaveMode is set to ErrorIfExists and dataframe " +
+            "already exists in Redis and contains data.")
         }
         relation.insert(data, overwrite = false)
       case Ignore =>
