@@ -52,16 +52,12 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .mode(SaveMode.Overwrite)
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat)
-      .load(tableName).cache()
+    df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person]
-      .collect()
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
@@ -69,13 +65,9 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .save(tableName)
-    df.write.format(RedisFormat)
-      .mode(SaveMode.Overwrite)
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat)
-      .load(tableName).cache()
+    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
@@ -87,16 +79,12 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .mode(SaveMode.Ignore)
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat)
-      .load(tableName).cache()
+    df.write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person]
-      .collect()
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
@@ -104,20 +92,15 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .save(tableName)
+    df.write.format(RedisFormat) .save(tableName)
     // the modified information should not be persisted
     spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-      .write.format(RedisFormat)
-      .mode(SaveMode.Ignore)
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat)
-      .load(tableName).cache()
+      .write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person]
-      .collect()
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
@@ -125,16 +108,12 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .mode(SaveMode.ErrorIfExists)
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat)
-      .load(tableName).cache()
+    df.write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person]
-      .collect()
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
@@ -142,14 +121,11 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat)
-      .save(tableName)
+    df.write.format(RedisFormat).save(tableName)
     // the modified information should not be persisted
     intercept[IllegalStateException] {
       spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-        .write.format(RedisFormat)
-        .mode(SaveMode.ErrorIfExists)
-        .save(tableName)
+        .write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
     }
   }
 
