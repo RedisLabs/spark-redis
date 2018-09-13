@@ -66,13 +66,15 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
-    df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
+    val overrideData = data.map(p => p.copy(age = p.age + 1))
+    spark.createDataFrame(overrideData)
+      .write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
     val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    loadedArr.sortBy(_.name) shouldBe overrideData.toArray.sortBy(_.name)
   }
 
   test("ignore data when it's empty") {
