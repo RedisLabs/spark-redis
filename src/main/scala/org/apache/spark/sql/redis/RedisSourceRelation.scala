@@ -119,27 +119,25 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     println("build scan")
-    // TODO: partition num
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
-    keysRdd
-      .mapPartitions { partition =>
-        groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
-          val conn = node.connect()
-          val pipeline = conn.pipelined()
-          keys
-            .foreach { key =>
-              println(s"key $key")
-              pipeline.get(key.getBytes)
-            }
-          val rows = pipeline.syncAndReturnAll().map { resp =>
-            val value = resp.asInstanceOf[Array[Byte]]
-            SerializationUtils.deserialize[Row](value)
+    keysRdd.mapPartitions { partition =>
+      groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
+        val conn = node.connect()
+        val pipeline = conn.pipelined()
+        keys
+          .foreach { key =>
+            println(s"key $key")
+            pipeline.get(key.getBytes)
           }
-          conn.close()
-          rows
-        }.iterator
-      }
+        val rows = pipeline.syncAndReturnAll().map { resp =>
+          val value = resp.asInstanceOf[Array[Byte]]
+          SerializationUtils.deserialize[Row](value)
+        }
+        conn.close()
+        rows
+      }.iterator
+    }
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
