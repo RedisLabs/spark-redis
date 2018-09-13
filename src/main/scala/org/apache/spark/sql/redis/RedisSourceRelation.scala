@@ -143,16 +143,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
 object RedisSourceRelation {
 
-  private val SchemaNamespace = "dataframe_schema"
+  private val Schema = "dataframe_schema"
 
-  private val DataNamespace = "dataframe_data"
+  private val Data = "dataframe_data"
 
-  def schemaKey(tableName: String): String = s"$tableName:$SchemaNamespace"
+  def schemaKey(tableName: String): String = s"$tableName:$Schema"
 
   def dataKey(tableName: String): String = {
     val uuid = UUID.randomUUID().toString.replace("-", "")
-    s"$tableName:$DataNamespace:$uuid"
+    s"$tableName:$Data:$uuid"
   }
 
-  def dataKeyPattern(tableName: String): String = s"$tableName:$DataNamespace:*"
+  def dataKeyPattern(tableName: String): String = s"$tableName:$Data:*"
 }
