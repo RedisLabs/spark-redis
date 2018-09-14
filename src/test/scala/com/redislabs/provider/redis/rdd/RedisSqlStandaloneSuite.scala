@@ -125,7 +125,6 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   }
 
   test("repartition read/write") {
-    // generate random table, so we can run test multiple times and not append/overwrite data
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
