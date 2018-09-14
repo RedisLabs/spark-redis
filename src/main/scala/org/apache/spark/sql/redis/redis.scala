@@ -6,4 +6,6 @@ package org.apache.spark.sql
 package object redis {
 
   val RedisFormat = "org.apache.spark.sql.redis"
+  val SqlOptionNumPartitions = "numPartitions"
+  val SqlOptionNumPartitionsDefault = 3
 }

@@ -3,7 +3,7 @@ package com.redislabs.provider.redis.rdd
 import java.util.UUID
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.redis.RedisFormat
+import org.apache.spark.sql.redis.{RedisFormat, SqlOptionNumPartitions}
 import org.apache.spark.sql.{SQLContext, SQLImplicits, SaveMode, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
 
@@ -89,7 +89,7 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
   test("ignore data when it's not empty") {
     val tableName = generateTableName(TableName)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat) .save(tableName)
+    df.write.format(RedisFormat).save(tableName)
     // the modified information should not be persisted
     spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
       .write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
@@ -122,6 +122,19 @@ class RedisSqlStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
       spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
         .write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
     }
+  }
+
+  test("repartition read/write") {
+    val tableName = generateTableName(TableName)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionNumPartitions, 1).load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe df.count()
+    loadedDf.schema shouldBe df.schema
+    val loadedArr = loadedDf.as[Person].collect()
+    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
 
   override def afterAll(): Unit = {

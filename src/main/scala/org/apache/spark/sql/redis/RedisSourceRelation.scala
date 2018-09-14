@@ -41,15 +41,23 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
-
+  private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
+    .getOrElse(SqlOptionNumPartitionsDefault)
+  @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
-    userSpecifiedSchema.getOrElse(loadSchema(tableName))
+    if (currentSchema == null) {
+      currentSchema = userSpecifiedSchema.getOrElse(loadSchema(tableName))
+    }
+    currentSchema
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    // write schema, so that we can load dataframe back
-    saveSchema(userSpecifiedSchema.getOrElse(data.schema), tableName)
+    val schema = userSpecifiedSchema.getOrElse(data.schema)
+    if (currentSchema != schema) {
+      // write schema, so that we can load dataframe back
+      currentSchema = saveSchema(schema, tableName)
+    }
 
     if (overwrite) {
       // truncate the table
@@ -93,7 +101,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   def nonEmpty: Boolean = !isEmpty
 
   // TODO: reuse connection to node?
-  def saveSchema(schema: StructType, tableName: String): Unit = {
+  def saveSchema(schema: StructType, tableName: String): StructType = {
     val key = schemaKey(tableName)
     println(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
@@ -101,6 +109,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schemaBytes = SerializationUtils.serialize(schema)
     conn.set(key.getBytes, schemaBytes)
     conn.close()
+    schema
   }
 
   // TODO: reuse connection to node?
@@ -117,8 +126,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     println("build scan")
-    // TODO: partition num
-    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName))
+    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
+      partitionNum = numPartitions)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
         val conn = node.connect()
