@@ -43,15 +43,19 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
-
+  @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
-    userSpecifiedSchema.getOrElse(loadSchema(tableName))
+    if (currentSchema == null) {
+      currentSchema = userSpecifiedSchema.getOrElse(loadSchema(tableName))
+    }
+    currentSchema
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+    currentSchema = userSpecifiedSchema.getOrElse(data.schema)
     // write schema, so that we can load dataframe back
-    saveSchema(userSpecifiedSchema.getOrElse(data.schema), tableName)
+    saveSchema(currentSchema, tableName)
 
     if (overwrite) {
       // truncate the table
