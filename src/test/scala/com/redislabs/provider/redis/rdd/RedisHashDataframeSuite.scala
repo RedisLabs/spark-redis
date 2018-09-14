@@ -17,7 +17,7 @@ class RedisHashDataframeSuite extends RedisStandaloneSuite with Matchers {
     df.write.format(RedisFormat).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
-    loadedDf.count() shouldBedf.count()
+    loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
     val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
