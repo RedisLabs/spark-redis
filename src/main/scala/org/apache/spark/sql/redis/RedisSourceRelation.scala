@@ -53,9 +53,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    currentSchema = userSpecifiedSchema.getOrElse(data.schema)
-    // write schema, so that we can load dataframe back
-    saveSchema(currentSchema, tableName)
+    val schema = userSpecifiedSchema.getOrElse(data.schema)
+    if (currentSchema != schema) {
+      // write schema, so that we can load dataframe back
+      currentSchema = saveSchema(schema, tableName)
+    }
 
     if (overwrite) {
       // truncate the table
@@ -99,7 +101,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   def nonEmpty: Boolean = !isEmpty
 
   // TODO: reuse connection to node?
-  def saveSchema(schema: StructType, tableName: String): Unit = {
+  def saveSchema(schema: StructType, tableName: String): StructType = {
     val key = schemaKey(tableName)
     println(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
@@ -107,6 +109,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schemaBytes = SerializationUtils.serialize(schema)
     conn.set(key.getBytes, schemaBytes)
     conn.close()
+    schema
   }
 
   // TODO: reuse connection to node?
