@@ -15,9 +15,9 @@ import redis.clients.jedis.Protocol
 import scala.collection.JavaConversions
 import scala.collection.JavaConversions._
 
-class RedisSourceRelation(override val sqlContext: SQLContext,
-                          parameters: Map[String, String],
-                          userSpecifiedSchema: Option[StructType])
+abstract class RedisSourceRelation(override val sqlContext: SQLContext,
+                                   parameters: Map[String, String],
+                                   userSpecifiedSchema: Option[StructType])
   extends BaseRelation
     with InsertableRelation
     with PrunedFilteredScan
@@ -85,7 +85,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           // serialize the entire row to byte array
           // TODO: remove schema from row
           // TODO: save as a hash
-          val rowBytes = SerializationUtils.serialize(row)
+          val rowBytes = rowToBytes(row)
           pipeline.set(key.getBytes, rowBytes)
         }
         pipeline.sync()
@@ -139,7 +139,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           }
         val rows = pipeline.syncAndReturnAll().map { resp =>
           val value = resp.asInstanceOf[Array[Byte]]
-          SerializationUtils.deserialize[Row](value)
+          bytesToRow(value)
         }
         conn.close()
         rows
@@ -148,6 +148,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
+
+  def rowToBytes(value: Row): Array[Byte]
+
+  def bytesToRow(value: Array[Byte]): Row
 }
 
 object RedisSourceRelation {
