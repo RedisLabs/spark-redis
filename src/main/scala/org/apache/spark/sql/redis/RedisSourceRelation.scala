@@ -3,6 +3,7 @@ package org.apache.spark.sql.redis
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
+import com.redislabs.provider.redis.util.Logger
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
@@ -80,7 +81,7 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
-          println(s"saving key $key")
+          Logger.info(s"saving key $key")
           val row = rowsWithKey(key)
           // serialize the entire row to byte array
           // TODO: remove schema from row
@@ -103,7 +104,7 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
   // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): StructType = {
     val key = schemaKey(tableName)
-    println(s"saving schema $key")
+    Logger.info(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = SerializationUtils.serialize(schema)
@@ -115,7 +116,7 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
   // TODO: reuse connection to node?
   def loadSchema(tableName: String): StructType = {
     val key = schemaKey(tableName)
-    println(s"loading schema $key")
+    Logger.info(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = conn.get(key.getBytes)
@@ -125,7 +126,7 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    println("build scan")
+    Logger.info("build scan")
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
     keysRdd.mapPartitions { partition =>
@@ -134,7 +135,7 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
         val pipeline = conn.pipelined()
         keys
           .foreach { key =>
-            println(s"key $key")
+            Logger.info(s"key $key")
             pipeline.get(key.getBytes)
           }
         val rows = pipeline.syncAndReturnAll().map { resp =>
