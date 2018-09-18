@@ -1,5 +1,6 @@
 package org.apache.spark.sql.redis
 
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
@@ -11,14 +12,14 @@ import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import redis.clients.jedis.Protocol
+import redis.clients.jedis.{Pipeline, Protocol, Response}
 
 import scala.collection.JavaConversions
 import scala.collection.JavaConversions._
 
-abstract class RedisSourceRelation(override val sqlContext: SQLContext,
-                                   parameters: Map[String, String],
-                                   userSpecifiedSchema: Option[StructType])
+abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
+                                      parameters: Map[String, String],
+                                      userSpecifiedSchema: Option[StructType])
   extends BaseRelation
     with InsertableRelation
     with PrunedFilteredScan
@@ -81,13 +82,14 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
-          Logger.info(s"saving key $key")
+          //          Logger.info(s"saving key $key")
           val row = rowsWithKey(key)
           // serialize the entire row to byte array
           // TODO: remove schema from row
           // TODO: save as a hash
-          val rowBytes = rowToBytes(row)
-          pipeline.set(key.getBytes, rowBytes)
+          val encodedKey = key.getBytes(StandardCharsets.UTF_8)
+          val encodedRow = encodeRow(row)
+          save(pipeline, encodedKey, encodedRow)
         }
         pipeline.sync()
         conn.close()
@@ -136,12 +138,16 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
         keys
           .foreach { key =>
             Logger.info(s"key $key")
-            pipeline.get(key.getBytes)
+            val encodedKey = key.getBytes(StandardCharsets.UTF_8)
+            load(pipeline, encodedKey)
           }
-        val rows = pipeline.syncAndReturnAll().map { resp =>
-          val value = resp.asInstanceOf[Array[Byte]]
-          bytesToRow(value)
-        }
+        val rows = pipeline.syncAndReturnAll()
+          .map {
+            _.asInstanceOf[T]
+          }
+          .map { value =>
+            decodeRow(value)
+          }
         conn.close()
         rows
       }.iterator
@@ -150,9 +156,13 @@ abstract class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
 
-  def rowToBytes(value: Row): Array[Byte]
+  def save(pipeline: Pipeline, key: Array[Byte], value: T): Unit
 
-  def bytesToRow(value: Array[Byte]): Row
+  def load(pipeline: Pipeline, key: Array[Byte]): Response[T]
+
+  def encodeRow(value: Row): T
+
+  def decodeRow(value: T): Row
 }
 
 object RedisSourceRelation {
