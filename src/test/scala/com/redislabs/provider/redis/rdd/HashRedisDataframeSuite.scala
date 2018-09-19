@@ -7,7 +7,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-class RedisHashDataframeSuite extends RedisStandaloneSuite with Matchers {
+class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
 
   import TestSqlImplicits._
 
