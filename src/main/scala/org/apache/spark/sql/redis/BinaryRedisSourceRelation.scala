@@ -22,7 +22,7 @@ class BinaryRedisSourceRelation(override val sqlContext: SQLContext,
   override def encodeRow(value: Row): Array[Byte] =
     SerializationUtils.serialize(value)
 
-  override def decodeRow(value: Array[Byte]): Row =
+  override def decodeRow(value: Array[Byte], schema: StructType): Row =
     SerializationUtils.deserialize(value)
 
 }

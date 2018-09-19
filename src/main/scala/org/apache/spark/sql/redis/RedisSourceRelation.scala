@@ -146,7 +146,7 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
             _.asInstanceOf[T]
           }
           .map { value =>
-            decodeRow(value)
+            decodeRow(value, schema)
           }
         conn.close()
         rows
@@ -162,7 +162,7 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
 
   def encodeRow(value: Row): T
 
-  def decodeRow(value: T): Row
+  def decodeRow(value: T, schema: StructType): Row
 }
 
 object RedisSourceRelation {

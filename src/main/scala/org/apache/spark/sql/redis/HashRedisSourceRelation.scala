@@ -39,5 +39,5 @@ class HashRedisSourceRelation(override val sqlContext: SQLContext,
       .asJava
   }
 
-  override def decodeRow(value: JMap[Array[Byte], Array[Byte]]): Row = ???
+  override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Row = ???
 }
