@@ -1,9 +1,11 @@
 package org.apache.spark.sql.redis
 
+import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Long => JLong}
 import java.nio.charset.StandardCharsets
 import java.util.{Map => JMap}
 
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import redis.clients.jedis.{Pipeline, Response}
 
@@ -39,5 +41,36 @@ class HashRedisSourceRelation(override val sqlContext: SQLContext,
       .asJava
   }
 
-  override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Row = ???
+  override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Row = {
+    val fieldsValue = sortFields(value, schema)
+    new GenericRowWithSchema(fieldsValue, schema)
+  }
+
+  private def sortFields(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Array[Any] =
+    schema.fields
+      .map { field =>
+        field -> field.name
+      }
+      .map { case (field, fieldName) =>
+        field -> fieldName.getBytes(StandardCharsets.UTF_8)
+      }
+      .map { case (field, fieldNameBytes) =>
+        field -> value.get(fieldNameBytes)
+      }
+      .map { case (field, fieldValueBytes) =>
+        field -> new String(fieldValueBytes, StandardCharsets.UTF_8)
+      }
+      .map { case (field, fieldValueStr) =>
+        parseValue(field.dataType, fieldValueStr)
+      }
+
+  private def parseValue(dataType: DataType, fieldValueStr: String): Any =
+    dataType match {
+      case ByteType => JByte.parseByte(fieldValueStr)
+      case IntegerType => Integer.parseInt(fieldValueStr)
+      case LongType => JLong.parseLong(fieldValueStr)
+      case DoubleType => JDouble.parseDouble(fieldValueStr)
+      case BooleanType => JBoolean.parseBoolean(fieldValueStr)
+      case _ => fieldValueStr
+    }
 }
