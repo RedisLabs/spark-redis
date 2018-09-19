@@ -4,9 +4,9 @@ import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Long =>
 import java.nio.charset.StandardCharsets
 import java.util.{Map => JMap}
 
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
 import redis.clients.jedis.{Pipeline, Response}
 
 import scala.collection.JavaConverters._
@@ -14,11 +14,7 @@ import scala.collection.JavaConverters._
 /**
   * @author The Viet Nguyen
   */
-class HashRedisSourceRelation(override val sqlContext: SQLContext,
-                              parameters: Map[String, String],
-                              userSpecifiedSchema: Option[StructType])
-  extends RedisSourceRelation[JMap[Array[Byte], Array[Byte]]](sqlContext,
-    parameters, userSpecifiedSchema) {
+class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte]]] {
 
   override def save(pipeline: Pipeline,
                     key: Array[Byte], value: JMap[Array[Byte], Array[Byte]]): Unit =

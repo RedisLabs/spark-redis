@@ -12,14 +12,14 @@ import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import redis.clients.jedis.{Pipeline, Protocol, Response}
+import redis.clients.jedis.Protocol
 
 import scala.collection.JavaConversions
 import scala.collection.JavaConversions._
 
-abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
-                                      parameters: Map[String, String],
-                                      userSpecifiedSchema: Option[StructType])
+class RedisSourceRelation(override val sqlContext: SQLContext,
+                          parameters: Map[String, String],
+                          userSpecifiedSchema: Option[StructType])
   extends BaseRelation
     with InsertableRelation
     with PrunedFilteredScan
@@ -74,6 +74,9 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
       }
     }
 
+    val persistenceMode = parameters.getOrElse(SqlOptionMode, null)
+    val persistence = RedisPersistence(persistenceMode)
+
     // write data
     data.foreachPartition { partition =>
       // TODO: allow user to specify key column
@@ -88,8 +91,8 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
           // TODO: remove schema from row
           // TODO: save as a hash
           val encodedKey = key.getBytes(StandardCharsets.UTF_8)
-          val encodedRow = encodeRow(row)
-          save(pipeline, encodedKey, encodedRow)
+          val encodedRow = persistence.encodeRow(row)
+          persistence.save(pipeline, encodedKey, encodedRow)
         }
         pipeline.sync()
         conn.close()
@@ -131,6 +134,8 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
     Logger.info("build scan")
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
+    val persistenceMode = parameters.getOrElse(SqlOptionMode, null)
+    val persistence = RedisPersistence(persistenceMode)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
         val conn = node.connect()
@@ -139,14 +144,11 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
           .foreach { key =>
             Logger.info(s"key $key")
             val encodedKey = key.getBytes(StandardCharsets.UTF_8)
-            load(pipeline, encodedKey)
+            persistence.load(pipeline, encodedKey)
           }
         val rows = pipeline.syncAndReturnAll()
-          .map {
-            _.asInstanceOf[T]
-          }
           .map { value =>
-            decodeRow(value, schema)
+            persistence.decodeRow(value, schema)
           }
         conn.close()
         rows
@@ -155,14 +157,6 @@ abstract class RedisSourceRelation[T](override val sqlContext: SQLContext,
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
-
-  def save(pipeline: Pipeline, key: Array[Byte], value: T): Unit
-
-  def load(pipeline: Pipeline, key: Array[Byte]): Response[T]
-
-  def encodeRow(value: Row): T
-
-  def decodeRow(value: T, schema: StructType): Row
 }
 
 object RedisSourceRelation {

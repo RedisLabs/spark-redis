@@ -10,14 +10,14 @@ class DefaultSource extends RelationProvider
 
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation =
-    createRelation0(sqlContext, parameters)
+    new RedisSourceRelation(sqlContext, parameters, None)
 
   /**
     * Creates a new relation by saving the data to Redis
     */
   override def createRelation(sqlContext: SQLContext, mode: SaveMode,
                               parameters: Map[String, String], data: DataFrame): BaseRelation = {
-    val relation = createRelation0(sqlContext, parameters)
+    val relation = new RedisSourceRelation(sqlContext, parameters, None)
     mode match {
       case Append => relation.insert(data, overwrite = false)
       case Overwrite => relation.insert(data, overwrite = true)
@@ -35,11 +35,4 @@ class DefaultSource extends RelationProvider
 
     relation
   }
-
-  private def createRelation0(sqlContext: SQLContext,
-                              parameters: Map[String, String]): RedisSourceRelation[_] =
-    parameters.getOrElse(SqlOptionMode, SqlOptionModeHash) match {
-      case SqlOptionModeBinary => new BinaryRedisSourceRelation(sqlContext, parameters, None)
-      case _ => new HashRedisSourceRelation(sqlContext, parameters, None)
-    }
 }
