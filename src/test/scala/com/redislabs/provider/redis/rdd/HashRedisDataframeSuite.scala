@@ -26,8 +26,8 @@ class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
   test("save and load dataframe with hash mode") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionMode, SqlOptionModeHash).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionMode, SqlOptionModeHash)
+    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -39,7 +39,7 @@ class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
   test("save with hash mode and load dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionMode, SqlOptionModeHash).save(tableName)
+    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -52,7 +52,7 @@ class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionMode, SqlOptionModeHash)
+    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()

@@ -21,11 +21,11 @@ trait RedisPersistence[T] extends Serializable {
 object RedisPersistence {
 
   private val providers =
-    Map(SqlOptionModeBinary -> new BinaryRedisPersistence(),
-      SqlOptionModeHash -> new HashRedisPersistence())
+    Map(SqlOptionModelBinary -> new BinaryRedisPersistence(),
+      SqlOptionModelHash -> new HashRedisPersistence())
 
-  def apply(mode: String): RedisPersistence[Any] =
-    providers.getOrElse(mode, providers.getOrElse(SqlOptionModeHash,
+  def apply(model: String): RedisPersistence[Any] =
+    providers.getOrElse(model, providers.getOrElse(SqlOptionModelHash,
       throw new IllegalStateException("Default persistence mode wasn't set")))
       .asInstanceOf[RedisPersistence[Any]]
 }

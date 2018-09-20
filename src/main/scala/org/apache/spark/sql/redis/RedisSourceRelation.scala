@@ -74,7 +74,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     }
 
-    val persistenceMode = parameters.getOrElse(SqlOptionMode, null)
+    val persistenceMode = parameters.getOrElse(SqlOptionModel, null)
     val persistence = RedisPersistence(persistenceMode)
 
     // write data
@@ -134,7 +134,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     Logger.info("build scan")
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
-    val persistenceMode = parameters.getOrElse(SqlOptionMode, null)
+    val persistenceMode = parameters.getOrElse(SqlOptionModel, null)
     val persistence = RedisPersistence(persistenceMode)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>

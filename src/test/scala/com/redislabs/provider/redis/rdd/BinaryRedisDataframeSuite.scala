@@ -15,8 +15,8 @@ class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
   test("save and load dataframe with binary mode") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionMode, SqlOptionModeBinary).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionMode, SqlOptionModeBinary)
+    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary)
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
@@ -28,7 +28,7 @@ class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
   test("save with binary mode and load dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionMode, SqlOptionModeBinary).save(tableName)
+    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary).save(tableName)
     // TODO: support cross mode read/write
     intercept[SparkException] {
       spark.read.format(RedisFormat).load(tableName).show()
@@ -41,7 +41,7 @@ class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
     df.write.format(RedisFormat).save(tableName)
     // TODO: support cross mode read/write
     intercept[SparkException] {
-      spark.read.format(RedisFormat).option(SqlOptionMode, SqlOptionModeBinary)
+      spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary)
         .load(tableName).show()
     }
   }
