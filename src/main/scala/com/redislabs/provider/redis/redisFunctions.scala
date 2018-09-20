@@ -1,10 +1,10 @@
 package com.redislabs.provider.redis
 
+import com.redislabs.provider.redis.rdd._
 import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
-import com.redislabs.provider.redis.rdd._
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 
@@ -417,6 +417,7 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
 
 trait RedisFunctions {
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
+  implicit def toRedisContext(sc: SQLContext): RedisContext = toRedisContext(sc.sparkContext)
   implicit def toRedisStreamingContext(ssc: StreamingContext): RedisStreamingContext = new RedisStreamingContext(ssc)
 }
 
