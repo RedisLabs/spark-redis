@@ -4,6 +4,8 @@ import com.redislabs.provider.redis.rdd.Person._
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
 
+import scala.collection.JavaConverters._
+
 /**
   * @author The Viet Nguyen
   */
@@ -59,5 +61,25 @@ class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
     loadedDf.schema shouldBe df.schema
     val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+  }
+
+  test("load dataframe with inferred schema") {
+    val tableName = generateTableName(TableNamePrefix)
+    val node = redisConfig.initialHost
+    val conn = node.connect()
+    val data = Seq(
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
+      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
+    )
+    data.map(_.asJava)
+      .foreach { person =>
+        conn.hmset(RedisSourceRelation.dataKey(tableName), person)
+      }
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionInferSchema, "true")
+      .load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe 2
+    //TODO: fix empty rows
   }
 }

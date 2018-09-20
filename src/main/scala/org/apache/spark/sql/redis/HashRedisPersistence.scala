@@ -37,9 +37,17 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
       .asJava
   }
 
-  override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Row = {
-    val fieldsValue = sortFields(value, schema)
-    new GenericRowWithSchema(fieldsValue, schema)
+  override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: => StructType,
+                         inferSchema: Boolean): Row = {
+    val actualSchema = if (!inferSchema) schema else {
+      val fields = value.keySet().asScala
+        .map(new String(_, StandardCharsets.UTF_8))
+        .map(StructField(_, StringType))
+        .toArray
+      StructType(fields)
+    }
+    val fieldsValue = sortFields(value, actualSchema)
+    new GenericRowWithSchema(fieldsValue, actualSchema)
   }
 
   private def sortFields(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Array[Any] =

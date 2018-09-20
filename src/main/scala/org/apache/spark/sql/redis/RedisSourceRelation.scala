@@ -1,11 +1,12 @@
 package org.apache.spark.sql.redis
 
+import java.lang.{Boolean => JBoolean}
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
 import com.redislabs.provider.redis.util.Logger
-import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, toRedisContext}
+import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.redis.RedisSourceRelation._
@@ -45,11 +46,15 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
+  private val inferSchema = parameters.get(SqlOptionInferSchema)
+    .exists(JBoolean.parseBoolean)
   @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
     if (currentSchema == null) {
-      currentSchema = userSpecifiedSchema.getOrElse(loadSchema(tableName))
+      currentSchema = if (inferSchema) StructType(Seq()) else {
+        userSpecifiedSchema.getOrElse(loadSchema(tableName))
+      }
     }
     currentSchema
   }
@@ -137,23 +142,30 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val persistenceMode = parameters.getOrElse(SqlOptionModel, null)
     val persistence = RedisPersistence(persistenceMode)
     keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
-        val conn = node.connect()
-        val pipeline = conn.pipelined()
-        keys
-          .foreach { key =>
-            Logger.info(s"key $key")
-            val encodedKey = key.getBytes(StandardCharsets.UTF_8)
-            persistence.load(pipeline, encodedKey)
-          }
-        val rows = pipeline.syncAndReturnAll()
-          .map { value =>
-            persistence.decodeRow(value, schema)
-          }
-        conn.close()
-        rows
-      }.iterator
+      groupKeysByNode(redisConfig.hosts, partition)
+        .flatMap { case (node, keys) =>
+          scanRows(node, keys, persistence)
+        }
+        .iterator
     }
+  }
+
+  private def scanRows(node: RedisNode, keys: Seq[String],
+                       persistence: RedisPersistence[Any]) = {
+    val conn = node.connect()
+    val pipeline = conn.pipelined()
+    keys
+      .foreach { key =>
+        Logger.info(s"key $key")
+        val encodedKey = key.getBytes(StandardCharsets.UTF_8)
+        persistence.load(pipeline, encodedKey)
+      }
+    val rows = pipeline.syncAndReturnAll()
+      .map { value =>
+        persistence.decodeRow(value, schema, inferSchema)
+      }
+    conn.close()
+    rows
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters

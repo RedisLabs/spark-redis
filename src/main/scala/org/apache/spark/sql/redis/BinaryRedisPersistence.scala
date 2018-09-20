@@ -19,6 +19,6 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
   override def encodeRow(value: Row): Array[Byte] =
     SerializationUtils.serialize(value)
 
-  override def decodeRow(value: Array[Byte], schema: StructType): Row =
+  override def decodeRow(value: Array[Byte], schema: => StructType, inferSchema: Boolean): Row =
     SerializationUtils.deserialize(value)
 }
