@@ -25,17 +25,17 @@ case class RedisEndpoint(val host: String = Protocol.DEFAULT_HOST,
   extends Serializable {
 
   /**
-    * Constructor from spark config. set params with redis.host, redis.port, redis.auth and redis.db
+    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth and spark.redis.db
     *
     * @param conf spark context config
     */
   def this(conf: SparkConf) {
       this(
-        conf.get("redis.host", Protocol.DEFAULT_HOST),
-        conf.getInt("redis.port", Protocol.DEFAULT_PORT),
-        conf.get("redis.auth", null),
-        conf.getInt("redis.db", Protocol.DEFAULT_DATABASE),
-        conf.getInt("redis.timeout", Protocol.DEFAULT_TIMEOUT)
+        conf.get("spark.redis.host", Protocol.DEFAULT_HOST),
+        conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
+        conf.get("spark.redis.auth", null),
+        conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
+        conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT)
       )
   }
 
