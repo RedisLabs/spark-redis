@@ -1,9 +1,11 @@
 package org.apache.spark.sql.redis
 
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
-import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, toRedisContext}
+import com.redislabs.provider.redis.util.Logger
+import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.redis.RedisSourceRelation._
@@ -39,17 +41,45 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
+  @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
+  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
+  private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
+  private val persistence = RedisPersistence(persistenceModel)
   @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
     if (currentSchema == null) {
-      currentSchema = userSpecifiedSchema.getOrElse(loadSchema(tableName))
+      currentSchema = userSpecifiedSchema
+        .getOrElse {
+          if (inferSchemaEnabled) {
+            inferSchema(tableName)
+          } else {
+            loadSchema(tableName)
+          }
+        }
     }
     currentSchema
+  }
+
+  private def inferSchema(tableName: String): StructType = {
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern(tableName))
+    if (keys.isEmpty()) {
+      throw new IllegalStateException("No key is available")
+    } else {
+      val firstKey = keys.first()
+      val node = getMasterNode(redisConfig.hosts, firstKey)
+      scanRows(node, Seq(firstKey))
+        .collectFirst {
+          case r: Row => r.schema
+        }
+        .getOrElse {
+          throw new IllegalStateException("No row is available")
+        }
+    }
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
@@ -80,13 +110,14 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
-          println(s"saving key $key")
+          // Logger.info(s"saving key $key")
           val row = rowsWithKey(key)
           // serialize the entire row to byte array
           // TODO: remove schema from row
           // TODO: save as a hash
-          val rowBytes = SerializationUtils.serialize(row)
-          pipeline.set(key.getBytes, rowBytes)
+          val encodedKey = key.getBytes(UTF_8)
+          val encodedRow = persistence.encodeRow(row)
+          persistence.save(pipeline, encodedKey, encodedRow)
         }
         pipeline.sync()
         conn.close()
@@ -103,7 +134,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): StructType = {
     val key = schemaKey(tableName)
-    println(s"saving schema $key")
+    Logger.info(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = SerializationUtils.serialize(schema)
@@ -115,7 +146,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   // TODO: reuse connection to node?
   def loadSchema(tableName: String): StructType = {
     val key = schemaKey(tableName)
-    println(s"loading schema $key")
+    Logger.info(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = conn.get(key.getBytes)
@@ -125,26 +156,33 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    println("build scan")
+    Logger.info("build scan")
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
     keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition).flatMap { case (node, keys) =>
-        val conn = node.connect()
-        val pipeline = conn.pipelined()
-        keys
-          .foreach { key =>
-            println(s"key $key")
-            pipeline.get(key.getBytes)
-          }
-        val rows = pipeline.syncAndReturnAll().map { resp =>
-          val value = resp.asInstanceOf[Array[Byte]]
-          SerializationUtils.deserialize[Row](value)
+      groupKeysByNode(redisConfig.hosts, partition)
+        .flatMap { case (node, keys) =>
+          scanRows(node, keys)
         }
-        conn.close()
-        rows
-      }.iterator
+        .iterator
     }
+  }
+
+  private def scanRows(node: RedisNode, keys: Seq[String]) = {
+    val conn = node.connect()
+    val pipeline = conn.pipelined()
+    keys
+      .foreach { key =>
+        Logger.info(s"key $key")
+        val encodedKey = key.getBytes(UTF_8)
+        persistence.load(pipeline, encodedKey)
+      }
+    val rows = pipeline.syncAndReturnAll()
+      .map { value =>
+        persistence.decodeRow(value, schema, inferSchemaEnabled)
+      }
+    conn.close()
+    rows
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
