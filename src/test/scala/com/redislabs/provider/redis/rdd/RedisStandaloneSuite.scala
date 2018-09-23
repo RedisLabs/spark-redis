@@ -14,9 +14,9 @@ trait RedisStandaloneSuite extends SparkRedisSuite {
 
   override val conf: SparkConf = new SparkConf()
     .setMaster("local").setAppName(getClass.getName)
-    .set("redis.host", redisHost)
-    .set("redis.port", s"$redisPort")
-    .set("redis.auth", redisAuth)
+    .set("spark.redis.host", redisHost)
+    .set("spark.redis.port", s"$redisPort")
+    .set("spark.redis.auth", redisAuth)
 
   redisConfig = new RedisConfig(RedisEndpoint(redisHost, redisPort, redisAuth))
 }

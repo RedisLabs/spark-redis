@@ -1,9 +1,10 @@
 package com.redislabs.provider.redis.rdd
 
-import org.apache.spark.{SparkContext, SparkConf}
-import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, FunSuite}
-import scala.io.Source.fromInputStream
 import com.redislabs.provider.redis._
+import org.apache.spark.{SparkConf, SparkContext}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
+
+import scala.io.Source.fromInputStream
 
 class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with ShouldMatchers {
 
