@@ -15,9 +15,9 @@ class KeysStandaloneSuite extends FunSuite with Keys with ENV with BeforeAndAfte
 
     sc = new SparkContext(new SparkConf()
       .setMaster("local").setAppName(getClass.getName)
-      .set("redis.host", "127.0.0.1")
-      .set("redis.port", "6379")
-      .set("redis.auth", "passwd")
+      .set("spark.redis.host", "127.0.0.1")
+      .set("spark.redis.port", "6379")
+      .set("spark.redis.auth", "passwd")
     )
     content = fromInputStream(getClass.getClassLoader.getResourceAsStream("blog")).
       getLines.toArray.mkString("\n")

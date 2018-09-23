@@ -80,23 +80,23 @@ sc = new SparkContext(new SparkConf()
       .setAppName("myApp")
 
       // initial redis host - can be any node in cluster mode
-      .set("redis.host", "localhost")
+      .set("spark.redis.host", "localhost")
 
       // initial redis port
-      .set("redis.port", "6379")
+      .set("spark.redis.port", "6379")
 
       // optional redis AUTH password
-      .set("redis.auth", "")
+      .set("spark.redis.auth", "")
   )
 ```
 
 The supported configuration keys are:
 
-* `redis.host` - host or IP of the initial node we connect to. The connector will read the cluster
+* `spark.redis.host` - host or IP of the initial node we connect to. The connector will read the cluster
 topology from the initial node, so there is no need to provide the rest of the cluster nodes.
-* `redis.port` - the inital node's TCP redis port.
-* `redis.auth` - the initial node's AUTH password
-* `redis.db` - optional DB number. Avoid using this, especially in cluster mode.
+* `spark.redis.port` - the inital node's TCP redis port.
+* `spark.redis.auth` - the initial node's AUTH password
+* `spark.redis.db` - optional DB number. Avoid using this, especially in cluster mode.
 
 ### The keys RDD
 Since data access in Redis is based on keys, to use Spark-Redis you'll first need a keys RDD.  The following example shows how to read key names from Redis into an RDD:
