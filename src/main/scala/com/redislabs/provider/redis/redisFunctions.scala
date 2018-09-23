@@ -1,9 +1,10 @@
 package com.redislabs.provider.redis
 
-import com.redislabs.provider.redis.rdd._
 import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+
+import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 

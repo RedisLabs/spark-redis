@@ -102,9 +102,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     }
 
-    val persistenceMode = parameters.getOrElse(SqlOptionModel, null)
-    val persistence = RedisPersistence(persistenceMode)
-
     // write data
     data.foreachPartition { partition =>
       // TODO: allow user to specify key column
@@ -113,7 +110,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
-          //          Logger.info(s"saving key $key")
+          // Logger.info(s"saving key $key")
           val row = rowsWithKey(key)
           // serialize the entire row to byte array
           // TODO: remove schema from row
