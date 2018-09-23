@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis
 
-import java.nio.charset.StandardCharsets
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
@@ -94,7 +94,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           // serialize the entire row to byte array
           // TODO: remove schema from row
           // TODO: save as a hash
-          val encodedKey = key.getBytes(StandardCharsets.UTF_8)
+          val encodedKey = key.getBytes(UTF_8)
           val encodedRow = persistence.encodeRow(row)
           persistence.save(pipeline, encodedKey, encodedRow)
         }
@@ -156,7 +156,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     keys
       .foreach { key =>
         Logger.info(s"key $key")
-        val encodedKey = key.getBytes(StandardCharsets.UTF_8)
+        val encodedKey = key.getBytes(UTF_8)
         persistence.load(pipeline, encodedKey)
       }
     val rows = pipeline.syncAndReturnAll()

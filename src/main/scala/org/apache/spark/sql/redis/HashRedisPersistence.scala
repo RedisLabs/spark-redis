@@ -1,7 +1,7 @@
 package org.apache.spark.sql.redis
 
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Long => JLong}
-import java.nio.charset.StandardCharsets
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util.{Map => JMap}
 
 import org.apache.spark.sql.Row
@@ -30,8 +30,8 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
         field -> value.getAs[Any](field)
       }
       .map { case (k, v) =>
-        k.getBytes(StandardCharsets.UTF_8) ->
-          String.valueOf(v).getBytes(StandardCharsets.UTF_8)
+        k.getBytes(UTF_8) ->
+          String.valueOf(v).getBytes(UTF_8)
       }
       .toMap
       .asJava
@@ -41,7 +41,7 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
                          inferSchema: Boolean): Row = {
     val actualSchema = if (!inferSchema) schema else {
       val fields = value.keySet().asScala
-        .map(new String(_, StandardCharsets.UTF_8))
+        .map(new String(_, UTF_8))
         .map(StructField(_, StringType))
         .toArray
       StructType(fields)
@@ -56,13 +56,13 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
         field -> field.name
       }
       .map { case (field, fieldName) =>
-        field -> fieldName.getBytes(StandardCharsets.UTF_8)
+        field -> fieldName.getBytes(UTF_8)
       }
       .map { case (field, fieldNameBytes) =>
         field -> value.get(fieldNameBytes)
       }
       .map { case (field, fieldValueBytes) =>
-        field -> new String(fieldValueBytes, StandardCharsets.UTF_8)
+        field -> new String(fieldValueBytes, UTF_8)
       }
       .map { case (field, fieldValueStr) =>
         parseValue(field.dataType, fieldValueStr)
