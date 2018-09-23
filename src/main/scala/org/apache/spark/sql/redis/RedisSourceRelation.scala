@@ -1,6 +1,5 @@
 package org.apache.spark.sql.redis
 
-import java.lang.{Boolean => JBoolean}
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -47,7 +46,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
   private val inferSchema = parameters.get(SqlOptionInferSchema)
-    .exists(JBoolean.parseBoolean)
+    .exists(_.toBoolean)
   @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
