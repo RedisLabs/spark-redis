@@ -21,6 +21,34 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     loadedArr.sortBy(_.name) should be(data.toArray.sortBy(_.name))
   }
 
+  test("append data when it's empty") {
+    val tableName = generateTableName(TableNamePrefix)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat).mode(SaveMode.Append).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe df.count()
+    loadedDf.schema shouldBe df.schema
+    val loadedArr = loadedDf.as[Person].collect()
+    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+  }
+
+  test("append data when it's not empty") {
+    val tableName = generateTableName(TableNamePrefix)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat).save(tableName)
+    val appendData = data.map(p => p.copy(age = p.age + 1))
+    spark.createDataFrame(appendData)
+      .write.format(RedisFormat).mode(SaveMode.Append).save(tableName)
+    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe 2 * df.count()
+    loadedDf.schema shouldBe df.schema
+    val loadedArr = loadedDf.as[Person].collect()
+    loadedArr.sortBy(_.name).sortBy(_.age) shouldBe (data ++ appendData)
+      .toArray.sortBy(_.name).sortBy(_.age)
+  }
+
   test("overwrite data when it's empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
