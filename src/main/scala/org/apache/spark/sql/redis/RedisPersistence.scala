@@ -24,8 +24,9 @@ object RedisPersistence {
     Map(SqlOptionModelBinary -> new BinaryRedisPersistence(),
       SqlOptionModelHash -> new HashRedisPersistence())
 
-  def apply(model: String): RedisPersistence[Any] =
-    providers.getOrElse(model, providers.getOrElse(SqlOptionModelHash,
-      throw new IllegalStateException("Default persistence mode wasn't set")))
+  def apply(model: String): RedisPersistence[Any] = {
+    // use hash model by default
+    providers.getOrElse(model, providers(SqlOptionModelHash))
       .asInstanceOf[RedisPersistence[Any]]
+  }
 }
