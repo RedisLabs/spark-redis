@@ -53,16 +53,19 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def schema: StructType = {
     if (currentSchema == null) {
-      currentSchema = if (inferSchemaEnabled) {
-        inferSchema()
-      } else {
-        userSpecifiedSchema.getOrElse(loadSchema(tableName))
-      }
+      currentSchema = userSpecifiedSchema
+        .getOrElse {
+          if (inferSchemaEnabled) {
+            inferSchema(tableName)
+          } else {
+            loadSchema(tableName)
+          }
+        }
     }
     currentSchema
   }
 
-  private def inferSchema(): StructType = {
+  private def inferSchema(tableName: String): StructType = {
     val keys = sc.fromRedisKeyPattern(dataKeyPattern(tableName))
     if (keys.isEmpty()) {
       throw new IllegalStateException("No key is available")
