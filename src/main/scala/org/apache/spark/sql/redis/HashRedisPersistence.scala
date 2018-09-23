@@ -41,27 +41,18 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
         .toArray
       StructType(fields)
     }
-    val fieldsValue = sortFields(value, actualSchema)
+    val fieldsValue = parseFields(value, actualSchema)
     new GenericRowWithSchema(fieldsValue, actualSchema)
   }
 
-  private def sortFields(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Array[Any] =
-    schema.fields
-      .map { field =>
-        field -> field.name
-      }
-      .map { case (field, fieldName) =>
-        field -> fieldName.getBytes(UTF_8)
-      }
-      .map { case (field, fieldNameBytes) =>
-        field -> value.get(fieldNameBytes)
-      }
-      .map { case (field, fieldValueBytes) =>
-        field -> new String(fieldValueBytes, UTF_8)
-      }
-      .map { case (field, fieldValueStr) =>
-        parseValue(field.dataType, fieldValueStr)
-      }
+  private def parseFields(value: JMap[Array[Byte], Array[Byte]], schema: StructType): Array[Any] =
+    schema.fields.map { field =>
+      val fieldName = field.name
+      val fieldNameBytes = fieldName.getBytes(UTF_8)
+      val fieldValueBytes = value.get(fieldNameBytes)
+      val fieldValueStr = new String(fieldValueBytes, UTF_8)
+      parseValue(field.dataType, fieldValueStr)
+    }
 
   private def parseValue(dataType: DataType, fieldValueStr: String): Any =
     dataType match {
