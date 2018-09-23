@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis
 
-import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Long => JLong}
+import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.{Map => JMap}
 
@@ -59,6 +59,7 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
       case ByteType => JByte.parseByte(fieldValueStr)
       case IntegerType => Integer.parseInt(fieldValueStr)
       case LongType => JLong.parseLong(fieldValueStr)
+      case FloatType => JFloat.parseFloat(fieldValueStr)
       case DoubleType => JDouble.parseDouble(fieldValueStr)
       case BooleanType => JBoolean.parseBoolean(fieldValueStr)
       case _ => fieldValueStr
