@@ -1,6 +1,6 @@
 package com.redislabs.provider.redis.rdd
 
-import com.redislabs.provider.redis.rdd.Person._
+import com.redislabs.provider.redis.rdd.Person.{data, _}
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
 
@@ -80,6 +80,15 @@ class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
       .load(tableName).cache()
     loadedDf.show()
     loadedDf.count() shouldBe 2
-    //TODO: fix empty rows
+    val loadedArr = loadedDf
+      .collect()
+      .map { row =>
+        val name = row.getAs[String]("name")
+        val age = row.getAs[String]("age").toInt
+        val address = row.getAs[String]("address")
+        val salary = row.getAs[String]("salary").toDouble
+        Person(name, age, address, salary)
+      }
+    loadedArr.sortBy(_.name) shouldBe Person.data.toArray.sortBy(_.name)
   }
 }

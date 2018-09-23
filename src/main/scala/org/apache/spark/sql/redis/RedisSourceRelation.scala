@@ -41,21 +41,42 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
+  @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
-  private val inferSchema = parameters.get(SqlOptionInferSchema)
-    .exists(_.toBoolean)
+  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
+  private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
+  private val persistence = RedisPersistence(persistenceModel)
   @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
     if (currentSchema == null) {
-      currentSchema = if (inferSchema) StructType(Seq()) else {
+      currentSchema = if (inferSchemaEnabled) {
+        inferSchema()
+      } else {
         userSpecifiedSchema.getOrElse(loadSchema(tableName))
       }
     }
     currentSchema
+  }
+
+  private def inferSchema(): StructType = {
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern(tableName))
+    if (keys.isEmpty()) {
+      throw new IllegalStateException("No key is available")
+    } else {
+      val firstKey = keys.first()
+      val node = getMasterNode(redisConfig.hosts, firstKey)
+      scanRows(node, Seq(firstKey))
+        .collectFirst {
+          case r: Row => r.schema
+        }
+        .getOrElse {
+          throw new IllegalStateException("No row is available")
+        }
+    }
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
@@ -138,19 +159,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     Logger.info("build scan")
     val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
       partitionNum = numPartitions)
-    val persistenceMode = parameters.getOrElse(SqlOptionModel, null)
-    val persistence = RedisPersistence(persistenceMode)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition)
         .flatMap { case (node, keys) =>
-          scanRows(node, keys, persistence)
+          scanRows(node, keys)
         }
         .iterator
     }
   }
 
-  private def scanRows(node: RedisNode, keys: Seq[String],
-                       persistence: RedisPersistence[Any]) = {
+  private def scanRows(node: RedisNode, keys: Seq[String]) = {
     val conn = node.connect()
     val pipeline = conn.pipelined()
     keys
@@ -161,7 +179,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     val rows = pipeline.syncAndReturnAll()
       .map { value =>
-        persistence.decodeRow(value, schema, inferSchema)
+        persistence.decodeRow(value, schema, inferSchemaEnabled)
       }
     conn.close()
     rows
