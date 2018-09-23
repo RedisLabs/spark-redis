@@ -25,16 +25,11 @@ class HashRedisPersistence extends RedisPersistence[JMap[Array[Byte], Array[Byte
     pipeline.hgetAll(key)
 
   override def encodeRow(value: Row): JMap[Array[Byte], Array[Byte]] = {
-    value.schema.fields.map(_.name)
-      .map { field =>
-        field -> value.getAs[Any](field)
-      }
-      .map { case (k, v) =>
-        k.getBytes(UTF_8) ->
-          String.valueOf(v).getBytes(UTF_8)
-      }
-      .toMap
-      .asJava
+    val fields = value.schema.fields.map(_.name)
+    val kvMap = value.getValuesMap[Any](fields)
+    kvMap.map { case (k, v) =>
+      k.getBytes(UTF_8) -> String.valueOf(v).getBytes(UTF_8)
+    }.asJava
   }
 
   override def decodeRow(value: JMap[Array[Byte], Array[Byte]], schema: => StructType,
