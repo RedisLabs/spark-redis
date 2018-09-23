@@ -29,7 +29,6 @@ class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary).save(tableName)
-    // TODO: support cross mode read/write
     intercept[SparkException] {
       spark.read.format(RedisFormat).load(tableName).show()
     }
@@ -39,7 +38,6 @@ class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
-    // TODO: support cross mode read/write
     intercept[SparkException] {
       spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary)
         .load(tableName).show()
