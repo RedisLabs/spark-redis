@@ -44,6 +44,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
+  private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
@@ -82,6 +83,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
   }
 
+  private def dataKeyId(row: Row): String = {
+    val id = keyColumn.map(id => row.getAs[Any](id)).map(_.toString).getOrElse(uuid())
+    dataKey(tableName, id)
+  }
+
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val schema = userSpecifiedSchema.getOrElse(data.schema)
     if (currentSchema != schema) {
@@ -105,7 +111,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     // write data
     data.foreachPartition { partition =>
       // TODO: allow user to specify key column
-      val rowsWithKey: Map[String, Row] = partition.map(row => dataKey(tableName) -> row).toMap
+      val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
       groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
         val conn = node.connect()
         val pipeline = conn.pipelined()
@@ -194,10 +200,11 @@ object RedisSourceRelation {
 
   def schemaKey(tableName: String): String = s"$tableName:$SchemaNamespace"
 
-  def dataKey(tableName: String): String = {
-    val uuid = UUID.randomUUID().toString.replace("-", "")
-    s"$tableName:$DataNamespace:$uuid"
+  def dataKey(tableName: String, id: String = uuid()): String = {
+    s"$tableName:$DataNamespace:$id"
   }
+
+  def uuid(): String = UUID.randomUUID().toString.replace("-", "")
 
   def dataKeyPattern(tableName: String): String = s"$tableName:$DataNamespace:*"
 }
