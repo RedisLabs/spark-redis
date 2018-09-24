@@ -126,8 +126,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   def isEmpty: Boolean =
-    sqlContext.sparkContext.fromRedisKeyPattern(dataKeyPattern(tableName))
-      .isEmpty()
+    sc.fromRedisKeyPattern(dataKeyPattern(tableName)).isEmpty()
 
   def nonEmpty: Boolean = !isEmpty
 
@@ -157,8 +156,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     Logger.info("build scan")
-    val keysRdd = new RedisKeysRDD(sqlContext.sparkContext, redisConfig, dataKeyPattern(tableName),
-      partitionNum = numPartitions)
+    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = numPartitions)
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition)
         .flatMap { case (node, keys) =>
