@@ -26,7 +26,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     with Keys
     with Serializable {
 
-  val redisConfig: RedisConfig = {
+  private implicit val redisConfig: RedisConfig = {
     new RedisConfig(
       if ((parameters.keySet & Set("host", "port", "auth", "dbNum", "timeout")).isEmpty) {
         new RedisEndpoint(sqlContext.sparkContext.getConf)
