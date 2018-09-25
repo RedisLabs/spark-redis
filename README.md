@@ -254,6 +254,17 @@ sc.toRedisZSET(zsetRDD, zsetName)
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
 
+### Dataframe
+
+#### User defined key column
+
+By default, Spark-Redis generates UUID identifier for each row to ensure their uniqueness. 
+However, you can also provide your own column as key, e.g.
+```scala
+df.write.format(RedisFormat).option(SqlOptionKeyColumn, "name").save(tableName)
+``` 
+When key collision happens on ```SaveMode.Append```, the former row would be replaced by the new row.
+
 ### Streaming
 Spark-Redis support streaming data from Redis instance/cluster, currently streaming data are fetched from Redis' List by the `blpop` command. Users are required to provide an array which stores all the List names they are interested in. The [storageLevel](http://spark.apache.org/docs/latest/streaming-programming-guide.html#data-serialization) is `MEMORY_AND_DISK_SER_2` by default, you can change it on your demand.
 `createRedisStream` will create a `(listName, value)` stream, but if you don't care about which list feeds the value, you can use `createRedisStreamWithoutListname` to get the only `value` stream.
