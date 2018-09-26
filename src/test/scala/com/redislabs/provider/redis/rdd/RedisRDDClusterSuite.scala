@@ -34,11 +34,15 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
       conn.close
     })
 
+    val hllRDD = sc.parallelize(
+      Seq( ("apple","gala"),("apple","red-delicious"),("pear","barlett"),("peach","freestone"))
+    )
     sc.toRedisKV(wcnts)(redisConfig)
     sc.toRedisZSET(wcnts, "all:words:cnt:sortedset" )(redisConfig)
     sc.toRedisHASH(wcnts, "all:words:cnt:hash")(redisConfig)
     sc.toRedisLIST(wds, "all:words:list" )(redisConfig)
     sc.toRedisSET(wds, "all:words:set")(redisConfig)
+    sc.toRedisHLL(hllRDD)
   }
 
   test("RedisKVRDD - default(cluster)") {
@@ -164,6 +168,20 @@ class RedisRDDClusterSuite extends FunSuite with ENV with BeforeAndAfterAll with
     val setContents = redisSetRDD.sortBy(x => x).collect
     val ws = content.split("\\W+").filter(!_.isEmpty).distinct.sorted
     setContents should be (ws)
+  }
+
+  test("RedisHLLRDD - cluster") {
+    implicit val c: RedisConfig = redisConfig
+    val redisSetRDD = sc.fromRedisHLL( "apple")
+    redisSetRDD.count() should be (1)
+    redisSetRDD.take(1)(0)._2 should be (2)
+
+    val redisSetRDDp = sc.fromRedisHLL("p*")
+    redisSetRDD.count() should be (2)
+    redisSetRDD.take(1)(0)._2 should be (1)
+
+    val all = sc.fromRedisHLL("*")
+    all.count() should be (3)
   }
 
   test("Expire - default(cluster)") {
