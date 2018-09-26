@@ -3,10 +3,10 @@ package com.redislabs.provider.redis
 import com.redislabs.provider.redis.streaming.RedisInputDStream
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
 import com.redislabs.provider.redis.rdd._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
+import redis.clients.jedis.Pipeline
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -218,6 +218,16 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param rdd the RDD
+    * @param keyFn for pipeline partitioning: function from row to key / name
+    * @param f function describing the operation(s) to perform on each pipeline
+    */
+  def toRedisPipeline[T](rdd: RDD[T], keyFn: T => String)(f: (T, Pipeline) => Unit)
+               (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))) {
+    rdd.foreachPartition(partition => partitionedPipeline(partition, keyFn, redisConfig)(f))
+  }
+
+  /**
     * @param kvs Pair RDD of K/V
     * @param ttl time to live
     */
@@ -283,27 +293,37 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
 
 object RedisContext extends Serializable {
+
+  /**
+    * @param arr sequence of items
+    * @param key function from item => key, used for pipelining
+    * @param f function to perform on each item
+    */
+  def partitionedPipeline[T](arr: Iterator[T], key: T => String, redisConfig: RedisConfig)(f: (T, Pipeline) => Unit) {
+    arr.toVector.groupBy(t => redisConfig.getHost(key(t))).foreach({ case (node, ts) =>
+      val conn = node.endpoint.connect()
+      val pipeline = conn.pipelined
+      ts.foreach(t => f(t, pipeline))
+      pipeline.sync
+      conn.close
+    })
+  }
+
+
   /**
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to the target host
     * @param ttl time to live
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig) {
-    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
-      mapValues(a => a.map(p => p._2)).foreach {
-      x => {
-        val conn = x._1.endpoint.connect()
-        val pipeline = conn.pipelined
-        if (ttl <= 0) {
-          x._2.foreach(x => pipeline.set(x._1, x._2))
-        }
-        else {
-          x._2.foreach(x => pipeline.setex(x._1, ttl, x._2))
-        }
-        pipeline.sync
-        conn.close
-      }
-    }
+    partitionedPipeline(arr, (kv: (String, String)) => kv._1, redisConfig)((kv, pipeline) =>
+       if (ttl <= 0) {
+         pipeline.set(kv._1, kv._2)
+       }
+       else {
+         pipeline.setex(kv._1, ttl, kv._2)
+       }
+    )
   }
 
 

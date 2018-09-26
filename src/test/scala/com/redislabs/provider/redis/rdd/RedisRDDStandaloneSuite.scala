@@ -1,9 +1,11 @@
 package com.redislabs.provider.redis.rdd
 
-import org.apache.spark.{SparkContext, SparkConf}
-import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, FunSuite}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, ShouldMatchers}
+
 import scala.io.Source.fromInputStream
 import com.redislabs.provider.redis._
+import org.apache.spark.rdd.RDD
 
 class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll with ShouldMatchers {
 
@@ -163,6 +165,20 @@ class RedisRDDStandaloneSuite extends FunSuite with ENV with BeforeAndAfterAll w
     val setContents = redisSetRDD.sortBy(x => x).collect
     val ws = content.split("\\W+").filter(!_.isEmpty).distinct.sorted
     setContents should be (ws)
+  }
+
+  test("toRedisPipeline (standalone)") {
+    val expireTime = 1
+    val prefix = s"#expire in ${expireTime}#:"
+    val wcnts: RDD[(String, String)] = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).map((_, 1)).
+      reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
+
+    sc.toRedisPipeline[(String, String)](wcnts, kv => kv._1){ (t, pipeline) =>
+      pipeline.setex(t._1, expireTime, t._2)
+    }
+    sc.fromRedisKeyPattern(prefix + "*").count shouldNot be (0)
+    Thread.sleep(expireTime * 1000 + 1)
+    sc.fromRedisKeyPattern(prefix + "*").count should be (0)
   }
 
   test("Expire - default(standalone)") {
