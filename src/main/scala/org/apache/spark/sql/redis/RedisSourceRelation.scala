@@ -41,6 +41,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
+  Logger.info(s"Redis config initial host: ${redisConfig.initialHost}")
+
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
   val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
