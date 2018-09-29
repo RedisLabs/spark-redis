@@ -63,16 +63,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       currentSchema = userSpecifiedSchema
         .getOrElse {
           if (inferSchemaEnabled) {
-            inferSchema(tableName)
+            inferSchema()
           } else {
-            loadSchema(tableName)
+            loadSchema()
           }
         }
     }
     currentSchema
   }
 
-  private def inferSchema(tableName: String): StructType = {
+  private def inferSchema(): StructType = {
     val keys = sc.fromRedisKeyPattern(dataKeyPattern(tableName))
     if (keys.isEmpty()) {
       throw new IllegalStateException("No key is available")
@@ -99,7 +99,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     // TODO: update schema on table creation
     // if (currentSchema != schema) {
       // write schema, so that we can load dataframe back
-      currentSchema = saveSchema(schema, tableName)
+      currentSchema = saveSchema(schema)
     // }
 
     if (overwrite) {
@@ -143,7 +143,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   def nonEmpty: Boolean = !isEmpty
 
-  def saveSchema(schema: StructType, tableName: String): StructType = {
+  def saveSchema(schema: StructType): StructType = {
     val key = schemaKey(tableName)
     Logger.info(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
@@ -154,7 +154,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     schema
   }
 
-  def loadSchema(tableName: String): StructType = {
+  def loadSchema(): StructType = {
     val key = schemaKey(tableName)
     Logger.info(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
