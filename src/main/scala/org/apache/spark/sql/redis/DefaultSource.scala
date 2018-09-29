@@ -1,11 +1,12 @@
 package org.apache.spark.sql.redis
 
 import org.apache.spark.sql.SaveMode.{Append, ErrorIfExists, Ignore, Overwrite}
-import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider}
+import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider,
+  SchemaRelationProvider}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-class DefaultSource extends RelationProvider
-  //  with SchemaRelationProvider
+class DefaultSource extends RelationProvider with SchemaRelationProvider
   with CreatableRelationProvider {
 
   override def createRelation(sqlContext: SQLContext,
@@ -37,8 +38,7 @@ class DefaultSource extends RelationProvider
     relation
   }
 
-
-  //  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
-  //    new RedisSourceRelation(sqlContext, parameters)
-  //  }
+  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String],
+                              schema: StructType): BaseRelation =
+    new RedisSourceRelation(sqlContext, parameters, userSpecifiedSchema = Some(schema))
 }

@@ -1,6 +1,7 @@
 package org.apache.spark.sql.redis
 
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Paths
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.Keys
@@ -43,7 +44,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
-  val tableName: String = parameters.getOrElse("path", throw new IllegalArgumentException("'path' parameter is not specified"))
+  private val tableName: String = parameters.get("path")
+    // TODO: sql parser gives table absolution path
+    .map(p => Paths.get(p).getFileName.toString)
+    .getOrElse {
+      throw new IllegalArgumentException("'path' parameter is not specified")
+    }
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
@@ -90,10 +96,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val schema = userSpecifiedSchema.getOrElse(data.schema)
-    if (currentSchema != schema) {
+    // TODO: update schema on table creation
+    // if (currentSchema != schema) {
       // write schema, so that we can load dataframe back
       currentSchema = saveSchema(schema, tableName)
-    }
+    // }
 
     if (overwrite) {
       // truncate the table
