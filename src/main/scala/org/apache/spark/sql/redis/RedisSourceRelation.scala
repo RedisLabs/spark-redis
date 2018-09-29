@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
-import com.redislabs.provider.redis.rdd.{Keys, RedisKeysRDD}
+import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Logger
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
