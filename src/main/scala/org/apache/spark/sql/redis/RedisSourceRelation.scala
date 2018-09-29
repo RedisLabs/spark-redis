@@ -136,7 +136,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   def nonEmpty: Boolean = !isEmpty
 
-  // TODO: reuse connection to node?
   def saveSchema(schema: StructType, tableName: String): StructType = {
     val key = schemaKey(tableName)
     Logger.info(s"saving schema $key")
@@ -148,7 +147,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     schema
   }
 
-  // TODO: reuse connection to node?
   def loadSchema(tableName: String): StructType = {
     val key = schemaKey(tableName)
     Logger.info(s"loading schema $key")
