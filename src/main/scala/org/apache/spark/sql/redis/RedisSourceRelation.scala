@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis
 
-import java.util.{UUID, Map => JMap}
+import java.util.{UUID, List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Logger
@@ -172,7 +172,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   private def scanRows(node: RedisNode, keys: Seq[String], filterColumns: Boolean,
-                       requiredColumns: Seq[String]) = {
+                       requiredColumns: Seq[String]): TraversableOnce[Row] = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
       val filteredFields = schema.fields
@@ -205,11 +205,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           new GenericRow(Array[Any]())
         }
       } else {
-        pipelineValues.grouped(requiredColumns.size())
-          .map { values =>
-            val value = requiredColumns.zip(values).toMap
-            persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
-          }
+        pipelineValues.map { case values: JList[String] =>
+          val value = requiredColumns.zip(values).toMap
+          persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
+        }
       }
     conn.close()
     rows

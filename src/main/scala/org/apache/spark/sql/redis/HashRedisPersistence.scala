@@ -21,9 +21,7 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
     if (requiredColumns.isEmpty) {
       pipeline.hgetAll(key)
     } else {
-      requiredColumns.foreach { c =>
-        pipeline.hget(key, c)
-      }
+      pipeline.hmget(key, requiredColumns: _*)
     }
   }
 
