@@ -1,13 +1,13 @@
 package org.apache.spark.sql.redis
 
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.UUID
+import java.util.{UUID, Map => JMap}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Logger
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
@@ -78,7 +78,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     } else {
       val firstKey = keys.first()
       val node = getMasterNode(redisConfig.hosts, firstKey)
-      scanRows(node, Seq(firstKey))
+      scanRows(node, Seq(firstKey), Seq())
         .collectFirst {
           case r: Row => r.schema
         }
@@ -123,9 +123,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           // serialize the entire row to byte array
           // TODO: remove schema from row
           // TODO: save as a hash
-          val encodedKey = key.getBytes(UTF_8)
           val encodedRow = persistence.encodeRow(row)
-          persistence.save(pipeline, encodedKey, encodedRow)
+          persistence.save(pipeline, key, encodedRow)
         }
         pipeline.sync()
         conn.close()
@@ -166,24 +165,50 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition)
         .flatMap { case (node, keys) =>
-          scanRows(node, keys)
+          scanRows(node, keys, requiredColumns)
         }
         .iterator
     }
   }
 
-  private def scanRows(node: RedisNode, keys: Seq[String]) = {
+  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]) = {
+    def filteredSchema(): StructType = {
+      val requiredColumnsSet = Set(requiredColumns: _*)
+      val filteredFields = schema.fields
+        .filter { f =>
+          requiredColumnsSet.contains(f.name)
+        }
+      StructType(filteredFields)
+    }
+
     val conn = node.connect()
     val pipeline = conn.pipelined()
     keys
       .foreach { key =>
         Logger.info(s"key $key")
-        val encodedKey = key.getBytes(UTF_8)
-        persistence.load(pipeline, encodedKey)
+        persistence.load(pipeline, key, requiredColumns)
       }
-    val rows = pipeline.syncAndReturnAll()
-      .map { value =>
-        persistence.decodeRow(value, schema, inferSchemaEnabled)
+    val pipelineValues = pipeline.syncAndReturnAll()
+    val rows =
+      if (requiredColumns.isEmpty) {
+        pipelineValues.map { _ =>
+          new GenericRow(Array[Any]())
+        }
+      } else if (persistenceModel == SqlOptionModelBinary) {
+        pipelineValues
+          .map {
+            case jmap: JMap[_, _] => jmap.toMap
+            case value: Any => value
+          }
+          .map { value =>
+            persistence.decodeRow(value, schema, inferSchemaEnabled)
+          }
+      } else {
+        pipelineValues.grouped(requiredColumns.size())
+          .map { values =>
+            val value = requiredColumns.zip(values).toMap
+            persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
+          }
       }
     conn.close()
     rows
