@@ -45,11 +45,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
   private val tableName: String = parameters.get("path")
-    // TODO: sql parser gives table absolution path
-    .map(p => Paths.get(p).getFileName.toString)
+    // TODO: sql parser gives table absolute path for non-temporary tables
+    //    .map(p => Paths.get(p).getFileName.toString)
     .getOrElse {
-      throw new IllegalArgumentException("'path' parameter is not specified")
-    }
+    throw new IllegalArgumentException("'path' parameter is not specified")
+  }
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)

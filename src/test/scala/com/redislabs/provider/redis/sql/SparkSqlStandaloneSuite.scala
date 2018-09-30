@@ -9,11 +9,11 @@ import org.scalatest.Matchers
   */
 class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset with Matchers {
 
-  test("create table then make regular insertions") {
+  test("create temporary table then make regular insertions") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -25,11 +25,11 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     verifyDf(loadedDf)
   }
 
-  test("create table then make overwrite insertions when no data exists") {
+  test("create temporary table then make overwrite insertions when no data exists") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -41,11 +41,11 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     verifyDf(loadedDf)
   }
 
-  test("create table then make overwrite insertions when data exists") {
+  test("create temporary table then make overwrite insertions when data exists") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
