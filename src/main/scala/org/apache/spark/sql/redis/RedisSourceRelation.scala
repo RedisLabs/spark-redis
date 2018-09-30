@@ -78,7 +78,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     } else {
       val firstKey = keys.first()
       val node = getMasterNode(redisConfig.hosts, firstKey)
-      scanRows(node, Seq(firstKey), Seq())
+      scanRows(node, Seq(firstKey), filterColumns = false, Seq())
         .collectFirst {
           case r: Row => r.schema
         }
@@ -165,13 +165,14 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     keysRdd.mapPartitions { partition =>
       groupKeysByNode(redisConfig.hosts, partition)
         .flatMap { case (node, keys) =>
-          scanRows(node, keys, requiredColumns)
+          scanRows(node, keys, filterColumns = true, requiredColumns)
         }
         .iterator
     }
   }
 
-  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]) = {
+  private def scanRows(node: RedisNode, keys: Seq[String], filterColumns: Boolean,
+                       requiredColumns: Seq[String]) = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
       val filteredFields = schema.fields
@@ -190,11 +191,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     val pipelineValues = pipeline.syncAndReturnAll()
     val rows =
-      if (requiredColumns.isEmpty) {
-        pipelineValues.map { _ =>
-          new GenericRow(Array[Any]())
-        }
-      } else if (persistenceModel == SqlOptionModelBinary) {
+      if (!filterColumns || persistenceModel == SqlOptionModelBinary) {
         pipelineValues
           .map {
             case jmap: JMap[_, _] => jmap.toMap
@@ -203,6 +200,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           .map { value =>
             persistence.decodeRow(value, schema, inferSchemaEnabled)
           }
+      } else if (requiredColumns.isEmpty) {
+        pipelineValues.map { _ =>
+          new GenericRow(Array[Any]())
+        }
       } else {
         pipelineValues.grouped(requiredColumns.size())
           .map { values =>
