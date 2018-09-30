@@ -1,5 +1,6 @@
 package com.redislabs.provider.redis.sql
 
+import com.redislabs.provider.redis.rdd.Person.data
 import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
 import org.apache.spark.sql.redis.RedisFormat
 import org.scalatest.Matchers
@@ -87,5 +88,29 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
       s"""SELECT * FROM $tableName
          |""".stripMargin)
     verifyDf(loadedDf)
+  }
+
+  test("select all fields from temporary view") {
+    val tableName = Person.generatePersonTableName()
+    createTempView(tableName)
+    val loadedDf = spark.sql(
+      s"""SELECT name, age, address, salary FROM $tableName
+         |""".stripMargin)
+    verifyDf(loadedDf)
+  }
+
+  test("select name and salary from temporary view") {
+    val tableName = Person.generatePersonTableName()
+    createTempView(tableName)
+    val actualDf = spark.sql(
+      s"""SELECT name, salary FROM $tableName
+         |""".stripMargin)
+    actualDf.show()
+    actualDf.count() shouldBe expectedDf.count()
+    // TODO: check nullable columns
+    // actualDf.schema shouldBe expectedDf.schema
+    val loadedArr = actualDf.collect()
+      .map(r => (r.getAs[String]("name"), r.getAs[Double]("salary")))
+    loadedArr.sortBy(_._1) shouldBe data.toArray.sortBy(_.name).map(p => (p.name, p.salary))
   }
 }
