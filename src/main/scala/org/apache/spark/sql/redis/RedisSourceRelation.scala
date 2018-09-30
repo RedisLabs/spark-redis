@@ -1,7 +1,6 @@
 package org.apache.spark.sql.redis
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Paths
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.Keys
