@@ -96,12 +96,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val schema = userSpecifiedSchema.getOrElse(data.schema)
-    // TODO: update schema on table creation
-    // if (currentSchema != schema) {
-      // write schema, so that we can load dataframe back
-      currentSchema = saveSchema(schema)
-    // }
-
+    // write schema, so that we can load dataframe back
+    currentSchema = saveSchema(schema)
     if (overwrite) {
       // truncate the table
       redisConfig.hosts.foreach { node =>
