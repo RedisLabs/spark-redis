@@ -14,6 +14,10 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
 
   lazy val expectedDf: DataFrame = Person.df(spark)
 
+  def createTempView(tableName: String): Unit = {
+    spark.createDataFrame(data).createOrReplaceTempView(tableName)
+  }
+
   def verifyDf(actualDf: DataFrame): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()

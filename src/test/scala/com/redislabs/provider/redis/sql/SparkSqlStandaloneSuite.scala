@@ -61,4 +61,31 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
     verifyDf(loadedDf)
   }
+
+  test("create temporary table, make regular insertions then select") {
+    val tableName = Person.generatePersonTableName()
+    // TODO: retrieve table name from tableName instead of path option
+    spark.sql(
+      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+         |  USING $RedisFormat OPTIONS (path '$tableName')
+         |""".stripMargin)
+    spark.sql(
+      s"""INSERT INTO TABLE $tableName
+         |  VALUES ('John', 30, '60 Wall Street', 150.5),
+         |    ('Peter', 35, '110 Wall Street', 200.3)
+         |""".stripMargin)
+    val loadedDf = spark.sql(
+      s"""SELECT * FROM $tableName
+         |""".stripMargin)
+    verifyDf(loadedDf)
+  }
+
+  test("select from temporary view") {
+    val tableName = Person.generatePersonTableName()
+    createTempView(tableName)
+    val loadedDf = spark.sql(
+      s"""SELECT * FROM $tableName
+         |""".stripMargin)
+    verifyDf(loadedDf)
+  }
 }
