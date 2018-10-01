@@ -15,7 +15,7 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
 
   lazy val expectedDf: DataFrame = Person.df(spark)
 
-  def populateDf(tableName: String): Unit = {
+  def writeDf(tableName: String): Unit = {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
   }

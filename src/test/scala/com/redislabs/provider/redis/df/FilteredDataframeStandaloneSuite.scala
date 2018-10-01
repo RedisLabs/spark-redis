@@ -13,7 +13,7 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
 
   test("select none fields") {
     val tableName = generateTableName(TableNamePrefix)
-    populateDf(tableName)
+    writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
       .load(tableName)
       .select()
@@ -26,7 +26,7 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
 
   test("select all fields") {
     val tableName = generateTableName(TableNamePrefix)
-    populateDf(tableName)
+    writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
       .load(tableName)
       .select("name", "age", "address", "salary")
@@ -36,7 +36,7 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
 
   test("select partial fields") {
     val tableName = generateTableName(TableNamePrefix)
-    populateDf(tableName)
+    writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
       .load(tableName)
       .select("name", "salary")
