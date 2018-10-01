@@ -24,7 +24,7 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
     spark.createDataFrame(data).createOrReplaceTempView(tableName)
   }
 
-  def verifyDf(actualDf: DataFrame): Unit = {
+  def verifyDf(actualDf: DataFrame, data: Seq[Person] = Person.data): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()
     // TODO: check nullable columns
