@@ -19,6 +19,9 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
       .select()
       .cache()
     actualDf.count() shouldBe expectedDf.count()
+    actualDf.collect().foreach { r =>
+      r.length shouldBe 0
+    }
   }
 
   test("select all fields") {
