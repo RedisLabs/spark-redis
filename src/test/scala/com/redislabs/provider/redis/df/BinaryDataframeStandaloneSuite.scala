@@ -1,6 +1,7 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.rdd.Person._
+import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
@@ -8,7 +9,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-class BinaryRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
+class BinaryDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
 
   import TestSqlImplicits._
 

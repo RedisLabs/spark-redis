@@ -8,7 +8,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-class SparkDataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
+class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
   with Matchers {
 
   test("select none fields") {

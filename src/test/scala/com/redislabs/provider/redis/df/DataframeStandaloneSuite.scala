@@ -1,12 +1,12 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.rdd.Person._
-import org.apache.spark.sql
+import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionKeyColumn, SqlOptionNumPartitions}
 import org.scalatest.ShouldMatchers
 
-class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
+class DataframeStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
 
   import TestSqlImplicits._
 

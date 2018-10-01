@@ -1,6 +1,5 @@
-package com.redislabs.provider.redis.sql
+package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.df.DefaultTestDataset
 import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
 import org.apache.spark.sql.redis.RedisFormat
 import org.scalatest.Matchers

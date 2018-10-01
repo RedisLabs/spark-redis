@@ -1,6 +1,7 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.rdd.Person.{data, _}
+import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
 
@@ -9,7 +10,7 @@ import scala.collection.JavaConverters._
 /**
   * @author The Viet Nguyen
   */
-class HashRedisDataframeSuite extends RedisStandaloneSuite with Matchers {
+class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
 
   import TestSqlImplicits._
 
