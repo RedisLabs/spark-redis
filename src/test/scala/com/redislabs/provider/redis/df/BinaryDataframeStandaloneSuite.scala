@@ -1,6 +1,6 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.Person._
+import com.redislabs.provider.redis.df.Person._
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.SparkException
 import org.apache.spark.sql.redis._

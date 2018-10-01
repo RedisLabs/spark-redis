@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.Person.data
-import com.redislabs.provider.redis.rdd.{Person, SparkRedisSuite}
+import com.redislabs.provider.redis.df.Person.data
+import com.redislabs.provider.redis.rdd.SparkRedisSuite
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis.RedisFormat
 import org.scalatest.Matchers

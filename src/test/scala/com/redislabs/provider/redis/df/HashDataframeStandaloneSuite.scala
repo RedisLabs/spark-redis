@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.Person.{data, _}
-import com.redislabs.provider.redis.rdd.{Person, RedisStandaloneSuite}
+import com.redislabs.provider.redis.df.Person.{data, _}
+import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
 
