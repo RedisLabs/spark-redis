@@ -10,11 +10,11 @@ import org.scalatest.Matchers
   */
 class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset with Matchers {
 
-  test("create temporary table then make regular insertions") {
+  test("create temporary view then make regular insertions") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY VIEW $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -26,11 +26,11 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     verifyDf(loadedDf)
   }
 
-  test("create temporary table then make overwrite insertions when no data exists") {
+  test("create temporary view then make overwrite insertions when no data exists") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY VIEW $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -42,11 +42,11 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     verifyDf(loadedDf)
   }
 
-  test("create temporary table then make overwrite insertions when data exists") {
+  test("create temporary view then make overwrite insertions when data exists") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY VIEW $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -63,11 +63,11 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
     verifyDf(loadedDf)
   }
 
-  test("create temporary table, make regular insertions then select") {
+  test("create temporary view, make regular insertions then select") {
     val tableName = Person.generatePersonTableName()
     // TODO: retrieve table name from tableName instead of path option
     spark.sql(
-      s"""CREATE TEMPORARY TABLE $tableName (name STRING, age INT, address STRING, salary DOUBLE)
+      s"""CREATE TEMPORARY VIEW $tableName (name STRING, age INT, address STRING, salary DOUBLE)
          |  USING $RedisFormat OPTIONS (path '$tableName')
          |""".stripMargin)
     spark.sql(
@@ -84,27 +84,21 @@ class SparkSqlStandaloneSuite extends RedisStandaloneSuite with DefaultTestDatas
   test("select from temporary view") {
     val tableName = Person.generatePersonTableName()
     createTempView(tableName)
-    val loadedDf = spark.sql(
-      s"""SELECT * FROM $tableName
-         |""".stripMargin)
+    val loadedDf = spark.sql(s"SELECT * FROM $tableName")
     verifyDf(loadedDf)
   }
 
   test("select all fields from temporary view") {
     val tableName = Person.generatePersonTableName()
     createTempView(tableName)
-    val loadedDf = spark.sql(
-      s"""SELECT name, age, address, salary FROM $tableName
-         |""".stripMargin)
+    val loadedDf = spark.sql(s"SELECT name, age, address, salary FROM $tableName")
     verifyDf(loadedDf)
   }
 
   test("select name and salary from temporary view") {
     val tableName = Person.generatePersonTableName()
     createTempView(tableName)
-    val actualDf = spark.sql(
-      s"""SELECT name, salary FROM $tableName
-         |""".stripMargin)
+    val actualDf = spark.sql(s"SELECT name, salary FROM $tableName")
     verifyPartialDf(actualDf)
   }
 }
