@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.Person.data
-import com.redislabs.provider.redis.rdd.{Person, SparkRedisSuite}
+import com.redislabs.provider.redis.df.Person.data
+import com.redislabs.provider.redis.rdd.SparkRedisSuite
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis.RedisFormat
 import org.scalatest.Matchers
@@ -15,7 +15,7 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
 
   lazy val expectedDf: DataFrame = Person.df(spark)
 
-  def populateDf(tableName: String): Unit = {
+  def writeDf(tableName: String): Unit = {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
   }
@@ -24,7 +24,7 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
     spark.createDataFrame(data).createOrReplaceTempView(tableName)
   }
 
-  def verifyDf(actualDf: DataFrame): Unit = {
+  def verifyDf(actualDf: DataFrame, data: Seq[Person] = Person.data): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()
     // TODO: check nullable columns
