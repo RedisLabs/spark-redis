@@ -28,8 +28,12 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
     spark.createDataFrame(data).createOrReplaceTempView(tableName)
   }
 
-  def loadAndVerifyDf(tableName: String): Unit = {
-    val actualDf = spark.read.format(RedisFormat).load(tableName).cache()
+  def loadAndVerifyDf(tableName: String, options: Map[String, Any] = Map()): Unit = {
+    val initialReader = spark.read.format(RedisFormat)
+    val reader = options.foldLeft(initialReader) { case (acc, (k, v)) =>
+      acc.option(k, v.toString)
+    }
+    val actualDf = reader.load(tableName).cache()
     verifyDf(actualDf, data)
   }
 
