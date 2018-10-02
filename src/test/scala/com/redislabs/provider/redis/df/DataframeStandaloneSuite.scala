@@ -3,7 +3,7 @@ package com.redislabs.provider.redis.df
 import com.redislabs.provider.redis.df.Person.{generateTableName, _}
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.sql.redis.{RedisFormat, SqlOptionKeyColumn, SqlOptionNumPartitions, SqlOptionTTL}
+import org.apache.spark.sql.redis._
 import org.scalatest.ShouldMatchers
 
 class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
@@ -153,5 +153,30 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
     Thread.sleep(1000)
     val actualDf = spark.read.format(RedisFormat).load(tableName)
     actualDf.count() shouldBe 0
+  }
+
+  test("save dataframe in binary model with ttl") {
+    val tableName = generateTableName(TableNamePrefix)
+    writeDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary, SqlOptionTTL -> 1))
+    loadAndVerifyDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary))
+    Thread.sleep(1000)
+    val actualDf = spark.read.format(RedisFormat).load(tableName)
+    actualDf.count() shouldBe 0
+  }
+
+  test("save dataframe with zero ttl") {
+    val tableName = generateTableName(TableNamePrefix)
+    writeDf(tableName, Map(SqlOptionTTL -> 0))
+    loadAndVerifyDf(tableName)
+    Thread.sleep(1000)
+    loadAndVerifyDf(tableName)
+  }
+
+  test("save dataframe with no ttl") {
+    val tableName = generateTableName(TableNamePrefix)
+    writeDf(tableName)
+    loadAndVerifyDf(tableName)
+    Thread.sleep(1000)
+    loadAndVerifyDf(tableName)
   }
 }
