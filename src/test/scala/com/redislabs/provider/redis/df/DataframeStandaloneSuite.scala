@@ -1,12 +1,13 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.Person._
-import org.apache.spark.sql
+import com.redislabs.provider.redis.df.Person._
+import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionKeyColumn, SqlOptionNumPartitions}
 import org.scalatest.ShouldMatchers
 
-class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
+class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
+  with ShouldMatchers {
 
   import TestSqlImplicits._
 
@@ -15,11 +16,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() should be(df.count())
-    loadedDf.schema should be(df.schema)
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) should be(data.toArray.sortBy(_.name))
+    verifyDf(loadedDf)
   }
 
   test("append data when it's empty") {
@@ -27,11 +24,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.Append).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("append data when it's not empty") {
@@ -55,11 +48,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("overwrite data when it's not empty") {
@@ -70,11 +59,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     spark.createDataFrame(overrideData)
       .write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe overrideData.toArray.sortBy(_.name)
+    verifyDf(loadedDf, overrideData)
   }
 
   test("ignore data when it's empty") {
@@ -82,11 +67,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("ignore data when it's not empty") {
@@ -97,11 +78,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
       .write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("error if exists when it's empty") {
@@ -109,11 +86,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("error if exists when it's not empty") {
@@ -133,11 +106,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     df.write.format(RedisFormat).save(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionNumPartitions, 1).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("user defined key column") {
@@ -145,11 +114,7 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat).option(SqlOptionKeyColumn, "name").save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("user defined key column append") {
@@ -178,10 +143,6 @@ class RedisSqlStandaloneSuite extends RedisStandaloneSuite with ShouldMatchers {
       .write.format(RedisFormat).mode(SaveMode.Overwrite).option(SqlOptionKeyColumn, "name")
       .save(tableName)
     val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe overrideData.toArray.sortBy(_.name)
+    verifyDf(loadedDf, overrideData)
   }
 }
