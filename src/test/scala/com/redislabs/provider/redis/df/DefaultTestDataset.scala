@@ -15,13 +15,22 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
 
   lazy val expectedDf: DataFrame = Person.df(spark)
 
-  def writeDf(tableName: String): Unit = {
+  def writeDf(tableName: String, options: Map[String, Any] = Map()): Unit = {
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    val initialWriter = df.write.format(RedisFormat)
+    val writer = options.foldLeft(initialWriter) { case (acc, (k, v)) =>
+      acc.option(k, v.toString)
+    }
+    writer.save(tableName)
   }
 
   def createTempView(tableName: String): Unit = {
     spark.createDataFrame(data).createOrReplaceTempView(tableName)
+  }
+
+  def loadAndVerifyDf(tableName: String): Unit = {
+    val actualDf = spark.read.format(RedisFormat).load(tableName).cache()
+    verifyDf(actualDf, data)
   }
 
   def verifyDf(actualDf: DataFrame, data: Seq[Person] = Person.data): Unit = {
