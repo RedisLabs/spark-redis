@@ -57,6 +57,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
+  private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
   @volatile private var currentSchema: StructType = _
 
   override def schema: StructType = {
@@ -126,7 +127,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           // TODO: remove schema from row
           // TODO: save as a hash
           val encodedRow = persistence.encodeRow(row)
-          persistence.save(pipeline, key, encodedRow)
+          persistence.save(pipeline, key, encodedRow, ttl)
         }
         pipeline.sync()
         conn.close()
