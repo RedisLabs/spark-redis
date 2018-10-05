@@ -165,12 +165,18 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     Logger.info("build scan")
     val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = numPartitions)
-    keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition)
-        .flatMap { case (node, keys) =>
-          scanRows(node, keys, filterColumns = true, requiredColumns)
-        }
-        .iterator
+    if (requiredColumns.isEmpty) {
+      keysRdd.map { _ =>
+        new GenericRow(Array[Any]())
+      }
+    } else {
+      keysRdd.mapPartitions { partition =>
+        groupKeysByNode(redisConfig.hosts, partition)
+          .flatMap { case (node, keys) =>
+            scanRows(node, keys, filterColumns = true, requiredColumns)
+          }
+          .iterator
+      }
     }
   }
 
@@ -203,10 +209,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           .map { value =>
             persistence.decodeRow(value, schema, inferSchemaEnabled)
           }
-      } else if (requiredColumns.isEmpty) {
-        pipelineValues.map { _ =>
-          new GenericRow(Array[Any]())
-        }
       } else {
         pipelineValues.map { case values: JList[String] =>
           val value = requiredColumns.zip(values).toMap
