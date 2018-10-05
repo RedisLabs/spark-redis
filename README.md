@@ -31,6 +31,11 @@ This library is work in progress so the API may change before the official relea
 ## Documentation
 
   - [Getting Started](doc/getting-started.md)
+  - [RDD](doc/rdd.md)
+  - [Dataframe](doc/dataframe.md)
+  - [Streaming](doc/streaming.md)
+  - [Cluster](doc/cluster.md)
+  - [Configuration](doc/configuration.md)
 
 ## Contributing
 
