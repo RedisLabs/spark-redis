@@ -1,4 +1,4 @@
-# Dataset (previously Dataframe)
+# Dataframe
 
 ## Reading
 
@@ -54,7 +54,7 @@ spark.sql(
          |""".stripMargin)
 ```
 
-## Options [Link](configuration.md##Dataframe)
+## Options [Link](configuration.md#dataframe)
 
 ### Infer schema
 
