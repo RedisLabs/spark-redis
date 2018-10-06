@@ -17,5 +17,5 @@ See [Link](configuration.md##Options) for more details
 | inferSchema   | Guess schema from data, fallback to strings for unknown types   | `Boolean`             | `false` |
 | keyColumn     | Specify unique column, e.g. for selective overriding            | `String`              | -       |
 | model         | Persistent model for performance vs interoperability            | `enum [binary, hash]` | `hash`  |
-| numPartitions | Number of data partitions                                       | `Int`                 | `3`     |                  |
+| numPartitions | Number of data partitions                                       | `Int`                 | `3`     |
 | ttl           | Data time to live in `seconds`. Doesn't expire if less than `1` | `Int`                 | `0`     |
