@@ -61,3 +61,25 @@ sc = new SparkContext(new SparkConf()
       .set("spark.redis.auth", "")
   )
 ```
+
+### Create RDD
+```
+import com.redislabs.provider.redis._
+
+val keysRDD = sc.fromRedisKeyPattern("foo*", 5)
+val keysRDD = sc.fromRedisKeys(Array("foo", "bar"), 5)
+```
+
+### Create Dataframe
+
+```scala
+val loadedDf = spark.read.format("org.apache.spark.sql.redis").load("person")
+```
+
+### Create Stream
+
+```scala
+val ssc = new StreamingContext(sc, Seconds(1))
+val redisStream = ssc.createRedisStream(Array("foo", "bar"),
+    storageLevel = StorageLevel.MEMORY_AND_DISK_2)
+```
