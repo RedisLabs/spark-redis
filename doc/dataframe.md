@@ -29,16 +29,6 @@ spark.sql(
          |  USING org.apache.spark.sql.redis OPTIONS (path 'person')
          |""".stripMargin)
 val loadedDf = spark.sql(s"SELECT * FROM person")
-loadedDf.show()
-```
-
-```
-+-----+---+---------------+------+
-| name|age|        address|salary|
-+-----+---+---------------+------+
-| John| 30| 60 Wall Street| 150.5|
-|Peter| 35|110 Wall Street| 200.3|
-+-----+---+---------------+------+
 ```
 
 ## Writing
