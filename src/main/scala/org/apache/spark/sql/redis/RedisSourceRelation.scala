@@ -52,8 +52,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     throw new IllegalArgumentException("'path' parameter is not specified")
   }
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
-  private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
-    .getOrElse(SqlOptionNumPartitionsDefault)
+  /**
+    * If not specified, lets operation decide default value. Related to
+    * [[SqlOptionNumPartitionsDefault]].
+    */
+  private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt).getOrElse(0)
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
@@ -114,7 +117,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data.foreachPartition { partition =>
+    val writeData = if (numPartitions > 0) data.repartition(numPartitions) else data
+    writeData.foreachPartition { partition =>
       // TODO: allow user to specify key column
       val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
       groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
@@ -164,7 +168,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     Logger.info("build scan")
-    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = numPartitions)
+    val readPartitions =
+      if (numPartitions <= 0) {
+        SqlOptionNumPartitionsDefault
+      } else {
+        numPartitions
+      }
+    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = readPartitions)
     if (requiredColumns.isEmpty) {
       keysRdd.map { _ =>
         new GenericRow(Array[Any]())
