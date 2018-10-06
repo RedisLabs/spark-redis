@@ -58,7 +58,7 @@ spark.sql(
 
 ### Infer schema
 
-Guess schema from data for known types. If Spark-Redis cannot detect
+`inferSchema`. Guess schema from data for known types. If Spark-Redis cannot detect
 the type of a column, it will fallback to `String`. Disabled by default.
 ```scala
 val loadedDf = spark.read.format("org.apache.spark.sql.redis")
@@ -68,7 +68,7 @@ val loadedDf = spark.read.format("org.apache.spark.sql.redis")
 
 ### User defined key column
 
-By default, Spark-Redis generates UUID identifier for each row to ensure
+`keyColumn`. By default, Spark-Redis generates UUID identifier for each row to ensure
 their uniqueness.
 However, you can also provide your own column as key, e.g.
 ```scala
@@ -81,7 +81,7 @@ be replaced by the new row.
 
 ### Persistent model
 
-Spark-Redis supports 2 persistent models to allow you choosing among key
+`model`. Spark-Redis supports 2 persistent models to allow you choosing among key
 metrics like performance, compactness and interoperability with another
 Redis friendly frameworks. Default to `hash`
   - `binary`. Spark-Redis will choose the most suitable serialization
@@ -101,3 +101,11 @@ val loadedDf = spark.read.format("org.apache.spark.sql.redis")
 ```
 Note: Your read model should match write model. Otherwise, the behavior
 is undetermined.
+
+### Number of data partitions
+
+`numPartitions`.
+
+### Data time to live
+
+`ttl`.
