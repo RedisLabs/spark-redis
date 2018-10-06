@@ -10,6 +10,8 @@ topology from the initial node, so there is no need to provide the rest of the c
 
 ## Dataframe
 
+See [Link](configuration.md##Options) for more details
+
 | Name          | Description                                                     | Type                  | Default |
 | ------------- | --------------------------------------------------------------- | --------------------- | ------- |
 | inferSchema   | Guess schema from data, fallback to strings for unknown types   | `Boolean`             | `false` |

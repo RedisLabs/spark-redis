@@ -64,13 +64,50 @@ spark.sql(
          |""".stripMargin)
 ```
 
+## Options [Link](configuration.md##Dataframe)
+
+### Infer schema
+
+Guess schema from data for known types. If Spark-Redis cannot detect
+the type of a column, it will fallback to `String`. Disabled by default.
+```scala
+val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    .option("inferSchema", true)
+    .load("person")
+```
+
 ### User defined key column
 
-By default, Spark-Redis generates UUID identifier for each row to ensure their uniqueness.
+By default, Spark-Redis generates UUID identifier for each row to ensure
+their uniqueness.
 However, you can also provide your own column as key, e.g.
 ```scala
-df.write.format(RedisFormat).option(SqlOptionKeyColumn, "name").save(tableName)
+df.write.format("org.apache.spark.sql.redis")
+   .option("keyColumn", "name")
+   .save("person")
 ```
-When key collision happens on ```SaveMode.Append```, the former row would be replaced by the new row.
+When key collision happens on ```SaveMode.Append```, the former row would
+be replaced by the new row.
 
-## Options [Link](configuration.md##Dataframe)
+### Persistent model
+
+Spark-Redis supports 2 persistent models to allow you choosing among key
+metrics like performance, compactness and interoperability with another
+Redis friendly frameworks. Default to `hash`
+  - `binary`. Spark-Redis will choose the most suitable serialization
+  method to effectively store you rows in Redis cluster. If you don't need
+  to work with any framework other than Spark, this could be more preferable
+  for you.
+  - `hash`. The row would be stored in [Redis Hashes](https://redislabs.com/ebook/part-1-getting-started/chapter-1-getting-to-know-redis/1-2-what-redis-data-structures-look-like/1-2-4-hashes-in-redis/).
+  It allows you to utilize one of the most performance distributed data
+  structures to date. You can also later choose to load only specific fields,
+  in some cases that will help you reduce a lot of unnecessary traffic.
+```scala
+df.write.format("org.apache.spark.sql.redis")
+    .option("model", "binary").save("person")
+val loadedDf = spark.read.format("org.apache.spark.sql.redis")
+    .option("model", "binary")
+    .load("person")
+```
+Note: Your read model should match write model. Otherwise, the behavior
+is undetermined.
