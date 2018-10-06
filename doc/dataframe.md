@@ -79,6 +79,9 @@ df.write.format("org.apache.spark.sql.redis")
 When key collision happens on ```SaveMode.Append```, the former row would
 be replaced by the new row.
 
+The chosen column also participates in determining data target host in
+Redis cluster.
+
 ### Persistent model
 
 `model`. Spark-Redis supports 2 persistent models to allow you choosing among key
@@ -104,7 +107,15 @@ is undetermined.
 
 ### Number of data partitions
 
-`numPartitions`.
+`numPartitions`. Number of partitions for reading/writing collocation
+(in cluster mode).
+  - `reading`. Spark-Redis will execute scans on multiple
+  hosts (including Redis readonly slaves). Hence, the read performance
+  could be improved dramatically. It also supports automatic switch to
+  active nodes if some targets were terminated during the reading phase.
+  Default to `3`
+  - `writing`. Spark-Redis lets you choose how to split your data across
+  Redis cluster. Default to Dataframe partitions.
 
 ### Data time to live
 
