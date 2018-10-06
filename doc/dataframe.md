@@ -119,4 +119,6 @@ is undetermined.
 
 ### Data time to live
 
-`ttl`.
+`ttl`. If you don't want your data persist in Redis cluster forever, you
+can specify it time to live in `seconds`. Redis will help you clean up all
+your expired data. Default to `unexpired`
