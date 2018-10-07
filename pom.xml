@@ -7,7 +7,7 @@
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
 	<url>http://github.com/RedisLabs/spark-redis</url>
-	
+
 	<organization>
 		<name>RedisLabs</name>
 		<url>www.redislabs.com</url>
@@ -41,6 +41,7 @@
 		<scala.complete.version>${scala.major.version}.12</scala.complete.version>
 		<jedis.version>2.9.0</jedis.version>
 		<spark.version>2.3.1</spark.version>
+		<slf4j-api.version>1.7.25</slf4j-api.version>
 	</properties>
 
 	<distributionManagement>
@@ -277,6 +278,12 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_${scala.major.version}</artifactId>
             <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j-api.version}</version>
 			<scope>provided</scope>
         </dependency>
 		<dependency>
