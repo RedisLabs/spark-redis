@@ -7,6 +7,10 @@ import org.slf4j.{Logger, LoggerFactory}
   */
 trait Logging {
 
+  /**
+    * This logger will likely to be used in serializable environment like Spark contexts. So, we make
+    * it transient to avoid unnecessary serialization errors.
+    */
   @transient private var _logger: Logger = _
 
   protected def loggerName: String =
