@@ -28,4 +28,10 @@ trait Logging {
       _logger.info(msg)
     }
   }
+
+  def logTrace(msg: => String): Unit = {
+    if (logger.isTraceEnabled) {
+      _logger.trace(msg)
+    }
+  }
 }

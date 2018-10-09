@@ -194,7 +194,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val pipeline = conn.pipelined()
     keys
       .foreach { key =>
-        logInfo(s"key $key")
+        logTrace(s"key $key")
         persistence.load(pipeline, key, requiredColumns)
       }
     val pipelineValues = pipeline.syncAndReturnAll()
