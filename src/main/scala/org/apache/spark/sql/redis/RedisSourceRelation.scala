@@ -42,7 +42,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
-  Logger.info(s"Redis config initial host: ${redisConfig.initialHost}")
+  logInfo(s"Redis config initial host: ${redisConfig.initialHost}")
 
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
