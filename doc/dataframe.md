@@ -107,15 +107,13 @@ is undetermined.
 
 ### Number of data partitions
 
-`numPartitions`. Number of partitions for reading/writing collocation
-(in cluster mode).
+`numPartitions`. Number of partitions for reading collocation (in cluster
+mode).
   - `reading`. Spark-Redis will execute scans on multiple
   hosts (including Redis readonly slaves). Hence, the read performance
   could be improved dramatically. It also supports automatic switch to
   active nodes if some targets were terminated during the reading phase.
   Default to `3`
-  - `writing`. Spark-Redis lets you choose how to split your data across
-  Redis cluster. Default to Dataframe partitions.
 
 ### Data time to live
 
