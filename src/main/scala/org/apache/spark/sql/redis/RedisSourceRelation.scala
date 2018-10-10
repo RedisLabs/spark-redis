@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis
 import java.util.{UUID, List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.rdd.Keys
-import com.redislabs.provider.redis.util.Logger
+import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
@@ -24,7 +24,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     with InsertableRelation
     with PrunedFilteredScan
     with Keys
-    with Serializable {
+    with Serializable
+    with Logging {
 
   private implicit val redisConfig: RedisConfig = {
     new RedisConfig(
@@ -41,7 +42,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
-  Logger.info(s"Redis config initial host: ${redisConfig.initialHost}")
+  logInfo(s"Redis config initial host: ${redisConfig.initialHost}")
 
   @transient private val sc = sqlContext.sparkContext
   // TODO: allow to specify user parameter
@@ -81,7 +82,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     } else {
       val firstKey = keys.first()
       val node = getMasterNode(redisConfig.hosts, firstKey)
-      scanRows(node, Seq(firstKey), filterColumns = false, Seq())
+      scanRows(node, Seq(firstKey), Seq())
         .collectFirst {
           case r: Row => r.schema
         }
@@ -121,7 +122,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
-          // Logger.info(s"saving key $key")
           val row = rowsWithKey(key)
           // serialize the entire row to byte array
           // TODO: remove schema from row
@@ -142,7 +142,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   def saveSchema(schema: StructType): StructType = {
     val key = schemaKey(tableName)
-    Logger.info(s"saving schema $key")
+    logInfo(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = SerializationUtils.serialize(schema)
@@ -153,7 +153,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   def loadSchema(): StructType = {
     val key = schemaKey(tableName)
-    Logger.info(s"loading schema $key")
+    logInfo(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = conn.get(key.getBytes)
@@ -163,19 +163,24 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    Logger.info("build scan")
+    logInfo("build scan")
     val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = numPartitions)
-    keysRdd.mapPartitions { partition =>
-      groupKeysByNode(redisConfig.hosts, partition)
-        .flatMap { case (node, keys) =>
-          scanRows(node, keys, filterColumns = true, requiredColumns)
-        }
-        .iterator
+    if (requiredColumns.isEmpty) {
+      keysRdd.map { _ =>
+        new GenericRow(Array[Any]())
+      }
+    } else {
+      keysRdd.mapPartitions { partition =>
+        groupKeysByNode(redisConfig.hosts, partition)
+          .flatMap { case (node, keys) =>
+            scanRows(node, keys, requiredColumns)
+          }
+          .iterator
+      }
     }
   }
 
-  private def scanRows(node: RedisNode, keys: Seq[String], filterColumns: Boolean,
-                       requiredColumns: Seq[String]): TraversableOnce[Row] = {
+  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]) = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
       val filteredFields = schema.fields
@@ -189,12 +194,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val pipeline = conn.pipelined()
     keys
       .foreach { key =>
-        Logger.info(s"key $key")
+        logTrace(s"key $key")
         persistence.load(pipeline, key, requiredColumns)
       }
     val pipelineValues = pipeline.syncAndReturnAll()
     val rows =
-      if (!filterColumns || persistenceModel == SqlOptionModelBinary) {
+      if (requiredColumns.isEmpty || persistenceModel == SqlOptionModelBinary) {
         pipelineValues
           .map {
             case jmap: JMap[_, _] => jmap.toMap
@@ -203,10 +208,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           .map { value =>
             persistence.decodeRow(value, schema, inferSchemaEnabled)
           }
-      } else if (requiredColumns.isEmpty) {
-        pipelineValues.map { _ =>
-          new GenericRow(Array[Any]())
-        }
       } else {
         pipelineValues.map { case values: JList[String] =>
           val value = requiredColumns.zip(values).toMap
