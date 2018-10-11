@@ -2,8 +2,6 @@
 
 The spark-redis library allows to write and read DataFrames.
 
-
-
 ## Writing
 
 ### Write command
@@ -47,7 +45,7 @@ Let's examine the DataFrame in Redis:
 3) "person:schema"
 ```
 
-Each row of DataFrame is written as a Redis Hash data structure.
+Each row of DataFrame is written as a [Redis Hash](https://redislabs.com/ebook/part-1-getting-started/chapter-1-getting-to-know-redis/1-2-what-redis-data-structures-look-like/1-2-4-hashes-in-redis/) data structure.
 
 ```bash
 127.0.0.1:6379> hgetall person:r:254feb0701b24e2e97861dd973025fcd
@@ -57,10 +55,15 @@ Each row of DataFrame is written as a Redis Hash data structure.
 4) "30"
 ```
 
-By default a Redis key for each DataFrame row is auto-generated. If required, some DataFrame column can be used as a Redis key. This is controlled with `key.column` option:
+The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
+
+### Specifying Redis key
+
+By default, spark-redis generates UUID identifier for each row to ensure
+their uniqueness. However, you can also provide your own column as a key. This is controlled with `key.column` option:
 
 ```scala
-    df.write.format("org.apache.spark.sql.redis").option("key.column", "name").save("person")
+df.write.format("org.apache.spark.sql.redis").option("key.column", "name").save("person")
 ```
 
 The keys in Redis:
@@ -72,7 +75,37 @@ The keys in Redis:
 3) "person:r:Peter
 ```
 
-The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
+### Save Modes
+
+Spark-redis support all DataFrame [SaveMode](https://spark.apache.org/docs/2.3.0/api/java/index.html?org/apache/spark/sql/SaveMode.html)'s: `Append`, 
+`Overwrite`, `ErrorIfExists` and `Ignore`.
+
+Please note, when key collision happens on `SaveMode.Append`, the former row is replaced with a new one. 
+
+### Spark SQL
+
+When working Spark SQL the data can be written to Redis in the following way:
+
+```scala
+spark.sql(
+      """
+        |CREATE TEMPORARY VIEW person (name STRING, age INT)
+        |    USING org.apache.spark.sql.redis OPTIONS (path 'person', key.column 'name')
+      """.stripMargin)
+
+spark.sql(
+      """
+        |INSERT INTO TABLE person
+        |VALUES ('John', 30),
+        |       ('Peter', 45)
+      """.stripMargin)
+```
+
+
+### Binary persistent model
+
+TODO:
+
 
 
 ## Reading
@@ -86,16 +119,10 @@ val loadedDf = spark.read.format("org.apache.spark.sql.redis").load("person")
 loadedDf.show()
 ```
 
-```
-+-----+---+---------------+------+
-| name|age|        address|salary|
-+-----+---+---------------+------+
-| John| 30| 60 Wall Street| 150.5|
-|Peter| 35|110 Wall Street| 200.3|
-+-----+---+---------------+------+
-```
 
 ### Spark SQL
+
+
 
 ```scala
 // bind table to temporary view
@@ -106,20 +133,7 @@ spark.sql(
 val loadedDf = spark.sql(s"SELECT * FROM person")
 ```
 
-### Spark SQL
 
-```scala
-// bind temporary view to table
-spark.sql(
-      s"""CREATE TEMPORARY VIEW person (name STRING, age INT, address STRING, salary DOUBLE)
-         |  USING org.apache.spark.sql.redis OPTIONS (path 'person')
-         |""".stripMargin)
-spark.sql(
-      s"""INSERT INTO TABLE person
-         |  VALUES ('John', 30, '60 Wall Street', 150.5),
-         |    ('Peter', 35, '110 Wall Street', 200.3)
-         |""".stripMargin)
-```
 
 ## DataFrame specific options
 
@@ -142,22 +156,6 @@ val loadedDf = spark.read.format("org.apache.spark.sql.redis")
     .option("inferSchema", true)
     .load("person")
 ```
-
-### User defined key column
-
-`keyColumn`. By default, Spark-Redis generates UUID identifier for each row to ensure
-their uniqueness.
-However, you can also provide your own column as key, e.g.
-```scala
-df.write.format("org.apache.spark.sql.redis")
-   .option("keyColumn", "name")
-   .save("person")
-```
-When key collision happens on ```SaveMode.Append```, the former row would
-be replaced by the new row.
-
-The chosen column also participates in determining data target host in
-Redis cluster.
 
 ### Persistent model
 
