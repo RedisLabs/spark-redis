@@ -12,8 +12,14 @@ import redis.clients.jedis.Pipeline
   */
 class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
 
-  override def save(pipeline: Pipeline, key: String, value: Array[Byte]): Unit =
-    pipeline.set(key.getBytes(UTF_8), value)
+  override def save(pipeline: Pipeline, key: String, value: Array[Byte], ttl: Int): Unit = {
+    val keyBytes = key.getBytes(UTF_8)
+    if (ttl > 0) {
+      pipeline.setex(keyBytes, ttl, value)
+    } else {
+      pipeline.set(keyBytes, value)
+    }
+  }
 
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit =
     pipeline.get(key.getBytes(UTF_8))

@@ -14,8 +14,13 @@ import scala.collection.JavaConverters._
   */
 class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
 
-  override def save(pipeline: Pipeline, key: String, value: Map[String, String]): Unit =
-    pipeline.hmset(key, value.asJava)
+  override def save(pipeline: Pipeline, key: String, value: Map[String, String], ttl: Int): Unit = {
+    val javaValue = value.asJava
+    pipeline.hmset(key, javaValue)
+    if (ttl > 0) {
+      pipeline.expire(key, ttl)
+    }
+  }
 
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit = {
     if (requiredColumns.isEmpty) {
