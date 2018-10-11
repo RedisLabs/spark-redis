@@ -17,16 +17,17 @@ The spark-redis library allows to write and read DataFrames.
 
 ### Write command
 
-In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name(keyspace) with `save(tableName)` function. 
+In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name with `save(tableName)` function.
+The table name is used to organize Redis keys in a namespace. 
 
 ```scala
 df.write.format("org.apache.spark.sql.redis").save("person")
 ```
 
-## Write example
+Consider the following example:
 
 ```scala
-object DataFrameTests {
+object DataFrameExample {
 
   case class Person(name: String, age: Int)
 
@@ -45,7 +46,27 @@ object DataFrameTests {
   }
 }
 ```
- 
+
+```bash
+127.0.0.1:6379> keys "person:*"
+1) "person:r:254feb0701b24e2e97861dd973025fcd"
+2) "person:r:224507e8bd5644d6bd80e640e70a466c"
+3) "person:schema"
+```
+
+Each row of DataFrame is written as a Redis Hash data structure. A key is auto-generated.
+
+```bash
+127.0.0.1:6379> hgetall person:r:254feb0701b24e2e97861dd973025fcd
+1) "name"
+2) "John"
+3) "age"
+4) "30"
+```
+
+The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
+
+
 
 ## Reading
 

@@ -225,7 +225,7 @@ object RedisSourceRelation {
 
   private val SchemaNamespace = "schema"
 
-  private val DataNamespace = "data"
+  private val DataNamespace = "r" // 'r' is a row
 
   def schemaKey(tableName: String): String = s"$tableName:$SchemaNamespace"
 
