@@ -4,7 +4,7 @@
 
 | Name          | Description                                                                             | Type                  | Default |
 | ------------- | ----------------------------------------------------------------------------------------| --------------------- | ------- |
-| model         | defines Redis model used to persist DataFrame, see [Persistent model](#Persistent model)| `enum [binary, hash]` | `hash`  |
+| model         | defines Redis model used to persist DataFrame, see [Persistent model](#persistent-model)| `enum [binary, hash]` | `hash`  |
 | numPartitions | number of partitions (applies only when reading dataframe)                              | `Int`                 | `3`     |
 | keyColumn     | specify unique column used as a Redis key, by default the key is autogenerate           | `String`              | -       |
 | ttl           | data time to live in `seconds`. Doesn't expire if less than `1`                         | `Int`                 | `0`     |
