@@ -1,4 +1,24 @@
-# Dataframe
+# DataFrame
+
+## DataFrame specific options
+
+| Name          | Description                                                                             | Type                  | Default |
+| ------------- | ----------------------------------------------------------------------------------------| --------------------- | ------- |
+| model         | defines Redis model used to persist DataFrame, see [Persistent model](#Persistent model)| `enum [binary, hash]` | `hash`  |
+| numPartitions | number of partitions (applies only when reading dataframe)                              | `Int`                 | `3`     |
+| keyColumn     | specify unique column used as a Redis key, by default the key is autogenerate           | `String`              | -       |
+| ttl           | data time to live in `seconds`. Doesn't expire if less than `1`                         | `Int`                 | `0`     |
+| inferSchema   | guess schema from data, fallback to strings for unknown types                           | `Boolean`             | `false` |
+
+
+## Writing
+
+### Write command
+
+```scala
+df.write.format("org.apache.spark.sql.redis").save("person")
+```
+ 
 
 ## Reading
 
@@ -31,14 +51,6 @@ spark.sql(
 val loadedDf = spark.sql(s"SELECT * FROM person")
 ```
 
-## Writing
-
-### Write command
-
-```scala
-df.write.format("org.apache.spark.sql.redis").save("person")
-```
-
 ### Spark SQL
 
 ```scala
@@ -54,7 +66,7 @@ spark.sql(
          |""".stripMargin)
 ```
 
-## Options [Link](configuration.md#dataframe)
+
 
 ### Infer schema
 
