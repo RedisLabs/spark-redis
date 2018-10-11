@@ -1,12 +1,14 @@
 # DataFrame
 
+The spark-redis library allows to write and read DataFrames.
+
 ## DataFrame specific options
 
 | Name              | Description                                                                              | Type                  | Default |
 | ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
 | model             | defines Redis model used to persist DataFrame, see [Persistent model](#persistent-model) | `enum [binary, hash]` | `hash`  |
 | partitions.number | number of partitions (applies only when reading dataframe)                               | `Int`                 | `3`     |
-| key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
+| key.column        | specify unique column used as a Redis key, by default a key is auto-generated            | `String`              | -       |
 | ttl               | data time to live in `seconds`. Doesn't expire if less than `1`                          | `Int`                 | `0`     |
 | infer.schema      | guess schema from data, fallback to strings for unknown types                            | `Boolean`             | `false` |
 
@@ -15,14 +17,39 @@
 
 ### Write command
 
+In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name(keyspace) with `save(tableName)` function. 
+
 ```scala
 df.write.format("org.apache.spark.sql.redis").save("person")
+```
+
+## Write example
+
+```scala
+object DataFrameTests {
+
+  case class Person(name: String, age: Int)
+
+  def main(args: Array[String]): Unit = {
+    val conf = new SparkConf().setAppName("redis-df")
+      .setMaster("local[*]")
+      .set("redis.host", "localhost")
+      .set("redis.port", "6379")
+
+    val spark = SparkSession.builder().config(conf).getOrCreate()
+
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
+    val df = spark.createDataFrame(personSeq)
+
+    df.write.format("org.apache.spark.sql.redis").save("person")
+  }
+}
 ```
  
 
 ## Reading
 
-### Read command
+### Creating DataFrame using read command
 
 e.g. loading `person` table to Dataframe
 
