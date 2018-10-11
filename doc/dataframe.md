@@ -2,15 +2,6 @@
 
 The spark-redis library allows to write and read DataFrames.
 
-## DataFrame specific options
-
-| Name              | Description                                                                              | Type                  | Default |
-| ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
-| model             | defines Redis model used to persist DataFrame, see [Persistent model](#persistent-model) | `enum [binary, hash]` | `hash`  |
-| partitions.number | number of partitions (applies only when reading dataframe)                               | `Int`                 | `3`     |
-| key.column        | specify unique column used as a Redis key, by default a key is auto-generated            | `String`              | -       |
-| ttl               | data time to live in `seconds`. Doesn't expire if less than `1`                          | `Int`                 | `0`     |
-| infer.schema      | guess schema from data, fallback to strings for unknown types                            | `Boolean`             | `false` |
 
 
 ## Writing
@@ -34,8 +25,8 @@ object DataFrameExample {
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setAppName("redis-df")
       .setMaster("local[*]")
-      .set("redis.host", "localhost")
-      .set("redis.port", "6379")
+      .set("spark.redis.host", "localhost")
+      .set("spark.redis.port", "6379")
 
     val spark = SparkSession.builder().config(conf).getOrCreate()
 
@@ -47,6 +38,8 @@ object DataFrameExample {
 }
 ```
 
+Let's examine the DataFrame in Redis:
+
 ```bash
 127.0.0.1:6379> keys "person:*"
 1) "person:r:254feb0701b24e2e97861dd973025fcd"
@@ -54,7 +47,7 @@ object DataFrameExample {
 3) "person:schema"
 ```
 
-Each row of DataFrame is written as a Redis Hash data structure. A key is auto-generated.
+Each row of DataFrame is written as a Redis Hash data structure.
 
 ```bash
 127.0.0.1:6379> hgetall person:r:254feb0701b24e2e97861dd973025fcd
@@ -64,8 +57,22 @@ Each row of DataFrame is written as a Redis Hash data structure. A key is auto-g
 4) "30"
 ```
 
-The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
+By default a Redis key for each DataFrame row is auto-generated. If required, some DataFrame column can be used as a Redis key. This is controlled with `key.column` option:
 
+```scala
+    df.write.format("org.apache.spark.sql.redis").option("key.column", "name").save("person")
+```
+
+The keys in Redis:
+
+```bash
+127.0.0.1:6379> keys "person:*"
+1) "person:r:John"
+2) "person:schema"
+3) "person:r:Peter
+```
+
+The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
 
 
 ## Reading
@@ -113,6 +120,16 @@ spark.sql(
          |    ('Peter', 35, '110 Wall Street', 200.3)
          |""".stripMargin)
 ```
+
+## DataFrame specific options
+
+| Name              | Description                                                                              | Type                  | Default |
+| ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
+| model             | defines Redis model used to persist DataFrame, see [Persistent model](#persistent-model) | `enum [binary, hash]` | `hash`  |
+| partitions.number | number of partitions (applies only when reading dataframe)                               | `Int`                 | `3`     |
+| key.column        | specify unique column used as a Redis key, by default a key is auto-generated            | `String`              | -       |
+| ttl               | data time to live in `seconds`. Doesn't expire if less than `1`                          | `Int`                 | `0`     |
+| infer.schema      | guess schema from data, fallback to strings for unknown types                            | `Boolean`             | `false` |
 
 
 
