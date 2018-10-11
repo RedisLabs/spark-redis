@@ -1,6 +1,9 @@
 # DataFrame
 
-The spark-redis library allows to write and read DataFrames.
+  - [Writing](#writing)
+  - [Reading](#reading)
+  - [Known limitations](#known-limitations)
+
 
 ## Writing
 
@@ -77,7 +80,7 @@ The keys in Redis:
 
 ### Save Modes
 
-Spark-redis support all DataFrame [SaveMode](https://spark.apache.org/docs/2.3.0/api/java/index.html?org/apache/spark/sql/SaveMode.html)'s: `Append`, 
+Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
 `Overwrite`, `ErrorIfExists` and `Ignore`.
 
 Please note, when key collision happens on `SaveMode.Append`, the former row is replaced with a new one. 
@@ -102,11 +105,28 @@ spark.sql(
 ```
 
 
-### Binary persistent model
+### Persistence model
 
-TODO:
+By default, DataFrames are persisted as Redis Hashes. It allows to write data with Spark and query from non-Spark environment.
+It also enables projection query optimization when only a small subset of columns are selected. On the other hand, there is currently 
+a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
+If it is not possible due to some constraints, you may consider using Binary persistence model.
 
+With Binary persistence model, the DataFrame row is serialized into a byte array and stored as a string in Redis. This implies that 
+storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
+of Binary model is a larger memory footprint.   
 
+To enable Binary model use `option("model", "binary")`, e.g.
+
+```scala
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("key.column", "name")
+  .option("model", "binary")
+  .save("person")
+```
+
+Note: You should read DataFrame with the same model as it was written.
 
 ## Reading
 
@@ -139,7 +159,7 @@ val loadedDf = spark.sql(s"SELECT * FROM person")
 
 | Name              | Description                                                                              | Type                  | Default |
 | ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
-| model             | defines Redis model used to persist DataFrame, see [Persistent model](#persistent-model) | `enum [binary, hash]` | `hash`  |
+| model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model) | `enum [binary, hash]` | `hash`  |
 | partitions.number | number of partitions (applies only when reading dataframe)                               | `Int`                 | `3`     |
 | key.column        | specify unique column used as a Redis key, by default a key is auto-generated            | `String`              | -       |
 | ttl               | data time to live in `seconds`. Doesn't expire if less than `1`                          | `Int`                 | `0`     |
@@ -157,29 +177,6 @@ val loadedDf = spark.read.format("org.apache.spark.sql.redis")
     .load("person")
 ```
 
-### Persistent model
-
-`model`. Spark-Redis supports 2 persistent models to allow you choosing among key
-metrics like performance, compactness and interoperability with another
-Redis friendly frameworks. Default to `hash`
-  - `binary`. Spark-Redis will choose the most suitable serialization
-  method to effectively store you rows in Redis cluster. If you don't need
-  to work with any framework other than Spark, this could be more preferable
-  for you.
-  - `hash`. The row would be stored in [Redis Hashes](https://redislabs.com/ebook/part-1-getting-started/chapter-1-getting-to-know-redis/1-2-what-redis-data-structures-look-like/1-2-4-hashes-in-redis/).
-  It allows you to utilize one of the most performance distributed data
-  structures to date. You can also later choose to load only specific fields,
-  in some cases that will help you reduce a lot of unnecessary traffic.
-```scala
-df.write.format("org.apache.spark.sql.redis")
-    .option("model", "binary").save("person")
-val loadedDf = spark.read.format("org.apache.spark.sql.redis")
-    .option("model", "binary")
-    .load("person")
-```
-Note: Your read model should match write model. Otherwise, the behavior
-is undetermined.
-
 ### Number of data partitions
 
 `numPartitions`. Number of partitions for reading collocation (in cluster
@@ -195,3 +192,7 @@ mode).
 `ttl`. If you don't want your data persist in Redis cluster forever, you
 can specify it time to live in `seconds`. Redis will help you clean up all
 your expired data. Default to `unexpired`
+
+## Known limitations
+
+ - Nested DataFrame fields are not currently supported with Hash model. Consider making DataFrame schema flat or using Binary persistence model.
