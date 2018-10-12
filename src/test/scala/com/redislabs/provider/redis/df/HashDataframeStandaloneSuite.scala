@@ -13,7 +13,7 @@ import scala.collection.JavaConverters._
   *
   * @author The Viet Nguyen
   */
-class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
+class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers with DefaultTestDataset {
 
   import TestSqlImplicits._
 
@@ -27,11 +27,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .load()
       .cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("save and load dataframe with hash mode") {
@@ -46,11 +42,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .load()
       .cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("save with hash mode and load dataframe") {
@@ -64,11 +56,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .load()
       .cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("save and load with hash mode dataframe") {
@@ -80,11 +68,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .load()
       .cache()
-    loadedDf.show()
-    loadedDf.count() shouldBe df.count()
-    loadedDf.schema shouldBe df.schema
-    val loadedArr = loadedDf.as[Person].collect()
-    loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
+    verifyDf(loadedDf)
   }
 
   test("load dataframe with inferred schema") {
