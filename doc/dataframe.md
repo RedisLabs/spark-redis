@@ -39,9 +39,9 @@ object DataFrameExample {
     val df = spark.createDataFrame(personSeq)
 
     df.write
-    .format("org.apache.spark.sql.redis")
-    .option("table", "person")
-    .save()
+      .format("org.apache.spark.sql.redis")
+      .option("table", "person")
+      .save()
   }
 }
 ```
