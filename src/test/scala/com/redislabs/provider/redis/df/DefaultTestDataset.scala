@@ -3,7 +3,7 @@ package com.redislabs.provider.redis.df
 import com.redislabs.provider.redis.df.Person.data
 import com.redislabs.provider.redis.rdd.SparkRedisSuite
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.redis.RedisFormat
+import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
 
 /**
@@ -17,11 +17,16 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
 
   def writeDf(tableName: String, options: Map[String, Any] = Map()): Unit = {
     val df = spark.createDataFrame(data)
-    val initialWriter = df.write.format(RedisFormat)
+
+    val initialWriter = df
+      .write
+      .format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+
     val writer = options.foldLeft(initialWriter) { case (acc, (k, v)) =>
       acc.option(k, v.toString)
     }
-    writer.save(tableName)
+    writer.save()
   }
 
   def createTempView(tableName: String): Unit = {
@@ -29,11 +34,16 @@ trait DefaultTestDataset extends SparkRedisSuite with Matchers {
   }
 
   def loadAndVerifyDf(tableName: String, options: Map[String, Any] = Map()): Unit = {
-    val initialReader = spark.read.format(RedisFormat)
+    val initialReader = spark
+      .read
+      .format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+
     val reader = options.foldLeft(initialReader) { case (acc, (k, v)) =>
       acc.option(k, v.toString)
     }
-    val actualDf = reader.load(tableName).cache()
+
+    val actualDf = reader.load().cache()
     verifyDf(actualDf, data)
   }
 

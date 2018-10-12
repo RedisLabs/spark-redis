@@ -14,27 +14,45 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
   test("save and load dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("append data when it's empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).mode(SaveMode.Append).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Append)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("append data when it's not empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     val appendData = data.map(p => p.copy(age = p.age + 1))
-    spark.createDataFrame(appendData)
-      .write.format(RedisFormat).mode(SaveMode.Append).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    spark.createDataFrame(appendData).write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Append)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe 2 * df.count()
     loadedDf.schema shouldBe df.schema
@@ -46,87 +64,144 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
   test("overwrite data when it's empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Overwrite)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("overwrite data when it's not empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     val overrideData = data.map(p => p.copy(age = p.age + 1))
     spark.createDataFrame(overrideData)
-      .write.format(RedisFormat).mode(SaveMode.Overwrite).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+      .write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Overwrite)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf, overrideData)
   }
 
   test("ignore data when it's empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Ignore)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("ignore data when it's not empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     // the modified information should not be persisted
     spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-      .write.format(RedisFormat).mode(SaveMode.Ignore).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+      .write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .mode(SaveMode.Ignore)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("error if exists when it's empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat).mode(SaveMode.ErrorIfExists)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("error if exists when it's not empty") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     // the modified information should not be persisted
     intercept[IllegalStateException] {
       spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
-        .write.format(RedisFormat).mode(SaveMode.ErrorIfExists).save(tableName)
+        .write.format(RedisFormat)
+        .option(SqlOptionTableName, tableName)
+        .mode(SaveMode.ErrorIfExists)
+        .save()
     }
   }
 
   test("repartition read/write") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     val loadedDf = spark.read.format(RedisFormat)
-      .option(SqlOptionNumPartitions, 1).load(tableName).cache()
+      .option(SqlOptionNumPartitions, 1)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("user defined key column") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionKeyColumn, "name").save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, "name")
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("user defined key column append") {
     val tableName = generateTableName(TableNamePrefix)
-    spark.createDataFrame(data).write.format(RedisFormat).option(SqlOptionKeyColumn, "name")
-      .save(tableName)
+    spark.createDataFrame(data).write.format(RedisFormat)
+      .option(SqlOptionKeyColumn, "name")
+      .option(SqlOptionTableName, tableName)
+      .save()
     val head = data.head
     val appendData = Seq(head.copy(name = "Jack"), head.copy(age = 31))
     val df = spark.createDataFrame(appendData)
-    df.write.format(RedisFormat).mode(SaveMode.Append).option(SqlOptionKeyColumn, "name")
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .mode(SaveMode.Append)
+      .option(SqlOptionKeyColumn, "name")
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe 3
     loadedDf.schema shouldBe df.schema
@@ -137,12 +212,20 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
   test("user defined key column overwrite") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     val overrideData = data.map(p => p.copy(age = p.age + 1))
     spark.createDataFrame(overrideData)
-      .write.format(RedisFormat).mode(SaveMode.Overwrite).option(SqlOptionKeyColumn, "name")
-      .save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+      .write.format(RedisFormat)
+      .mode(SaveMode.Overwrite)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, "name")
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf, overrideData)
   }
 
@@ -151,7 +234,9 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
     writeDf(tableName, Map(SqlOptionTTL -> 1))
     loadAndVerifyDf(tableName)
     Thread.sleep(1000)
-    val actualDf = spark.read.format(RedisFormat).load(tableName)
+    val actualDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
     actualDf.count() shouldBe 0
   }
 
@@ -160,7 +245,9 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
     writeDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary, SqlOptionTTL -> 1))
     loadAndVerifyDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary))
     Thread.sleep(1000)
-    val actualDf = spark.read.format(RedisFormat).load(tableName)
+    val actualDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
     actualDf.count() shouldBe 0
   }
 

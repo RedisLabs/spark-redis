@@ -45,13 +45,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   logInfo(s"Redis config initial host: ${redisConfig.initialHost}")
 
   @transient private val sc = sqlContext.sparkContext
-  // TODO: allow to specify user parameter
-  private val tableName: String = parameters.get("path")
-    // TODO: sql parser gives table absolute path for non-temporary tables
-    //    .map(p => Paths.get(p).getFileName.toString)
-    .getOrElse {
-    throw new IllegalArgumentException("'path' parameter is not specified")
-  }
+  @volatile private var currentSchema: StructType = _
+
+  /** parameters **/
+  private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
+  private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
@@ -59,7 +57,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
-  @volatile private var currentSchema: StructType = _
+
+  // check specified parameters
+  if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
+    throw new IllegalArgumentException(s"Both options '$SqlOptionTableName' and '$SqlOptionTableName' are set. " +
+      s"You should only use either one.")
+  }
+
+  private def tableName(): String = {
+    tableNameOpt.getOrElse(throw new IllegalArgumentException(s"Option '$SqlOptionTableName' is not set."))
+  }
 
   override def schema: StructType = {
     if (currentSchema == null) {
@@ -75,8 +82,20 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     currentSchema
   }
 
+  /**
+    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
+    */
+  private def dataKeyPattern(): String = {
+    keysPatternOpt
+      .orElse(
+        tableNameOpt.map(tableName => tableDataKeyPattern(tableName))
+      )
+      .getOrElse(throw new IllegalArgumentException(s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."))
+  }
+
+
   private def inferSchema(): StructType = {
-    val keys = sc.fromRedisKeyPattern(dataKeyPattern(tableName))
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern())
     if (keys.isEmpty()) {
       throw new IllegalStateException("No key is available")
     } else {
@@ -94,7 +113,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   private def dataKeyId(row: Row): String = {
     val id = keyColumn.map(id => row.getAs[Any](id)).map(_.toString).getOrElse(uuid())
-    dataKey(tableName, id)
+    dataKey(tableName(), id)
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
@@ -105,7 +124,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       // truncate the table
       redisConfig.hosts.foreach { node =>
         val conn = node.connect()
-        val keys = conn.keys(dataKeyPattern(tableName))
+        val keys = conn.keys(dataKeyPattern())
         if (keys.nonEmpty) {
           val keySeq = JavaConversions.asScalaSet(keys).toSeq
           conn.del(keySeq: _*)
@@ -116,16 +135,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
     // write data
     data.foreachPartition { partition =>
-      // TODO: allow user to specify key column
       val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
       groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
         val conn = node.connect()
         val pipeline = conn.pipelined()
         keys.foreach { key =>
           val row = rowsWithKey(key)
-          // serialize the entire row to byte array
-          // TODO: remove schema from row
-          // TODO: save as a hash
           val encodedRow = persistence.encodeRow(row)
           persistence.save(pipeline, key, encodedRow, ttl)
         }
@@ -136,12 +151,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   def isEmpty: Boolean =
-    sc.fromRedisKeyPattern(dataKeyPattern(tableName)).isEmpty()
+    sc.fromRedisKeyPattern(dataKeyPattern()).isEmpty()
 
   def nonEmpty: Boolean = !isEmpty
 
   def saveSchema(schema: StructType): StructType = {
-    val key = schemaKey(tableName)
+    val key = schemaKey(tableName())
     logInfo(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
@@ -152,11 +167,15 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   def loadSchema(): StructType = {
-    val key = schemaKey(tableName)
+    val key = schemaKey(tableName())
     logInfo(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
     val conn = schemaNode.connect()
     val schemaBytes = conn.get(key.getBytes)
+    if (schemaBytes == null) {
+      throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
+        s"If dataframe was not persisted by Spark, provide a schema explicitly or use 'infer.schema' option. ")
+    }
     val schema = SerializationUtils.deserialize[StructType](schemaBytes)
     conn.close()
     schema
@@ -164,7 +183,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")
-    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(tableName), partitionNum = numPartitions)
+    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(), partitionNum = numPartitions)
     if (requiredColumns.isEmpty) {
       keysRdd.map { _ =>
         new GenericRow(Array[Any]())
@@ -223,17 +242,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
 object RedisSourceRelation {
 
-  private val SchemaNamespace = "schema"
-
-  private val DataNamespace = "r" // 'r' is a row
-
-  def schemaKey(tableName: String): String = s"$tableName:$SchemaNamespace"
+  def schemaKey(tableName: String): String = s"_spark:$tableName:schema"
 
   def dataKey(tableName: String, id: String = uuid()): String = {
-    s"$tableName:$DataNamespace:$id"
+    s"$tableName:$id"
   }
 
   def uuid(): String = UUID.randomUUID().toString.replace("-", "")
 
-  def dataKeyPattern(tableName: String): String = s"$tableName:$DataNamespace:*"
+  def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
 }

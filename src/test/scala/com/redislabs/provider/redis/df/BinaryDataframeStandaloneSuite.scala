@@ -15,28 +15,45 @@ class BinaryDataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTe
   test("save and load dataframe with binary mode") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary)
-      .load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     verifyDf(loadedDf)
   }
 
   test("save with binary mode and load dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .option(SqlOptionTableName, tableName)
+      .save()
     intercept[SparkException] {
-      spark.read.format(RedisFormat).load(tableName).show()
+      spark.read.format(RedisFormat)
+        .option(SqlOptionTableName, tableName)
+        .load()
+        .show()
     }
   }
 
   test("save and load with binary mode dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     intercept[SparkException] {
-      spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelBinary)
-        .load(tableName).show()
+      spark.read.format(RedisFormat)
+        .option(SqlOptionModel, SqlOptionModelBinary)
+        .option(SqlOptionTableName, tableName)
+        .load()
+        .show()
     }
   }
 }

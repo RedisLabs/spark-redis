@@ -8,6 +8,8 @@ import org.scalatest.Matchers
 import scala.collection.JavaConverters._
 
 /**
+  * TODO: with provided schema
+  *
   * @author The Viet Nguyen
   */
 class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
@@ -17,8 +19,13 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
   test("save and load dataframe by default") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat).
+      option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
@@ -29,9 +36,15 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
   test("save and load dataframe with hash mode") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash)
-      .load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelHash)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelHash)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
@@ -42,8 +55,14 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
   test("save with hash mode and load dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).load(tableName).cache()
+    df.write.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelHash)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
@@ -54,9 +73,12 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
   test("save and load with hash mode dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).save(tableName)
-    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionModel, SqlOptionModelHash)
-      .load(tableName).cache()
+    df.write.format(RedisFormat).option(SqlOptionTableName, tableName).save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelHash)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe df.count()
     loadedDf.schema shouldBe df.schema
@@ -74,11 +96,13 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
     )
     data.map(_.asJava)
       .foreach { person =>
-        conn.hmset(RedisSourceRelation.dataKey(tableName), person)
+        conn.hmset(tableName + ":" + person.get("name"), person)
       }
     val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableName + ":*")
       .option(SqlOptionInferSchema, "true")
-      .load(tableName).cache()
+      .load()
+      .cache()
     loadedDf.show()
     loadedDf.count() shouldBe 2
     val loadedArr = loadedDf

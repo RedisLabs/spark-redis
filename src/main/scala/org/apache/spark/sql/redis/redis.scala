@@ -11,6 +11,8 @@ package object redis {
     * Default read operation number of partitions.
     */
   val SqlOptionNumPartitionsDefault = 3
+  val SqlOptionTableName = "table"
+  val SqlOptionKeysPattern = "keys.pattern"
   val SqlOptionModel = "model"
   val SqlOptionModelBinary = "binary"
   val SqlOptionModelHash = "hash"

@@ -2,7 +2,7 @@ package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.df.Person.{TableNamePrefix, generateTableName}
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
-import org.apache.spark.sql.redis.RedisFormat
+import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
 
 /**
@@ -15,7 +15,8 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
     val tableName = generateTableName(TableNamePrefix)
     writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
-      .load(tableName)
+      .option(SqlOptionTableName, tableName)
+      .load()
       .select()
       .cache()
     actualDf.count() shouldBe expectedDf.count()
@@ -28,7 +29,8 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
     val tableName = generateTableName(TableNamePrefix)
     writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
-      .load(tableName)
+      .option(SqlOptionTableName, tableName)
+      .load()
       .select("name", "age", "address", "salary")
       .cache()
     verifyDf(actualDf)
@@ -38,7 +40,8 @@ class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with Default
     val tableName = generateTableName(TableNamePrefix)
     writeDf(tableName)
     val actualDf = spark.read.format(RedisFormat)
-      .load(tableName)
+      .option(SqlOptionTableName, tableName)
+      .load()
       .select("name", "salary")
       .cache()
     verifyPartialDf(actualDf)
