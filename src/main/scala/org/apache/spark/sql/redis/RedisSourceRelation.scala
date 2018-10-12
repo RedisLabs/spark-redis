@@ -174,7 +174,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schemaBytes = conn.get(key.getBytes)
     if (schemaBytes == null) {
       throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
-        s"If dataframe was not persisted by Spark, provide a schema explicitly or use 'infer.schema' option. ")
+        s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() or use 'infer.schema' option. ")
     }
     val schema = SerializationUtils.deserialize[StructType](schemaBytes)
     conn.close()

@@ -3,12 +3,13 @@ package com.redislabs.provider.redis.df
 import com.redislabs.provider.redis.df.Person.{data, _}
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.sql.redis._
+import org.apache.spark.sql.types._
 import org.scalatest.Matchers
 
 import scala.collection.JavaConverters._
 
 /**
-  * TODO: with provided schema
+  * TODO: test more schema data types
   *
   * @author The Viet Nguyen
   */
@@ -114,6 +115,34 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers {
         val salary = row.getAs[String]("salary").toDouble
         Person(name, age, address, salary)
       }
+    loadedArr.sortBy(_.name) shouldBe Person.data.toArray.sortBy(_.name)
+  }
+
+  test("load dataframe with provided schema") {
+    val tableName = generateTableName(TableNamePrefix)
+    val node = redisConfig.initialHost
+    val conn = node.connect()
+    val data = Seq(
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
+      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
+    )
+    data.map(_.asJava)
+      .foreach { person =>
+        conn.hmset(tableName + ":" + person.get("name"), person)
+      }
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableName + ":*")
+      .schema(StructType(Array(
+        StructField("name", StringType),
+        StructField("age", IntegerType),
+        StructField("address", StringType),
+        StructField("salary", DoubleType)
+      )))
+      .load()
+      .cache()
+    loadedDf.show()
+    loadedDf.count() shouldBe 2
+    val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe Person.data.toArray.sortBy(_.name)
   }
 }
