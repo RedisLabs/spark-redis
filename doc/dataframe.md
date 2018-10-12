@@ -2,6 +2,7 @@
 
   - [Writing](#writing)
   - [Reading](#reading)
+  - [DataFrame Options](#dataframe-options)
   - [Known limitations](#known-limitations)
 
 
@@ -9,11 +10,14 @@
 
 ### Write command
 
-In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name with `save(tableName)` function.
+In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name with `option("table", tableName)`.
 The table name is used to organize Redis keys in a namespace. 
 
 ```scala
-df.write.format("org.apache.spark.sql.redis").save("person")
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .save()
 ```
 
 Consider the following example:
@@ -34,7 +38,10 @@ object DataFrameExample {
     val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
 
-    df.write.format("org.apache.spark.sql.redis").save("person")
+    df.write
+    .format("org.apache.spark.sql.redis")
+    .option("table", "person")
+    .save()
   }
 }
 ```
@@ -43,22 +50,27 @@ Let's examine the DataFrame in Redis:
 
 ```bash
 127.0.0.1:6379> keys "person:*"
-1) "person:r:254feb0701b24e2e97861dd973025fcd"
-2) "person:r:224507e8bd5644d6bd80e640e70a466c"
-3) "person:schema"
+1) "person:87ed5f22386f4222bad8048327270e69"
+2) "person:27e77510a6e546589df64a3caa2245d5"
 ```
 
 Each row of DataFrame is written as a [Redis Hash](https://redislabs.com/ebook/part-1-getting-started/chapter-1-getting-to-know-redis/1-2-what-redis-data-structures-look-like/1-2-4-hashes-in-redis/) data structure.
 
 ```bash
-127.0.0.1:6379> hgetall person:r:254feb0701b24e2e97861dd973025fcd
+127.0.0.1:6379> hgetall person:87ed5f22386f4222bad8048327270e69
 1) "name"
-2) "John"
+2) "Peter"
 3) "age"
-4) "30"
+4) "45"
 ```
 
-The `person:schema` contains a serialized DataFrame schema, it is used by spark-redis internally when reading DataFrame back to Spark memory.
+Spark-redis also writes serialized DataFrame schema:
+```bash
+127.0.0.1:6379> keys _spark:person:schema
+1) "_spark:person:schema"
+``` 
+
+It is used by spark-redis internally when reading DataFrame back to Spark memory.
 
 ### Specifying Redis key
 
@@ -66,16 +78,19 @@ By default, spark-redis generates UUID identifier for each row to ensure
 their uniqueness. However, you can also provide your own column as a key. This is controlled with `key.column` option:
 
 ```scala
-df.write.format("org.apache.spark.sql.redis").option("key.column", "name").save("person")
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .save()
 ```
 
 The keys in Redis:
 
 ```bash
-127.0.0.1:6379> keys "person:*"
-1) "person:r:John"
-2) "person:schema"
-3) "person:r:Peter
+127.0.0.1:6379> keys person:*
+1) "person:John"
+2) "person:Peter"
 ```
 
 ### Save Modes
@@ -83,7 +98,7 @@ The keys in Redis:
 Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
 `Overwrite`, `ErrorIfExists` and `Ignore`.
 
-Please note, when key collision happens on `SaveMode.Append`, the former row is replaced with a new one. 
+Please note, when key collision happens and `SaveMode.Append` is set, the former row is replaced with a new one. 
 
 ### Spark SQL
 
@@ -93,7 +108,7 @@ When working Spark SQL the data can be written to Redis in the following way:
 spark.sql(
       """
         |CREATE TEMPORARY VIEW person (name STRING, age INT)
-        |    USING org.apache.spark.sql.redis OPTIONS (path 'person', key.column 'name')
+        |    USING org.apache.spark.sql.redis OPTIONS (table 'person', key.column 'name')
       """.stripMargin)
 
 spark.sql(
@@ -104,6 +119,21 @@ spark.sql(
       """.stripMargin)
 ```
 
+### Time to live
+
+If you want to expire your data after certain time, you can specify its time to live in `seconds`. Redis will use 
+[Expire](https://redis.io/commands/expire) command to cleanup data. 
+
+For example, expire data after 30 seconds:
+
+```scala
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("ttl", "30")
+  .save()
+```
+
 
 ### Persistence model
 
@@ -112,7 +142,7 @@ It also enables projection query optimization when only a small subset of column
 a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
 If it is not possible due to some constraints, you may consider using Binary persistence model.
 
-With Binary persistence model, the DataFrame row is serialized into a byte array and stored as a string in Redis. This implies that 
+With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis. This implies that 
 storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
 of Binary model is a larger memory footprint.   
 
@@ -121,41 +151,110 @@ To enable Binary model use `option("model", "binary")`, e.g.
 ```scala
 df.write
   .format("org.apache.spark.sql.redis")
+  .option("table", "person")
   .option("key.column", "name")
   .option("model", "binary")
-  .save("person")
+  .save()
 ```
 
 Note: You should read DataFrame with the same model as it was written.
 
 ## Reading
 
-### Creating DataFrame using read command
+There are two options how you can read a DataFrame:
+ - read a DataFrame that was previously saved by spark-redis. The same DataFrame schema is loaded as it was saved.   
+ - read pure Redis Hashes providing keys pattern. The DataFrame schema should be explicitly provided or can be inferred from a random row.
 
-e.g. loading `person` table to Dataframe
+
+### Reading previously saved DataFrame
+
+To read from a previously saved DataFrame, specify the table name that was used for saving. Example:
 
 ```scala
-val loadedDf = spark.read.format("org.apache.spark.sql.redis").load("person")
-loadedDf.show()
+object DataFrameTests {
+
+  case class Person(name: String, age: Int)
+
+  def main(args: Array[String]): Unit = {
+    val conf = new SparkConf().setAppName("redis-df")
+      .setMaster("local[*]")
+      .set("spark.redis.host", "localhost")
+      .set("spark.redis.port", "6379")
+
+    val spark = SparkSession.builder().config(conf).getOrCreate()
+
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
+    val df = spark.createDataFrame(personSeq)
+
+    df.write
+      .format("org.apache.spark.sql.redis")
+      .option("table", "person")
+      .mode(SaveMode.Overwrite)
+      .save()
+
+    val loadedDf = spark.read
+                        .format("org.apache.spark.sql.redis")
+                        .option("table", "person")
+                        .load()
+    loadedDf.printSchema()
+    loadedDf.show()
+  }
+}
 ```
 
+The output is
+```
+root
+ |-- name: string (nullable = true)
+ |-- age: integer (nullable = false)
+ 
++-----+---+
+| name|age|
++-----+---+
+| John| 30|
+|Peter| 45|
++-----+---+ 
+```
 
-### Spark SQL
-
-
+To read with a Spark SQL:
 
 ```scala
-// bind table to temporary view
 spark.sql(
       s"""CREATE TEMPORARY VIEW person (name STRING, age INT, address STRING, salary DOUBLE)
-         |  USING org.apache.spark.sql.redis OPTIONS (path 'person')
+         |  USING org.apache.spark.sql.redis OPTIONS (table 'person')
          |""".stripMargin)
 val loadedDf = spark.sql(s"SELECT * FROM person")
 ```
 
+### Reading Redis Hashes
+
+To read Redis Hashes you have to provide keys pattern with `.option("keys.pattern", keysPattern)` option. The DataFrame schema should be explicitly specified or can be inferred from a random row.
+
+An example of explicit schema:
+
+```scala
+ val df = spark.read
+               .format("org.apache.spark.sql.redis")
+               .schema(
+                  StructType(Array(
+                    StructField("name", StringType),
+                    StructField("age", IntegerType))
+                  )
+               ) 
+               .option("keys.pattern", "person:*")
+               .load()
+```
+
+Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `StringType`.
 
 
-## DataFrame specific options
+TODO: Also note, if your hashes have  
+
+
+
+
+
+## DataFrame options
 
 | Name              | Description                                                                              | Type                  | Default |
 | ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
@@ -173,7 +272,7 @@ val loadedDf = spark.sql(s"SELECT * FROM person")
 the type of a column, it will fallback to `String`. Disabled by default.
 ```scala
 val loadedDf = spark.read.format("org.apache.spark.sql.redis")
-    .option("inferSchema", true)
+    .option("infer.schema", true)
     .load("person")
 ```
 
@@ -187,11 +286,7 @@ mode).
   active nodes if some targets were terminated during the reading phase.
   Default to `3`
 
-### Data time to live
 
-`ttl`. If you don't want your data persist in Redis cluster forever, you
-can specify it time to live in `seconds`. Redis will help you clean up all
-your expired data. Default to `unexpired`
 
 ## Known limitations
 
