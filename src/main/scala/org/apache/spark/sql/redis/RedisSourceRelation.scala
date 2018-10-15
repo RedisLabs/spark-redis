@@ -122,14 +122,14 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     currentSchema = saveSchema(schema)
     if (overwrite) {
       // truncate the table
-      redisConfig.hosts.foreach { node =>
-        val conn = node.connect()
-        val keys = conn.keys(dataKeyPattern())
-        if (keys.nonEmpty) {
-          val keySeq = JavaConversions.asScalaSet(keys).toSeq
-          conn.del(keySeq: _*)
+      sc.fromRedisKeyPattern(dataKeyPattern()).foreachPartition { partition =>
+        groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
+          val conn = node.connect()
+          val pipeline = conn.pipelined()
+          keys.foreach(conn.del)
+          pipeline.sync()
+          conn.close()
         }
-        conn.close()
       }
     }
 
