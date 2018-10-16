@@ -2,6 +2,7 @@ package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.df.Person.{data, _}
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
 import org.scalatest.Matchers
@@ -62,7 +63,9 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
   test("save and load with hash mode dataframe") {
     val tableName = generateTableName(TableNamePrefix)
     val df = spark.createDataFrame(data)
-    df.write.format(RedisFormat).option(SqlOptionTableName, tableName).save()
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionModel, SqlOptionModelHash)
       .option(SqlOptionTableName, tableName)
@@ -129,4 +132,47 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
     val loadedArr = loadedDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe Person.data.toArray.sortBy(_.name)
   }
+
+  test("write and read null values") {
+    val table = generateTableName("null-test")
+    val df = spark.createDataFrame(Seq(
+      (1, None),
+      (2, Some(222))
+    )).toDF("id", "value")
+
+    df.printSchema()
+    df.show()
+
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, table)
+      .save()
+
+    // read table
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, table)
+      .load()
+      .cache()
+
+    def verfiyDf(df: DataFrame): Unit = {
+      df.show()
+      val arr = loadedDf.collect()
+      arr.find(r => r.getAs[Int]("id") == 1).get.getAs[Int]("value") should be(null: java.lang.Integer)
+      arr.find(r => r.getAs[Int]("id") == 2).get.getAs[Int]("value") should be(222)
+    }
+
+    verfiyDf(loadedDf)
+
+    // read by pattern
+    val loadedDf2 = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, table + ":*")
+      .schema(StructType(Array(
+        StructField("id", StringType, nullable = false),
+        StructField("value", IntegerType, nullable = true)
+      )))
+      .load()
+      .cache()
+
+    verfiyDf(loadedDf2)
+  }
+
 }

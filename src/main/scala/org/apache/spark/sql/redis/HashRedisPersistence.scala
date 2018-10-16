@@ -33,9 +33,14 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
   override def encodeRow(value: Row): Map[String, String] = {
     val fields = value.schema.fields.map(_.name)
     val kvMap = value.getValuesMap[Any](fields)
-    kvMap.map { case (k, v) =>
-      k -> String.valueOf(v)
-    }
+    kvMap
+      .filter { case (k, v) =>
+        // don't store null values
+        v != null
+      }
+      .map { case (k, v) =>
+        k -> String.valueOf(v)
+      }
   }
 
   override def decodeRow(value: Map[String, String], schema: => StructType,
@@ -57,7 +62,15 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
       parseValue(field.dataType, fieldValue)
     }
 
-  private def parseValue(dataType: DataType, fieldValueStr: String): Any =
+  private def parseValue(dataType: DataType, fieldValueStr: String): Any = {
+    if (fieldValueStr == null) {
+      null
+    } else {
+      parseNotNullValue(dataType, fieldValueStr)
+    }
+  }
+
+  private def parseNotNullValue(dataType: DataType, fieldValueStr: String): Any =
     dataType match {
       case ByteType => JByte.parseByte(fieldValueStr)
       case IntegerType => Integer.parseInt(fieldValueStr)
