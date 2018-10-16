@@ -168,7 +168,7 @@ There are two options how you can read a DataFrame:
 
 ### Reading previously saved DataFrame
 
-To read from a previously saved DataFrame, specify the table name that was used for saving. Example:
+To read a previously saved DataFrame, specify the table name that was used for saving. Example:
 
 ```scala
 object DataFrameTests {
@@ -245,7 +245,7 @@ An example of explicit schema:
                .load()
 ```
 
-Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `StringType`. Example:
+Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. Example:
 
 ```scala
     val df = spark.read
@@ -272,19 +272,7 @@ root
 | partitions.number | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
 | key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
 | ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
-| infer.schema      | infer schema from random row, all columns will have `StringType`                          | `Boolean`             | `false` |
-
-
-### Number of data partitions
-
-`numPartitions`. Number of partitions for reading collocation (in cluster
-mode).
-  - `reading`. Spark-Redis will execute scans on multiple
-  hosts (including Redis readonly slaves). Hence, the read performance
-  could be improved dramatically. It also supports automatic switch to
-  active nodes if some targets were terminated during the reading phase.
-  Default to `3`
-
+| infer.schema      | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
 
 
 ## Known limitations
