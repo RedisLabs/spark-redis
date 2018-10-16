@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis
 
-import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong}
+import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -78,6 +78,9 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
       case FloatType => JFloat.parseFloat(fieldValueStr)
       case DoubleType => JDouble.parseDouble(fieldValueStr)
       case BooleanType => JBoolean.parseBoolean(fieldValueStr)
+      case ShortType => JShort.parseShort(fieldValueStr)
+      case DateType => java.sql.Date.valueOf(fieldValueStr)
+      case TimestampType => java.sql.Timestamp.valueOf(fieldValueStr)
       case _ => fieldValueStr
     }
 }

@@ -1,5 +1,7 @@
 package com.redislabs.provider.redis.df
 
+import java.sql.{Date, Timestamp}
+
 import com.redislabs.provider.redis.df.Person.{data, _}
 import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
 import org.apache.spark.sql.DataFrame
@@ -10,8 +12,6 @@ import org.scalatest.Matchers
 import scala.collection.JavaConverters._
 
 /**
-  * TODO: test more schema data types
-  *
   * @author The Viet Nguyen
   */
 class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers with DefaultTestDataset {
@@ -155,7 +155,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
 
     def verfiyDf(df: DataFrame): Unit = {
       df.show()
-      val arr = loadedDf.collect()
+      val arr = df.collect()
       arr.find(r => r.getAs[Int]("id") == 1).get.getAs[Int]("value") should be(null: java.lang.Integer)
       arr.find(r => r.getAs[Int]("id") == 2).get.getAs[Int]("value") should be(222)
     }
@@ -166,13 +166,55 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
     val loadedDf2 = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, table + ":*")
       .schema(StructType(Array(
-        StructField("id", StringType, nullable = false),
+        StructField("id", IntegerType, nullable = false),
         StructField("value", IntegerType, nullable = true)
       )))
       .load()
       .cache()
 
     verfiyDf(loadedDf2)
+  }
+
+  test("data types") {
+    val df = spark.createDataFrame(Seq(
+      (1: Int,
+        2: Byte,
+        3: Long,
+        4.2f: Float,
+        5.3d: Double,
+        true: Boolean,
+        7: Short,
+        "str8",
+        Date.valueOf("2018-10-12"),
+        Timestamp.valueOf("2017-12-02 03:04:00")
+      )
+    )).toDF()
+
+    df.printSchema()
+    df.show()
+
+    val table = generateTableName("types-test")
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, table)
+      .save()
+
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, table)
+      .load()
+      .cache()
+
+    loadedDf.show()
+    val row = loadedDf.collect()(0)
+    row.getAs[Int]("_1") should be(1: Int)
+    row.getAs[Byte]("_2") should be(2: Byte)
+    row.getAs[Long]("_3") should be(3: Long)
+    row.getAs[Float]("_4") should be(4.2f: Float)
+    row.getAs[Double]("_5") should be(5.3d: Double)
+    row.getAs[Boolean]("_6") should be(true: Boolean)
+    row.getAs[Short]("_7") should be(7: Short)
+    row.getAs[String]("_8") should be("str8")
+    row.getAs[java.sql.Date]("_9") should be(Date.valueOf("2018-10-12"))
+    row.getAs[java.sql.Timestamp]("_10") should be(Timestamp.valueOf("2017-12-02 03:04:00"))
   }
 
 }
