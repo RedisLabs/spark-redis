@@ -102,7 +102,7 @@ Please note, when key collision happens and `SaveMode.Append` is set, the former
 
 ### Spark SQL
 
-When working Spark SQL the data can be written to Redis in the following way:
+When working with Spark SQL the data can be written to Redis in the following way:
 
 ```scala
 spark.sql(
@@ -130,7 +130,7 @@ For example, expire data after 30 seconds:
 df.write
   .format("org.apache.spark.sql.redis")
   .option("table", "person")
-  .option("ttl", "30")
+  .option("ttl", 30)
   .save()
 ```
 
@@ -245,36 +245,35 @@ An example of explicit schema:
                .load()
 ```
 
-Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `StringType`.
+Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `StringType`. Example:
 
+```scala
+    val df = spark.read
+                  .format("org.apache.spark.sql.redis")
+                  .option("keys.pattern", "person:*")
+                  .option("infer.schema", true)
+                  .load()
+      
+    df.printSchema()
+```
 
-TODO: Also note, if your hashes have  
-
-
-
-
+The output is:
+```
+root
+ |-- name: string (nullable = true)
+ |-- age: string (nullable = true)
+```
 
 ## DataFrame options
 
-| Name              | Description                                                                              | Type                  | Default |
-| ----------------- | -----------------------------------------------------------------------------------------| --------------------- | ------- |
-| model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model) | `enum [binary, hash]` | `hash`  |
-| partitions.number | number of partitions (applies only when reading dataframe)                               | `Int`                 | `3`     |
-| key.column        | specify unique column used as a Redis key, by default a key is auto-generated            | `String`              | -       |
-| ttl               | data time to live in `seconds`. Doesn't expire if less than `1`                          | `Int`                 | `0`     |
-| infer.schema      | guess schema from data, fallback to strings for unknown types                            | `Boolean`             | `false` |
+| Name              | Description                                                                               | Type                  | Default |
+| ----------------- | ------------------------------------------------------------------------------------------| --------------------- | ------- |
+| model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
+| partitions.number | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
+| key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
+| ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
+| infer.schema      | infer schema from random row, all columns will have `StringType`                          | `Boolean`             | `false` |
 
-
-
-### Infer schema
-
-`inferSchema`. Guess schema from data for known types. If Spark-Redis cannot detect
-the type of a column, it will fallback to `String`. Disabled by default.
-```scala
-val loadedDf = spark.read.format("org.apache.spark.sql.redis")
-    .option("infer.schema", true)
-    .load("person")
-```
 
 ### Number of data partitions
 

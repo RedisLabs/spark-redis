@@ -103,7 +103,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       val node = getMasterNode(redisConfig.hosts, firstKey)
       scanRows(node, Seq(firstKey), Seq())
         .collectFirst {
-          case r: Row => r.schema
+          case r: Row =>
+            logDebug(s"Row for schema inference: $r")
+            r.schema
         }
         .getOrElse {
           throw new IllegalStateException("No row is available")

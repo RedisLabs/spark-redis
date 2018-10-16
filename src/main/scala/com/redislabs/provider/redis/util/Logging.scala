@@ -29,6 +29,12 @@ trait Logging {
     }
   }
 
+  def logDebug(msg: => String): Unit = {
+    if (logger.isDebugEnabled) {
+      _logger.debug(msg)
+    }
+  }
+
   def logTrace(msg: => String): Unit = {
     if (logger.isTraceEnabled) {
       _logger.trace(msg)
