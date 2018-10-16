@@ -230,8 +230,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
             persistence.decodeRow(value, schema, inferSchemaEnabled)
           }
       } else {
-        pipelineValues.map { case values: JList[String] =>
-          val value = requiredColumns.zip(values).toMap
+        pipelineValues.map { case values: JList[_] =>
+          val value = requiredColumns.zip(values.asInstanceOf[JList[String]]).toMap
           persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
         }
       }
