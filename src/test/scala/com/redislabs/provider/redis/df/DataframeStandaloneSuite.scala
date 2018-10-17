@@ -266,4 +266,21 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
     Thread.sleep(1000)
     loadAndVerifyDf(tableName)
   }
+
+  test("filter dataframe") {
+    val tableName = generateTableName(TableNamePrefix)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .load()
+      .filter("age = 30")
+      .cache()
+
+    loadedDf.count() should be (1)
+    loadedDf.collect().head.getAs[String]("name") should be ("John")
+  }
+
 }
