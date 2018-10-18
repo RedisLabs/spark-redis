@@ -72,10 +72,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       s"You should only use either one.")
   }
 
-  private def tableName(): String = {
-    tableNameOpt.getOrElse(throw new IllegalArgumentException(s"Option '$SqlOptionTableName' is not set."))
-  }
-
   override def schema: StructType = {
     if (currentSchema == null) {
       currentSchema = userSpecifiedSchema
@@ -88,42 +84,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         }
     }
     currentSchema
-  }
-
-  /**
-    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
-    */
-  private def dataKeyPattern(): String = {
-    keysPatternOpt
-      .orElse(
-        tableNameOpt.map(tableName => tableDataKeyPattern(tableName))
-      )
-      .getOrElse(throw new IllegalArgumentException(s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."))
-  }
-
-
-  private def inferSchema(): StructType = {
-    val keys = sc.fromRedisKeyPattern(dataKeyPattern())
-    if (keys.isEmpty()) {
-      throw new IllegalStateException("No key is available")
-    } else {
-      val firstKey = keys.first()
-      val node = getMasterNode(redisConfig.hosts, firstKey)
-      scanRows(node, Seq(firstKey), Seq())
-        .collectFirst {
-          case r: Row =>
-            logDebug(s"Row for schema inference: $r")
-            r.schema
-        }
-        .getOrElse {
-          throw new IllegalStateException("No row is available")
-        }
-    }
-  }
-
-  private def dataKeyId(row: Row): String = {
-    val id = keyColumn.map(id => row.getAs[Any](id)).map(_.toString).getOrElse(uuid())
-    dataKey(tableName(), id)
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
@@ -158,37 +118,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
   }
 
-  def isEmpty: Boolean =
-    sc.fromRedisKeyPattern(dataKeyPattern()).isEmpty()
-
-  def nonEmpty: Boolean = !isEmpty
-
-  private def saveSchema(schema: StructType): StructType = {
-    val key = schemaKey(tableName())
-    logInfo(s"saving schema $key")
-    val schemaNode = getMasterNode(redisConfig.hosts, key)
-    val conn = schemaNode.connect()
-    val schemaBytes = SerializationUtils.serialize(schema)
-    conn.set(key.getBytes, schemaBytes)
-    conn.close()
-    schema
-  }
-
-  private def loadSchema(): StructType = {
-    val key = schemaKey(tableName())
-    logInfo(s"loading schema $key")
-    val schemaNode = getMasterNode(redisConfig.hosts, key)
-    val conn = schemaNode.connect()
-    val schemaBytes = conn.get(key.getBytes)
-    if (schemaBytes == null) {
-      throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
-        s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() or use 'infer.schema' option. ")
-    }
-    val schema = SerializationUtils.deserialize[StructType](schemaBytes)
-    conn.close()
-    schema
-  }
-
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")
     val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(), partitionNum = numPartitions)
@@ -207,6 +136,106 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
   }
 
+
+  override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
+
+  /**
+    * @return true if data exists in redis
+    */
+  def isEmpty: Boolean = {
+    sc.fromRedisKeyPattern(dataKeyPattern()).isEmpty()
+  }
+
+  /**
+    * @return true if no data exists in redis
+    */
+  def nonEmpty: Boolean = {
+    !isEmpty
+  }
+
+  /**
+    * @return table name
+    */
+  private def tableName(): String = {
+    tableNameOpt.getOrElse(throw new IllegalArgumentException(s"Option '$SqlOptionTableName' is not set."))
+  }
+
+  /**
+    * @return redis key for the row
+    */
+  private def dataKeyId(row: Row): String = {
+    val id = keyColumn.map(id => row.getAs[Any](id)).map(_.toString).getOrElse(uuid())
+    dataKey(tableName(), id)
+  }
+
+  /**
+    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
+    */
+  private def dataKeyPattern(): String = {
+    keysPatternOpt
+      .orElse(
+        tableNameOpt.map(tableName => tableDataKeyPattern(tableName))
+      )
+      .getOrElse(throw new IllegalArgumentException(s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."))
+  }
+
+  /**
+    * infer schema from a random redis row
+    */
+  private def inferSchema(): StructType = {
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern())
+    if (keys.isEmpty()) {
+      throw new IllegalStateException("No key is available")
+    } else {
+      val firstKey = keys.first()
+      val node = getMasterNode(redisConfig.hosts, firstKey)
+      scanRows(node, Seq(firstKey), Seq())
+        .collectFirst {
+          case r: Row =>
+            logDebug(s"Row for schema inference: $r")
+            r.schema
+        }
+        .getOrElse {
+          throw new IllegalStateException("No row is available")
+        }
+    }
+  }
+
+  /**
+    * write schema to redis
+    */
+  private def saveSchema(schema: StructType): StructType = {
+    val key = schemaKey(tableName())
+    logInfo(s"saving schema $key")
+    val schemaNode = getMasterNode(redisConfig.hosts, key)
+    val conn = schemaNode.connect()
+    val schemaBytes = SerializationUtils.serialize(schema)
+    conn.set(key.getBytes, schemaBytes)
+    conn.close()
+    schema
+  }
+
+  /**
+    * read schema from redis
+    */
+  private def loadSchema(): StructType = {
+    val key = schemaKey(tableName())
+    logInfo(s"loading schema $key")
+    val schemaNode = getMasterNode(redisConfig.hosts, key)
+    val conn = schemaNode.connect()
+    val schemaBytes = conn.get(key.getBytes)
+    if (schemaBytes == null) {
+      throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
+        s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() or use 'infer.schema' option. ")
+    }
+    val schema = SerializationUtils.deserialize[StructType](schemaBytes)
+    conn.close()
+    schema
+  }
+
+  /**
+    * read rows from redis
+    */
   private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]): Iterator[Row] = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
@@ -243,7 +272,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     rows
   }
 
-  override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
 }
 
 object RedisSourceRelation {
