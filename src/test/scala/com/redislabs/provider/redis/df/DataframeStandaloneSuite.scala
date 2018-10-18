@@ -279,8 +279,24 @@ class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestData
       .filter("age = 30")
       .cache()
 
-    loadedDf.count() should be (1)
-    loadedDf.collect().head.getAs[String]("name") should be ("John")
+    loadedDf.count() should be(1)
+    loadedDf.collect().head.getAs[String]("name") should be("John")
+  }
+
+  test("max.pipeline.size option") {
+    val tableName = generateTableName(TableNamePrefix)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionNumPartitions, 1) // 1 partition to scan 2 rows
+      .option(SqlOptionMaxPipelineSize, 1) // two pipelines should be created (1 key per pipeline)
+      .load()
+      .cache()
+
+    verifyDf(loadedDf)
   }
 
 }

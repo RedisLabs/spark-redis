@@ -19,4 +19,6 @@ package object redis {
   val SqlOptionInferSchema = "infer.schema"
   val SqlOptionKeyColumn = "key.column"
   val SqlOptionTTL = "ttl"
+
+  val SqlOptionMaxPipelineSize = "max.pipeline.size"
 }
