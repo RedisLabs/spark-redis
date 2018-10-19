@@ -70,10 +70,13 @@ val keysRDD = sc.fromRedisKeyPattern("foo*", 5)
 val keysRDD = sc.fromRedisKeys(Array("foo", "bar"), 5)
 ```
 
-### Create Dataframe
+### Write Dataframe
 
 ```scala
-val loadedDf = spark.read.format("org.apache.spark.sql.redis").load("person")
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .save()
 ```
 
 ### Create Stream

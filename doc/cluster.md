@@ -1,6 +1,6 @@
 ### Connecting to Multiple Redis Clusters/Instances
 
-```
+```scala
 def twoEndpointExample ( sc: SparkContext) = {
   val redisConfig1 = new RedisConfig(new RedisEndpoint("127.0.0.1", 6379, "passwd"))
   val redisConfig2 = new RedisConfig(new RedisEndpoint("127.0.0.1", 7379))

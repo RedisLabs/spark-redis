@@ -7,5 +7,8 @@ topology from the initial node, so there is no need to provide the rest of the c
 * `spark.redis.port` - the inital node's TCP redis port.
 * `spark.redis.auth` - the initial node's AUTH password
 * `spark.redis.db` - optional DB number. Avoid using this, especially in cluster mode.
+* `spark.redis.timeout` - connection timeout in ms, 2000 ms by default
+* `spark.redis.max.pipeline.size` - the maximum number of commands per pipeline, 10000 by default
+
 
 

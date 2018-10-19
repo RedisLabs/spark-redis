@@ -4,7 +4,7 @@ Spark-Redis support streaming data from Redis instance/cluster, currently stream
 
 Use the following to get a `(listName, value)` stream from `foo` and `bar` list
 
-```
+```scala
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.storage.StorageLevel
 import com.redislabs.provider.redis._
@@ -17,7 +17,7 @@ ssc.awaitTermination()
 
 Use the following to get a `value` stream from `foo` and `bar` list
 
-```
+```scala
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.storage.StorageLevel
 import com.redislabs.provider.redis._

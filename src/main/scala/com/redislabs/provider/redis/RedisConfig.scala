@@ -81,7 +81,7 @@ case class RedisNode(endpoint: RedisEndpoint,
 case class ReadWriteConfig(maxPipelineSize: Int)
 
 object ReadWriteConfig {
-  /** the maximum number of operations per pipeline **/
+  /** the maximum number of commands per pipeline **/
   val MaxPipelineSizeConfKey = "spark.redis.max.pipeline.size"
   val MaxPipelineSizeDefault = 10000
 
