@@ -78,17 +78,27 @@ case class RedisNode(endpoint: RedisEndpoint,
   }
 }
 
-case class ReadWriteConfig(maxPipelineSize: Int)
+/**
+  * Tuning options for read and write operations.
+  */
+case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int)
 
 object ReadWriteConfig {
-  /** the maximum number of commands per pipeline **/
+  /** maximum number of commands per pipeline **/
   val MaxPipelineSizeConfKey = "spark.redis.max.pipeline.size"
   val MaxPipelineSizeDefault = 10000
 
-  val Default: ReadWriteConfig = ReadWriteConfig(MaxPipelineSizeDefault)
+  /** count option of SCAN command **/
+  val ScanCountConfKey = "spark.redis.scan.count"
+  val ScanCountDefault = 10000
+
+  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault)
 
   def fromSparkConf(conf: SparkConf): ReadWriteConfig = {
-    ReadWriteConfig(conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault))
+    ReadWriteConfig(
+      conf.getInt(ScanCountConfKey, ScanCountDefault),
+      conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault)
+    )
   }
 }
 

@@ -273,7 +273,8 @@ root
 | key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
 | ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
 | infer.schema      | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
-| max.pipeline.size | the maximum number of commands per pipeline, overrides the global spark context parameter | `Int`                 | 10000   |
+| max.pipeline.size | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 10000   |
+| scan.count        | count option of SCAN command (used to iterate over keys)                                  | `Int`                 | 10000   |
 
 
 ## Known limitations

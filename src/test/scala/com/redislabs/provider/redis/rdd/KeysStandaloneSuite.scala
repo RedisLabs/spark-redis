@@ -44,6 +44,7 @@ class KeysStandaloneSuite extends FunSuite with Keys with ENV with BeforeAndAfte
   }
 
   test("getKeys - standalone") {
+    implicit val readWriteConfig = ReadWriteConfig.Default
     val returnedKeys = getKeys(redisConfig.hosts, 0, 1024, "*").toSet.toArray.sorted
 
     val targetKeys = (sc.parallelize(content.split("\\W+")).collect :+

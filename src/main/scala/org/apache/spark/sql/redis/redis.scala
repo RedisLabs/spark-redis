@@ -21,4 +21,5 @@ package object redis {
   val SqlOptionTTL = "ttl"
 
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
+  val SqlOptionScanCount = "scan.count"
 }

@@ -44,8 +44,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   implicit private val readWriteConfig: ReadWriteConfig = {
     val global = ReadWriteConfig.fromSparkConf(sqlContext.sparkContext.getConf)
-    // override global config with a dataframe specific setting
+    // override global config with dataframe specific settings
     global.copy(
+      scanCount = parameters.get(SqlOptionScanCount).map(_.toInt).getOrElse(global.scanCount),
       maxPipelineSize = parameters.get(SqlOptionMaxPipelineSize).map(_.toInt).getOrElse(global.maxPipelineSize)
     )
   }

@@ -417,12 +417,13 @@ trait Keys {
   def getKeys(nodes: Array[RedisNode],
               sPos: Int,
               ePos: Int,
-              keyPattern: String): util.HashSet[String] = {
+              keyPattern: String)
+             (implicit readWriteConfig: ReadWriteConfig): util.HashSet[String] = {
     val keys = new util.HashSet[String]()
     if (isRedisRegex(keyPattern)) {
       nodes.foreach { node =>
         val conn = node.endpoint.connect()
-        val params = new ScanParams().`match`(keyPattern)
+        val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
         val res = keys.addAll(scanKeys(conn, params).filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos

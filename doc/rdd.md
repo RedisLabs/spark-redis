@@ -166,13 +166,13 @@ The above example demonstrates storing data in Redis in a Sorted Set. The `zsetR
 Some [configuration options](configuration.md) can be overridden for a particular RDD:
 
 ```scala
-val readWriteConf = ReadWriteConfig(maxPipelineSize = 1000)
+val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
 val rdd = sc.fromRedisKeyPattern(keyPattern)(readWriteConfig = readWriteConf) 
 ```
 
 or with implicit parameter:
 
 ```scala
-implicit val readWriteConf = ReadWriteConfig(maxPipelineSize = 1000)
+implicit val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
 val rdd = sc.fromRedisKeyPattern(keyPattern)
 ```

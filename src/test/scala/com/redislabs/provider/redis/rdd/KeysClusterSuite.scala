@@ -44,6 +44,7 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
   }
 
   test("getKeys - cluster") {
+    implicit val readWriteConfig = ReadWriteConfig.Default
     val returnedKeys = getKeys(redisConfig.hosts, 0, 1024, "*").toSet.toArray.sorted
 
     val targetKeys = (sc.parallelize(content.split("\\W+")).collect :+
