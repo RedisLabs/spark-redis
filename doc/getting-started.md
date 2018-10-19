@@ -63,7 +63,8 @@ sc = new SparkContext(new SparkConf()
 ```
 
 ### Create RDD
-```
+
+```scala
 import com.redislabs.provider.redis._
 
 val keysRDD = sc.fromRedisKeyPattern("foo*", 5)
