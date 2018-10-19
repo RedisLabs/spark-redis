@@ -76,7 +76,7 @@ val keysRDD = sc.fromRedisKeys(Array("foo", "bar"), 5)
 ```scala
 df.write
   .format("org.apache.spark.sql.redis")
-  .option("table", "person")
+  .option("table", "foo")
   .save()
 ```
 
