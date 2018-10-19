@@ -5,8 +5,13 @@ for the complete list of features.
 
 Here is an example:
 
-1. Run `pyspark` providing the spark-redis jar file `$ ./bin/pyspark --jars /your/path/to/spark-redis-<version>-jar-with-dependencies.jar`
+1. Run `pyspark` providing the spark-redis jar file 
 
+```bash
+$ ./bin/pyspark --jars /your/path/to/spark-redis-<version>-jar-with-dependencies.jar
+```
+
+2. Read DataFrame from json, write/read from Redis:
 ```python
 df = spark.read.json("examples/src/main/resources/people.json")
 df.write.format("org.apache.spark.sql.redis").option("table", "people").option("key.column", "name").save()
