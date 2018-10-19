@@ -35,6 +35,7 @@ This library is work in progress so the API may change before the official relea
   - [Dataframe](doc/dataframe.md)
   - [Streaming](doc/streaming.md)
   - [Cluster](doc/cluster.md)
+  - [Python](doc/python.md)
   - [Configuration](doc/configuration.md)
 
 ## Contributing
