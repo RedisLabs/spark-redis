@@ -83,11 +83,22 @@ case class ReadWriteConfig(maxPipelineSize: Int)
 object ReadWriteConfig {
   /** the maximum number of operations per pipeline **/
   val MaxPipelineSizeConfKey = "spark.redis.max.pipeline.size"
-
   val MaxPipelineSizeDefault = 10000
+
+  val Default: ReadWriteConfig = ReadWriteConfig(MaxPipelineSizeDefault)
 
   def fromSparkConf(conf: SparkConf): ReadWriteConfig = {
     ReadWriteConfig(conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault))
+  }
+}
+
+object RedisConfig {
+
+  /**
+    * create redis config from spark config
+    */
+  def fromSparkConf(conf: SparkConf): RedisConfig = {
+    new RedisConfig(new RedisEndpoint(conf))
   }
 }
 

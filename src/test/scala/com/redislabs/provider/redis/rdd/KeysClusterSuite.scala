@@ -73,10 +73,10 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
 //  }
 
   test("groupKeysByNode - cluster") {
+    implicit val readWriteConfig = ReadWriteConfig.Default
     val allkeys = getKeys(redisConfig.hosts, 0, 16383, "*").toSet.iterator
     val nodeKeysPairs = groupKeysByNode(redisConfig.hosts, allkeys)
-    val returnedCnt = nodeKeysPairs.map(x => filterKeysByType(x._1.connect, x._2, "string").size).
-      reduce(_ + _)
+    val returnedCnt = nodeKeysPairs.map(x => filterKeysByType(x._1.connect, x._2, "string").length).sum
     val targetCnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).distinct.count
     assert(returnedCnt == targetCnt)
   }

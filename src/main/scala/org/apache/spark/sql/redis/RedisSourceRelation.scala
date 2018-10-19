@@ -4,7 +4,7 @@ import java.util.{UUID, List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Logging
-import com.redislabs.provider.redis.util.Utils._
+import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
@@ -42,7 +42,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     )
   }
 
-  private val readWriteConfig: ReadWriteConfig = {
+  implicit private val readWriteConfig: ReadWriteConfig = {
     val global = ReadWriteConfig.fromSparkConf(sqlContext.sparkContext.getConf)
     // override global config with a dataframe specific setting
     global.copy(
@@ -95,7 +95,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       sc.fromRedisKeyPattern(dataKeyPattern()).foreachPartition { partition =>
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
           val conn = node.connect()
-          foreachWithPipeline(conn, readWriteConfig.maxPipelineSize, keys) { (pipeline, key) =>
+          foreachWithPipeline(conn, keys) { (pipeline, key) =>
             (pipeline: PipelineBase).del(key) // fix ambiguous reference to overloaded definition
           }
           conn.close()
@@ -108,7 +108,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
       groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
         val conn = node.connect()
-        foreachWithPipeline(conn, readWriteConfig.maxPipelineSize, keys) { (pipeline, key) =>
+        foreachWithPipeline(conn, keys) { (pipeline, key) =>
           val row = rowsWithKey(key)
           val encodedRow = persistence.encodeRow(row)
           persistence.save(pipeline, key, encodedRow, ttl)
@@ -236,7 +236,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]): Iterator[Row] = {
+  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]): Seq[Row] = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
       val filteredFields = schema.fields
@@ -248,7 +248,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
     val conn = node.connect()
 
-    val pipelineValues = mapWithPipeline(conn, readWriteConfig.maxPipelineSize, keys) { (pipeline, key) =>
+    val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
       persistence.load(pipeline, key, requiredColumns)
     }
 
