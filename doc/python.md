@@ -1,6 +1,6 @@
 # Python
 
-The python support is currently limited to DataFrames only. Please, refer to scala [DataFrame documentation](#dataframe.md) 
+The python support is currently limited to DataFrames only. Please, refer to scala [DataFrame documentation](dataframe.md) 
 for the complete list of features.
 
 Here is an example:
