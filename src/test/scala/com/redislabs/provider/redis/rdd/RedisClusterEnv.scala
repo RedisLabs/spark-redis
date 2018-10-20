@@ -6,7 +6,7 @@ import org.apache.spark.SparkConf
 /**
   * @author The Viet Nguyen
   */
-trait RedisClusterSuite extends SparkRedisSuite {
+trait RedisClusterEnv extends ENV {
 
   override val redisPort = 7379
 

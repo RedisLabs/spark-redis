@@ -3,7 +3,6 @@ package com.redislabs.provider.redis.df
 import java.sql.{Date, Timestamp}
 
 import com.redislabs.provider.redis.df.Person.{data, _}
-import com.redislabs.provider.redis.rdd.RedisStandaloneEnv
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
@@ -14,8 +13,7 @@ import scala.collection.JavaConverters._
 /**
   * @author The Viet Nguyen
   */
-class HashDataframeStandaloneSuite extends RedisDataframeSuite with RedisStandaloneEnv
-  with Matchers {
+trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   import TestSqlImplicits._
 
