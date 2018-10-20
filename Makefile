@@ -48,8 +48,11 @@ export REDIS_CLUSTER_NODE1_CONF
 export REDIS_CLUSTER_NODE2_CONF
 export REDIS_CLUSTER_NODE3_CONF
 
-start:
+start-standalone:
 	echo "$$REDIS_STANDALONE_NODE_CONF" | redis-server -
+
+
+start-cluster:
 	echo "$$REDIS_CLUSTER_NODE1_CONF" | redis-server -
 	echo "$$REDIS_CLUSTER_NODE2_CONF" | redis-server -
 	echo "$$REDIS_CLUSTER_NODE3_CONF" | redis-server -
@@ -63,14 +66,24 @@ start:
 	slots=$$(seq 10000 10922); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7380 cluster addslots $$slots > /dev/null
 	slots=$$(seq 10923 16383); slots=$$(echo $$slots | tr '\n' ' '); redis-cli -p 7381 cluster addslots $$slots > /dev/null
 
-stop:
+start:
+	make start-standalone
+	make start-cluster
+
+stop-standalone:
 	kill `cat /tmp/redis_standalone_node_for_spark-redis.pid`
+
+stop-cluster:
 	kill `cat /tmp/redis_cluster_node1_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node2_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node3_for_spark-redis.pid` || true
 	rm -f /tmp/redis_cluster_node1_for_spark-redis.conf
 	rm -f /tmp/redis_cluster_node2_for_spark-redis.conf
 	rm -f /tmp/redis_cluster_node3_for_spark-redis.conf
+
+stop:
+	make stop-standalone
+	make stop-cluster
 
 test:
 	make start
