@@ -9,7 +9,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-trait DefaultTestDataset extends SparkRedisSuite with Matchers {
+trait RedisDataframeSuite extends SparkRedisSuite with Matchers {
 
   import TestSqlImplicits._
 

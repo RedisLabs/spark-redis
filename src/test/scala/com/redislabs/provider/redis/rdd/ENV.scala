@@ -1,13 +1,18 @@
 package com.redislabs.provider.redis.rdd
 
 import com.redislabs.provider.redis.RedisConfig
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.{SparkConf, SparkContext}
 
 trait ENV {
-  var sc: SparkContext = _
-  var redisConfig: RedisConfig = _
-  var content: String = _
+
+  val conf: SparkConf
   var spark: SparkSession = _
+  var sc: SparkContext = _
+
+  val redisHost = "127.0.0.1"
+  val redisPort = 6379
+  val redisAuth = "passwd"
+  val redisConfig: RedisConfig
 }
 

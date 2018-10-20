@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.df.Person._
-import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
+import com.redislabs.provider.redis.rdd.RedisStandaloneEnv
 import org.apache.spark.SparkException
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
@@ -9,7 +9,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-class BinaryDataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
+class BinaryDataframeStandaloneSuite extends RedisDataframeSuite with RedisStandaloneEnv
   with Matchers {
 
   test("save and load dataframe with binary mode") {
