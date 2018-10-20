@@ -2,13 +2,12 @@ package com.redislabs.provider.redis.df
 
 import java.sql.{Date, Timestamp}
 
-import com.redislabs.provider.redis.df.Person.{data, _}
+import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.Person.{data, _}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
 import org.scalatest.Matchers
-
-import scala.collection.JavaConverters._
 
 /**
   * @author The Viet Nguyen
@@ -75,16 +74,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   test("load dataframe with inferred schema") {
     val tableName = generateTableName(TableNamePrefix)
-    val node = redisConfig.initialHost
-    val conn = node.connect()
-    val data = Seq(
-      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
-      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
-    )
-    data.map(_.asJava)
-      .foreach { person =>
-        conn.hmset(tableName + ":" + person.get("name"), person)
-      }
+    saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
       .option(SqlOptionInferSchema, "true")
@@ -106,16 +96,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   test("load dataframe with provided schema") {
     val tableName = generateTableName(TableNamePrefix)
-    val node = redisConfig.initialHost
-    val conn = node.connect()
-    val data = Seq(
-      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
-      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
-    )
-    data.map(_.asJava)
-      .foreach { person =>
-        conn.hmset(tableName + ":" + person.get("name"), person)
-      }
+    saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
       .schema(StructType(Array(
@@ -216,4 +197,15 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     row.getAs[java.sql.Timestamp]("_10") should be(Timestamp.valueOf("2017-12-02 03:04:00"))
   }
 
+  def saveMap(tableName: String): Unit = {
+    val data = Seq(
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
+      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
+    )
+    data.foreach { person =>
+      saveHash(tableName, person("name"), person)
+    }
+  }
+
+  def saveHash(tableName: String, key: String, value: Map[String, String]): Unit
 }

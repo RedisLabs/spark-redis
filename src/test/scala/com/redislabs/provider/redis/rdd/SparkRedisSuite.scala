@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 /**
   * @author The Viet Nguyen
   */
-trait SparkRedisSuite extends FunSuite with ENV with BeforeAndAfterAll {
+trait SparkRedisSuite extends FunSuite with ENV with Keys with BeforeAndAfterAll {
 
   override def beforeAll() {
     super.beforeAll()
