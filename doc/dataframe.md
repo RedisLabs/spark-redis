@@ -142,8 +142,8 @@ It also enables projection query optimization when only a small subset of column
 a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
 If it is not possible due to some constraints, you may consider using Binary persistence model.
 
-With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis. This implies that 
-storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
+With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis (the default Java Serialization is used).
+This implies that storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
 of Binary model is a larger memory footprint.   
 
 To enable Binary model use `option("model", "binary")`, e.g.
