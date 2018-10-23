@@ -1,4 +1,4 @@
-package com.redislabs.provider.redis.df
+package com.redislabs.provider.redis.util
 
 import java.util.UUID
 

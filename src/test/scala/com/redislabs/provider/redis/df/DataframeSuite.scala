@@ -1,13 +1,12 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.df.Person.{generateTableName, _}
-import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
+import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.Person.{generateTableName, _}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis._
-import org.scalatest.ShouldMatchers
+import org.scalatest.Matchers
 
-class DataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
-  with ShouldMatchers {
+trait DataframeSuite extends RedisDataframeSuite with Matchers {
 
   import TestSqlImplicits._
 
