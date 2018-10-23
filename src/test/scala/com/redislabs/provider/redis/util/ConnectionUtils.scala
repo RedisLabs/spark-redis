@@ -8,7 +8,7 @@ import redis.clients.jedis.Jedis
   */
 object ConnectionUtils {
 
-  def openEndpoint[A](endpoint: RedisEndpoint)(body: Jedis => A): A = {
+  def withConnection[A](endpoint: RedisEndpoint)(body: Jedis => A): A = {
     val conn = endpoint.connect()
     val res = body(conn)
     conn.close()

@@ -1,6 +1,6 @@
 package com.redislabs.provider.redis.rdd
 
-import com.redislabs.provider.redis.{RedisConfig, toRedisContext}
+import com.redislabs.provider.redis.{RedisConfig, SparkRedisSuite, toRedisContext}
 import org.scalatest.Matchers
 
 import scala.io.Source.fromInputStream

@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df.standalone
 
 import com.redislabs.provider.redis.df.HashDataframeSuite
-import com.redislabs.provider.redis.rdd.RedisStandaloneEnv
+import com.redislabs.provider.redis.env.RedisStandaloneEnv
 import com.redislabs.provider.redis.util.ConnectionUtils
 
 import scala.collection.JavaConverters._
@@ -12,7 +12,7 @@ import scala.collection.JavaConverters._
 class HashDataframeStandaloneSuite extends HashDataframeSuite with RedisStandaloneEnv {
 
   override def saveHash(tableName: String, key: String, value: Map[String, String]): Unit = {
-    ConnectionUtils.openEndpoint(redisConfig.initialHost) { conn =>
+    ConnectionUtils.withConnection(redisConfig.initialHost) { conn =>
       conn.hmset(tableName + ":" + value("name"), value.asJava)
     }
   }

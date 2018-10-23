@@ -1,10 +1,10 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis.env
 
 import com.redislabs.provider.redis.RedisConfig
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 
-trait ENV {
+trait Env {
 
   val conf: SparkConf
   var spark: SparkSession = _

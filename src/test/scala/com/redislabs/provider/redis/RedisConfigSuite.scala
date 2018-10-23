@@ -1,6 +1,5 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis
 
-import com.redislabs.provider.redis._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.util.JedisClusterCRC16
 

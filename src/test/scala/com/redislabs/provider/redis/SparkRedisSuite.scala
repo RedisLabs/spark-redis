@@ -1,12 +1,14 @@
-package com.redislabs.provider.redis.rdd
+package com.redislabs.provider.redis
 
+import com.redislabs.provider.redis.env.Env
+import com.redislabs.provider.redis.rdd.Keys
 import org.apache.spark.sql.{SQLContext, SQLImplicits, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 /**
   * @author The Viet Nguyen
   */
-trait SparkRedisSuite extends FunSuite with ENV with Keys with BeforeAndAfterAll {
+trait SparkRedisSuite extends FunSuite with Env with Keys with BeforeAndAfterAll {
 
   override def beforeAll() {
     super.beforeAll()

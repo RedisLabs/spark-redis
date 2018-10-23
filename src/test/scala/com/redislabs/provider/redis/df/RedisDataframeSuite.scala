@@ -1,6 +1,6 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.rdd.SparkRedisSuite
+import com.redislabs.provider.redis.SparkRedisSuite
 import com.redislabs.provider.redis.util.Person
 import com.redislabs.provider.redis.util.Person.data
 import org.apache.spark.sql.DataFrame
