@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis
 import java.util.{UUID, List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.rdd.Keys
-import org.apache.spark.internal.Logging
+import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
