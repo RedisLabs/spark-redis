@@ -15,8 +15,8 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
 
     sc = new SparkContext(new SparkConf()
       .setMaster("local").setAppName(getClass.getName)
-      .set("redis.host", "127.0.0.1")
-      .set("redis.port", "7379")
+      .set("spark.redis.host", "127.0.0.1")
+      .set("spark.redis.port", "7379")
     )
     content = fromInputStream(getClass.getClassLoader.getResourceAsStream("blog")).
       getLines.toArray.mkString("\n")
@@ -44,6 +44,7 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
   }
 
   test("getKeys - cluster") {
+    implicit val readWriteConfig = ReadWriteConfig.Default
     val returnedKeys = getKeys(redisConfig.hosts, 0, 1024, "*").toSet.toArray.sorted
 
     val targetKeys = (sc.parallelize(content.split("\\W+")).collect :+
@@ -73,10 +74,10 @@ class KeysClusterSuite extends FunSuite with Keys with ENV with BeforeAndAfterAl
 //  }
 
   test("groupKeysByNode - cluster") {
+    implicit val readWriteConfig = ReadWriteConfig.Default
     val allkeys = getKeys(redisConfig.hosts, 0, 16383, "*").toSet.iterator
     val nodeKeysPairs = groupKeysByNode(redisConfig.hosts, allkeys)
-    val returnedCnt = nodeKeysPairs.map(x => filterKeysByType(x._1.connect, x._2, "string").size).
-      reduce(_ + _)
+    val returnedCnt = nodeKeysPairs.map(x => filterKeysByType(x._1.connect, x._2, "string").length).sum
     val targetCnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).distinct.count
     assert(returnedCnt == targetCnt)
   }

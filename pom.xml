@@ -7,7 +7,7 @@
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
 	<url>http://github.com/RedisLabs/spark-redis</url>
-	
+
 	<organization>
 		<name>RedisLabs</name>
 		<url>www.redislabs.com</url>
@@ -293,7 +293,7 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_${scala.major.version}</artifactId>
             <version>${spark.version}</version>
-			<scope>provided</scope>
+            <scope>provided</scope>
         </dependency>
 		<dependency>
 			<groupId>org.scalatest</groupId>
