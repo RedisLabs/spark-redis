@@ -85,6 +85,10 @@ stop:
 	make stop-standalone
 	make stop-cluster
 
+restart:
+	make stop
+	make start
+
 test:
 	make start
 	# with --batch-mode maven doesn't print 'Progress: 125/150kB', the progress lines take up 90% of the log and causes
