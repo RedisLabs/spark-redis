@@ -78,5 +78,19 @@ trait DataframeBenchmarkSuite extends RedisDataframeSuite with RedisBenchmarks w
         }
     }
   }
+
+  test(s"$suiteTags, Read 0 fields") {
+    time(s"$suiteTags, Read 0 fields") {
+      spark.read.format(RedisFormat)
+        .option(SqlOptionModel, persistentModel)
+        .option(SqlOptionTableName, tableName)
+        .option(SqlOptionNumPartitions, 8)
+        .load()
+        .select()
+        .foreach { _ =>
+          // measure read all elements
+        }
+    }
+  }
 }
 
