@@ -1,8 +1,5 @@
 package com.redislabs.provider.redis.df
 
-import java.io.File
-import java.net.URL
-
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Person.{TableNamePrefix, generateTableName}
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
@@ -12,8 +9,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis._
 import redis.clients.jedis.PipelineBase
-
-import scala.sys.process._
 
 /**
   * @author The Viet Nguyen
@@ -31,11 +26,6 @@ trait DataframeBenchmarkSuite extends RedisDataframeSuite with RedisBenchmarks w
   def rdd(): RDD[Person]
 
   override def afterAll(): Unit = {
-    val target = new File("target/reports/benchmarks/")
-    target.mkdirs()
-    logInfo(s"save Spark dashboard to ${target.getAbsolutePath}")
-    (new URL("http://localhost:4040/jobs") #> new File(target, "jobs.html") !!)
-    (new URL("http://localhost:4040/stages") #> new File(target, "stages.html") !!)
     time(s"$suiteTags, Cleanup") {
       val hosts = redisConfig.hosts
       implicit val readWriteConfig: ReadWriteConfig = ReadWriteConfig.Default
