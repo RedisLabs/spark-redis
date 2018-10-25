@@ -1,10 +1,12 @@
 package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.util.Person
-import com.redislabs.provider.redis.util.Person.{generateTableName, _}
+import com.redislabs.provider.redis.util.Person._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
+import com.redislabs.provider.redis.util.TestUtils._
+
 
 trait DataframeSuite extends RedisDataframeSuite with Matchers {
 

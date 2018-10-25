@@ -1,8 +1,9 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.util.Person.{TableNamePrefix, generateTableName}
+import com.redislabs.provider.redis.util.Person.{TableNamePrefix}
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
+import com.redislabs.provider.redis.util.TestUtils._
 
 /**
   * @author The Viet Nguyen

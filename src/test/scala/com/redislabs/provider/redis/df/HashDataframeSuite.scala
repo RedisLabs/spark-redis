@@ -8,6 +8,7 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
 import org.scalatest.Matchers
+import com.redislabs.provider.redis.util.TestUtils._
 
 /**
   * @author The Viet Nguyen

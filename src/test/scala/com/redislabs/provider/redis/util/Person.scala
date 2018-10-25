@@ -1,7 +1,6 @@
 package com.redislabs.provider.redis.util
 
-import java.util.UUID
-
+import com.redislabs.provider.redis.util.TestUtils._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 /**
@@ -22,8 +21,4 @@ object Person {
 
   def generatePersonTableName(): String = generateTableName(TableNamePrefix)
 
-  def generateTableName(prefix: String): String = {
-    // generate random table, so we can run test multiple times and not append/overwrite data
-    prefix + UUID.randomUUID().toString.replace("-", "")
-  }
 }
