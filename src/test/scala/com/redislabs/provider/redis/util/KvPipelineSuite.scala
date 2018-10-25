@@ -1,6 +1,7 @@
 package com.redislabs.provider.redis.util
 
-import java.util.{Collections, UUID}
+import java.util.Collections.{singletonList, singletonMap}
+import java.util.UUID
 
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint}
@@ -23,11 +24,23 @@ class KvPipelineSuite extends FunSuite with Matchers {
     withConnection(redisConfig.initialHost) { conn =>
       val pipeline = conn.pipelined()
       val key = UUID.randomUUID().toString
-      val hash = Collections.singletonMap("key", "value")
+      val hash = singletonMap("key", "value")
       pipeline.hmset(key, hash)
       pipeline.getHashAllWithKey(key)
       val results = pipeline.syncAndReturnAll()
       results should contain(key -> hash)
+    }
+  }
+
+  test("k/v hmget") {
+    withConnection(redisConfig.initialHost) { conn =>
+      val pipeline = conn.pipelined()
+      val key = UUID.randomUUID().toString
+      val hash = singletonMap("key", "value")
+      pipeline.hmset(key, hash)
+      pipeline.getHashMultipleWithKey(key, "key")
+      val results = pipeline.syncAndReturnAll()
+      results should contain(key -> singletonList("value"))
     }
   }
 }
