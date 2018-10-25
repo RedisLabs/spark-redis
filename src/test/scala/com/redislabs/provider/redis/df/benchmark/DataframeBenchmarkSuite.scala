@@ -2,8 +2,9 @@ package com.redislabs.provider.redis.df.benchmark
 
 import com.redislabs.provider.redis.df.RedisDataframeSuite
 import com.redislabs.provider.redis.rdd.Keys
-import com.redislabs.provider.redis.util.Person.{TableNamePrefix, generateTableName}
+import com.redislabs.provider.redis.util.Person.TableNamePrefix
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
+import com.redislabs.provider.redis.util.TestUtils.generateTableName
 import com.redislabs.provider.redis.util.{Logging, Person}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisBenchmarks, toRedisContext}
 import org.apache.spark.rdd.RDD
