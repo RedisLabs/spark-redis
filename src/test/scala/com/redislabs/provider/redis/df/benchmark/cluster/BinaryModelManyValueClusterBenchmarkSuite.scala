@@ -1,13 +1,13 @@
-package com.redislabs.provider.redis.df.perf
+package com.redislabs.provider.redis.df.benchmark.cluster
 
-import com.redislabs.provider.redis.df.SingleValueBenchmarkSuite
+import com.redislabs.provider.redis.df.benchmark.ManyValueBenchmarkSuite
 import com.redislabs.provider.redis.env.RedisClusterEnv
 import org.apache.spark.sql
 
 /**
   * @author The Viet Nguyen
   */
-class BinaryModelSingleValueBenchmarkClusterSuite extends SingleValueBenchmarkSuite
+class BinaryModelManyValueClusterBenchmarkSuite extends ManyValueBenchmarkSuite
   with RedisClusterEnv {
 
   override def suiteTags: String = s"${super.suiteTags}, Binary"

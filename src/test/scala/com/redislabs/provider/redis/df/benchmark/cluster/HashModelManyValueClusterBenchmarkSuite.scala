@@ -1,13 +1,13 @@
-package com.redislabs.provider.redis.df.perf
+package com.redislabs.provider.redis.df.benchmark.cluster
 
-import com.redislabs.provider.redis.df.ManyValueBenchmarkSuite
+import com.redislabs.provider.redis.df.benchmark.ManyValueBenchmarkSuite
 import com.redislabs.provider.redis.env.RedisClusterEnv
 import org.apache.spark.sql.redis.SqlOptionModelHash
 
 /**
   * @author The Viet Nguyen
   */
-class HashModelManyValueBenchmarkClusterSuite extends ManyValueBenchmarkSuite
+class HashModelManyValueClusterBenchmarkSuite extends ManyValueBenchmarkSuite
   with RedisClusterEnv {
 
   override def suiteTags: String = s"${super.suiteTags}, Hash"

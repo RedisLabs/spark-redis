@@ -1,4 +1,4 @@
-package com.redislabs.provider.redis.df
+package com.redislabs.provider.redis.df.benchmark
 
 import com.redislabs.provider.redis.env.RedisClusterEnv
 import com.redislabs.provider.redis.util.Person

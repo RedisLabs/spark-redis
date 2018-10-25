@@ -1,5 +1,6 @@
-package com.redislabs.provider.redis.df
+package com.redislabs.provider.redis.df.benchmark
 
+import com.redislabs.provider.redis.df.RedisDataframeSuite
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Person.{TableNamePrefix, generateTableName}
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
@@ -111,4 +112,3 @@ trait DataframeBenchmarkSuite extends RedisDataframeSuite with RedisBenchmarks w
     }
   }
 }
-
