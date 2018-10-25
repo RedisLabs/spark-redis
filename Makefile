@@ -93,7 +93,12 @@ test:
 	make start
 	# with --batch-mode maven doesn't print 'Progress: 125/150kB', the progress lines take up 90% of the log and causes
 	# Travis build to fail with 'The job exceeded the maximum log length, and has been terminated'
-	mvn --batch-mode -Dtest=${TEST} clean compile test
+	mvn clean test -B
+	make stop
+
+benchmark:
+	make start
+	mvn clean test -B -Pbenchmark
 	make stop
 
 deploy:

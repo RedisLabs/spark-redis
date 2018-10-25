@@ -51,6 +51,7 @@
 		<scala.complete.version>${scala.major.version}.12</scala.complete.version>
 		<jedis.version>2.9.0</jedis.version>
 		<spark.version>2.3.1</spark.version>
+		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
 
 	<distributionManagement>
@@ -220,12 +221,13 @@
 			<plugin>
 				<groupId>org.scalatest</groupId>
 				<artifactId>scalatest-maven-plugin</artifactId>
-				<version>1.0</version>
+				<version>${plugins.scalatest.version}</version>
 				<configuration>
 					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
 					<junitxml>.</junitxml>
 					<filereports>WDF TestSuite.txt</filereports>
 					<argLine>-XX:MaxPermSize=256m -Xmx2g</argLine>
+					<tagsToExclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToExclude>
 				</configuration>
 				<executions>
 					<execution>
@@ -303,6 +305,21 @@
 		</dependency>
     </dependencies>
     <profiles>
+		<profile>
+			<id>benchmark</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.scalatest</groupId>
+						<artifactId>scalatest-maven-plugin</artifactId>
+						<version>${plugins.scalatest.version}</version>
+						<configuration combine.self="override">
+							<tagsToInclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToInclude>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
         <profile>
             <id>release</id>
             <build>
