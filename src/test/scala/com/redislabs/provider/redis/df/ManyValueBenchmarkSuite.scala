@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
   */
 trait ManyValueBenchmarkSuite extends DataframeBenchmarkSuite with RedisClusterEnv {
 
-  private def num = 800000
+  private def num = 1000000
 
   override def suiteTags: String = s"${super.suiteTags}, Many:$num"
 
