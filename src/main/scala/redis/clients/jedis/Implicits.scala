@@ -11,11 +11,11 @@ object Implicits {
 
     def getHashAllWithKey(key: String): Response[(String, JMap[String, String])] = {
       delegate.getClient(key).hgetAll(key)
-      delegate.getResponse(new HashKeyBuilder(key))
+      delegate.getResponse(new HashKeyBuilderWithKey(key))
     }
   }
 
-  class HashKeyBuilder(key: String)
+  class HashKeyBuilderWithKey(key: String)
     extends Builder[(String, JMap[String, String])] {
 
     override def build(data: Any): (String, JMap[String, String]) =
