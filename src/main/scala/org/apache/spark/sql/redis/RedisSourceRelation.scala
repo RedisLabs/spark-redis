@@ -237,7 +237,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]): Seq[Row] = {
+  private def scanRows(node: RedisNode, keys: Seq[String],
+                       requiredColumns: Seq[String]): Seq[Row] = {
     def filteredSchema(): StructType = {
       val requiredColumnsSet = Set(requiredColumns: _*)
       val filteredFields = schema.fields
@@ -264,9 +265,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
             persistence.decodeRow(value, schema, inferSchemaEnabled)
           }
       } else {
-        pipelineValues.map { case values: JList[_] =>
-          val value = requiredColumns.zip(values.asInstanceOf[JList[String]]).toMap
-          persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
+        pipelineValues.map {
+          case (key: String, values: JList[_]) =>
+            val tableName = tableNameOpt.getOrElse("")
+            val value = requiredColumns.zip(values.asInstanceOf[JList[String]]) :+
+              keyColumn.getOrElse("_id") -> tableKey(tableName, key)
+            val valueMap = value.toMap
+            persistence.decodeRow(valueMap, filteredSchema(), inferSchemaEnabled)
         }
       }
     conn.close()

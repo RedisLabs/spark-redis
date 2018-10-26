@@ -5,6 +5,7 @@ import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float =
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
+import redis.clients.jedis.Implicits.KvPipeline
 import redis.clients.jedis.Pipeline
 
 import scala.collection.JavaConverters._
@@ -26,7 +27,7 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
     if (requiredColumns.isEmpty) {
       pipeline.hgetAll(key)
     } else {
-      pipeline.hmget(key, requiredColumns: _*)
+      pipeline.getHashMultipleWithKey(key, requiredColumns: _*)
     }
   }
 

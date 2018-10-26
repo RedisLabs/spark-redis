@@ -2,13 +2,13 @@ package com.redislabs.provider.redis.df
 
 import java.sql.{Date, Timestamp}
 
-import com.redislabs.provider.redis.util.Person
 import com.redislabs.provider.redis.util.Person.{data, _}
+import com.redislabs.provider.redis.util.TestUtils._
+import com.redislabs.provider.redis.util.{EntityId, Person}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
 import org.scalatest.Matchers
-import com.redislabs.provider.redis.util.TestUtils._
 
 /**
   * @author The Viet Nguyen
@@ -196,6 +196,45 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     row.getAs[String]("_8") should be("str8")
     row.getAs[java.sql.Date]("_9") should be(Date.valueOf("2018-10-12"))
     row.getAs[java.sql.Timestamp]("_10") should be(Timestamp.valueOf("2017-12-02 03:04:00"))
+  }
+
+  test("read key column from Redis keys") {
+    val tableName = generateTableName("person")
+    saveHash(tableName, "John",
+      Map("age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, "name")
+      .schema(Person.schema)
+      .load()
+      .as[Person]
+      .collect()
+    loadedPersons should contain(Person.data.head)
+  }
+
+  test("read key column from Redis keys (when _id field does not exist)") {
+    val tableName = generateTableName("person")
+    saveHash(tableName, "John",
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .schema(Person.schema)
+      .load()
+      .as[Person]
+      .collect()
+    loadedPersons should contain(Person.data.head)
+  }
+
+  test("read default key column from Redis keys") {
+    val tableName = generateTableName("entityId")
+    saveHash(tableName, "id", Map("name" -> "name"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .schema(EntityId.schema)
+      .load()
+      .as[EntityId]
+      .collect()
+    loadedPersons should contain(EntityId("id", "name"))
   }
 
   def saveMap(tableName: String): Unit = {
