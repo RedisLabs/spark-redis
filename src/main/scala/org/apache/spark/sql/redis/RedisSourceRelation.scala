@@ -286,4 +286,7 @@ object RedisSourceRelation {
   def uuid(): String = UUID.randomUUID().toString.replace("-", "")
 
   def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
+
+  def tableKey(tableName: String, redisKey: String): String =
+    redisKey.substring(tableName.length + 1)
 }
