@@ -292,6 +292,15 @@ object RedisSourceRelation {
 
   def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
 
-  def tableKey(tableName: String, redisKey: String): String =
-    redisKey.substring(tableName.length + 1)
+  def tableKey(keysPattern: String, redisKey: String): String = {
+    if (keysPattern.isEmpty) {
+      redisKey
+    } else if (keysPattern.endsWith(":*")) {
+      // keysPattern:*
+      redisKey.substring(keysPattern.length - 1)
+    } else {
+      // tableName:$key
+      redisKey.substring(keysPattern.length + 1)
+    }
+  }
 }
