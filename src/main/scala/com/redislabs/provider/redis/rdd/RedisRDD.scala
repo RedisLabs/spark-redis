@@ -475,3 +475,8 @@ trait Keys {
     keys.zip(types).filter(x => x._2 == t).map(x => x._1)
   }
 }
+
+/**
+  * Key utilities to avoid serialization issues.
+  */
+object Keys extends Keys
