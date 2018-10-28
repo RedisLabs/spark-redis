@@ -99,10 +99,6 @@ The keys will not be persisted in Redis hashes
 127.0.0.1:6379> hgetall person:John
 1) "age"
 2) "30"
-3) "salary"
-4) "150.5"
-5) "address"
-6) "60 Wall Street"
 ```
 
 In order to load the keys back, you also need to specify
