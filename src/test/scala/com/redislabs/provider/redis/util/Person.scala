@@ -12,6 +12,7 @@ case class Person(name: String, age: Int, address: String, salary: Double)
 object Person {
 
   val TableNamePrefix = "person"
+  val KeyName = "name"
 
   val data = Seq(
     Person("John", 30, "60 Wall Street", 150.5),

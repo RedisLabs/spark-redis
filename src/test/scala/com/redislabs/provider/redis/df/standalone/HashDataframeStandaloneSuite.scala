@@ -13,7 +13,7 @@ class HashDataframeStandaloneSuite extends HashDataframeSuite with RedisStandalo
 
   override def saveHash(tableName: String, key: String, value: Map[String, String]): Unit = {
     ConnectionUtils.withConnection(redisConfig.initialHost) { conn =>
-      conn.hmset(tableName + ":" + value("name"), value.asJava)
+      conn.hmset(tableName + ":" + key, value.asJava)
     }
   }
 }

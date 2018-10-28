@@ -56,8 +56,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
                          inferSchema: Boolean, requiredColumns: Seq[String]): Row = {
     val values = value match {
       case v: JMap[String, String] => v.asScala.toSeq
-      case v: JList[String] =>
-        requiredColumns.filter(_ != key._1).zip(v.asScala)
+      case v: JList[String] => requiredColumns.zip(v.asScala)
     }
     val results = values :+ key
     val actualSchema = if (!inferSchema) schema else {

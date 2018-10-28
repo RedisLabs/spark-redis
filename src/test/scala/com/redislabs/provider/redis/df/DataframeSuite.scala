@@ -2,10 +2,10 @@ package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.util.Person
 import com.redislabs.provider.redis.util.Person._
+import com.redislabs.provider.redis.util.TestUtils._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis._
 import org.scalatest.Matchers
-import com.redislabs.provider.redis.util.TestUtils._
 
 
 trait DataframeSuite extends RedisDataframeSuite with Matchers {
@@ -176,10 +176,11 @@ trait DataframeSuite extends RedisDataframeSuite with Matchers {
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
-      .option(SqlOptionKeyColumn, "name")
+      .option(SqlOptionKeyColumn, KeyName)
       .save()
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, KeyName)
       .load()
       .cache()
     verifyDf(loadedDf)
@@ -188,19 +189,20 @@ trait DataframeSuite extends RedisDataframeSuite with Matchers {
   test("user defined key column append") {
     val tableName = generateTableName(TableNamePrefix)
     spark.createDataFrame(data).write.format(RedisFormat)
-      .option(SqlOptionKeyColumn, "name")
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, KeyName)
       .save()
     val head = data.head
     val appendData = Seq(head.copy(name = "Jack"), head.copy(age = 31))
     val df = spark.createDataFrame(appendData)
     df.write.format(RedisFormat)
       .mode(SaveMode.Append)
-      .option(SqlOptionKeyColumn, "name")
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, KeyName)
       .save()
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, KeyName)
       .load()
       .cache()
     loadedDf.show()
@@ -221,10 +223,11 @@ trait DataframeSuite extends RedisDataframeSuite with Matchers {
       .write.format(RedisFormat)
       .mode(SaveMode.Overwrite)
       .option(SqlOptionTableName, tableName)
-      .option(SqlOptionKeyColumn, "name")
+      .option(SqlOptionKeyColumn, KeyName)
       .save()
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, KeyName)
       .load()
       .cache()
     verifyDf(loadedDf, overrideData)
