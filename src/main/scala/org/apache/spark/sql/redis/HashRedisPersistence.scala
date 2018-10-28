@@ -6,7 +6,6 @@ import java.util.{List => JList, Map => JMap}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import redis.clients.jedis.Implicits.KvPipeline
 import redis.clients.jedis.Pipeline
 
 import scala.collection.JavaConverters._
@@ -29,9 +28,9 @@ class HashRedisPersistence extends RedisPersistence[Any] {
 
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit = {
     if (requiredColumns.isEmpty) {
-      pipeline.getHashAllWithKey(key)
+      pipeline.hgetAll(key)
     } else {
-      pipeline.getHashMultipleWithKey(key, requiredColumns: _*)
+      pipeline.hmget(key, requiredColumns: _*)
     }
   }
 
