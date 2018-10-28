@@ -93,6 +93,44 @@ The keys in Redis:
 2) "person:Peter"
 ```
 
+The keys will not be persisted in Redis hashes
+
+```bash
+127.0.0.1:6379> hgetall person:John
+1) "age"
+2) "30"
+3) "salary"
+4) "150.5"
+5) "address"
+6) "60 Wall Street"
+```
+
+In order to load the keys back, you also need to specify
+the key column parameter while reading
+
+```scala
+val df = spark.read
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .load()
+```
+
+Otherwise, a field with name `_id` of type `String` will be populated
+
+```bash
+root
+ |-- _id: string (nullable = true)
+ |-- age: integer (nullable = false)
+
++-----+---+
+|  _id|age|
++-----+---+
+| John| 30|
+|Peter| 45|
++-----+---+
+```
+
 ### Save Modes
 
 Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
