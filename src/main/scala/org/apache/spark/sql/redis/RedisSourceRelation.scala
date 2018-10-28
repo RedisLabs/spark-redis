@@ -245,19 +245,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
       persistence.load(pipeline, key, requiredColumns)
     }
-    val rows = if (persistenceModel == SqlOptionModelHash) {
-      keys.zip(pipelineValues).map {
-        case (key: String, value) =>
-          val keysPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
-          val keyMap = keyColumn.getOrElse("_id") -> tableKey(keysPattern, key)
-          persistence.decodeRow(keyMap, value, filteredSchema(requiredColumns),
-            inferSchemaEnabled, requiredColumns)
-      }
-    } else {
-      pipelineValues.map { value =>
-        persistence.decodeRow(null, value, filteredSchema(requiredColumns),
-          inferSchemaEnabled, requiredColumns)
-      }
+    val rows = keys.zip(pipelineValues).map { case (key: String, value) =>
+      val keysPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
+      val keyMap = keyColumn.getOrElse("_id") -> tableKey(keysPattern, key)
+      persistence.decodeRow(keyMap, value, filteredSchema(requiredColumns),
+        inferSchemaEnabled, requiredColumns)
     }
     conn.close()
     rows
