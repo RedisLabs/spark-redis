@@ -59,7 +59,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /** parameters **/
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
+  private val keysPrefixPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
+  private val keyName = keyColumn.getOrElse("_id")
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
@@ -104,7 +106,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     }
 
-    val keyName = keyColumn.getOrElse("_id")
     // write data
     data.foreachPartition { partition =>
       val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
@@ -246,8 +247,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       persistence.load(pipeline, key, requiredColumns)
     }
     val rows = keys.zip(pipelineValues).map { case (key, value) =>
-      val keysPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
-      val keyMap = keyColumn.getOrElse("_id") -> tableKey(keysPattern, key)
+      val keyMap = keyName -> tableKey(keysPrefixPattern, key)
       persistence.decodeRow(keyMap, value, filteredSchema(requiredColumns),
         inferSchemaEnabled, requiredColumns)
     }
@@ -281,15 +281,15 @@ object RedisSourceRelation {
 
   def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
 
-  def tableKey(keysPattern: String, redisKey: String): String = {
-    if (keysPattern.isEmpty) {
+  def tableKey(keysPrefixPattern: String, redisKey: String): String = {
+    if (keysPrefixPattern.isEmpty) {
       redisKey
-    } else if (keysPattern.endsWith(":*")) {
+    } else if (keysPrefixPattern.endsWith(":*")) {
       // keysPattern:*
-      redisKey.substring(keysPattern.length - 1)
+      redisKey.substring(keysPrefixPattern.length - 1)
     } else {
       // tableName:$key
-      redisKey.substring(keysPattern.length + 1)
+      redisKey.substring(keysPrefixPattern.length + 1)
     }
   }
 }
