@@ -13,9 +13,10 @@ trait RedisPersistence[T] extends Serializable {
 
   def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit
 
-  def encodeRow(value: Row): T
+  def encodeRow(key: (String, String), value: Row): T
 
-  def decodeRow(value: T, schema: => StructType, inferSchema: Boolean): Row
+  def decodeRow(key: (String, String), value: T, schema: => StructType, inferSchema: Boolean,
+                requiredColumns: Seq[String]): Row
 }
 
 object RedisPersistence {

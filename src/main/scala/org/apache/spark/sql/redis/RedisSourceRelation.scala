@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis
 
-import java.util.{UUID, List => JList, Map => JMap}
+import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.Logging
@@ -104,6 +104,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     }
 
+    val keyName = keyColumn.getOrElse("_id")
     // write data
     data.foreachPartition { partition =>
       val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
@@ -111,7 +112,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         foreachWithPipeline(conn, keys) { (pipeline, key) =>
           val row = rowsWithKey(key)
-          val encodedRow = persistence.encodeRow(row)
+          val encodedRow = persistence.encodeRow(keyName -> key, row)
           persistence.save(pipeline, key, encodedRow, ttl)
         }
         conn.close()
@@ -239,45 +240,39 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     */
   private def scanRows(node: RedisNode, keys: Seq[String],
                        requiredColumns: Seq[String]): Seq[Row] = {
-    def filteredSchema(): StructType = {
-      val requiredColumnsSet = Set(requiredColumns: _*)
-      val filteredFields = schema.fields
-        .filter { f =>
-          requiredColumnsSet.contains(f.name)
-        }
-      StructType(filteredFields)
-    }
-
     val conn = node.connect()
 
     val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
       persistence.load(pipeline, key, requiredColumns)
     }
 
-    val rows =
-      if (requiredColumns.isEmpty || persistenceModel == SqlOptionModelBinary) {
-        pipelineValues
-          .map {
-            case jmap: JMap[_, _] => jmap.toMap
-            case value: Any => value
-          }
-          .map { value =>
-            persistence.decodeRow(value, schema, inferSchemaEnabled)
-          }
-      } else {
-        pipelineValues.map {
-          case (key: String, values: JList[_]) =>
-            val tableName = tableNameOpt.getOrElse("")
-            val value = requiredColumns.zip(values.asInstanceOf[JList[String]]) :+
-              keyColumn.getOrElse("_id") -> tableKey(tableName, key)
-            val valueMap = value.toMap
-            persistence.decodeRow(valueMap, filteredSchema(), inferSchemaEnabled)
-        }
-      }
+    val rows = pipelineValues.map {
+      case (key: String, value) =>
+        val keysPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
+        val keyMap = keyColumn.getOrElse("_id") -> tableKey(keysPattern, key)
+        persistence.decodeRow(keyMap, value, filteredSchema(requiredColumns),
+          inferSchemaEnabled, requiredColumns)
+      case other: Any =>
+        val keyMap = "_id" -> null
+        persistence.decodeRow(keyMap, other, filteredSchema(requiredColumns),
+          inferSchemaEnabled, requiredColumns)
+    }
     conn.close()
     rows
   }
 
+  private def filteredSchema(requiredColumns: Seq[String]): StructType = {
+    if (requiredColumns.nonEmpty) {
+      val requiredColumnsSet = Set(requiredColumns: _*)
+      val filteredFields = schema.fields
+        .filter { f =>
+          requiredColumnsSet.contains(f.name)
+        }
+      StructType(filteredFields)
+    } else {
+      schema
+    }
+  }
 }
 
 object RedisSourceRelation {
