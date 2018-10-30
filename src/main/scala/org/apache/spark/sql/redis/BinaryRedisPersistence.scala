@@ -31,8 +31,8 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
     SerializationUtils.serialize(valuesArray)
   }
 
-  override def decodeRow(keyMap: (String, String), value: Array[Byte], schema: => StructType,
-                         inferSchema: Boolean, requiredColumns: Seq[String]): Row = {
+  override def decodeRow(keyMap: (String, String), value: Array[Byte], schema: StructType,
+                         requiredColumns: Seq[String]): Row = {
     val valuesArray: Array[Any] = SerializationUtils.deserialize(value)
     new GenericRowWithSchema(valuesArray, schema)
   }

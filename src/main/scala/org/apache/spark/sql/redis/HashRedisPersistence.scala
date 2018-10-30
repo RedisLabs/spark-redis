@@ -51,19 +51,15 @@ class HashRedisPersistence extends RedisPersistence[Any] {
       }
   }
 
-  override def decodeRow(keyMap: (String, String), value: Any, schema: => StructType,
-                         inferSchema: Boolean, requiredColumns: Seq[String]): Row = {
+  override def decodeRow(keyMap: (String, String), value: Any, schema: StructType,
+                         requiredColumns: Seq[String]): Row = {
     val values = value match {
       case v: JMap[_, _] => v.asInstanceOf[JMap[String, String]].asScala.toSeq
       case v: JList[_] => requiredColumns.zip(v.asInstanceOf[JList[String]].asScala)
     }
     val results = values :+ keyMap
-    val actualSchema = if (!inferSchema) schema else {
-      val fields = results.map(kv => StructField(kv._1, StringType)).toArray
-      StructType(fields)
-    }
-    val fieldsValue = parseFields(results.toMap, actualSchema)
-    new GenericRowWithSchema(fieldsValue, actualSchema)
+    val fieldsValue = parseFields(results.toMap, schema)
+    new GenericRowWithSchema(fieldsValue, schema)
   }
 
   private def parseFields(value: Map[String, String], schema: StructType): Array[Any] =

@@ -28,11 +28,10 @@ trait RedisPersistence[T] extends Serializable {
     * @param keyMap          extracted name/value of key column from Redis key
     * @param value           encoded row
     * @param schema          row schema
-    * @param inferSchema
     * @param requiredColumns required columns to decode
     * @return decoded row
     */
-  def decodeRow(keyMap: (String, String), value: T, schema: => StructType, inferSchema: Boolean,
+  def decodeRow(keyMap: (String, String), value: T, schema: StructType,
                 requiredColumns: Seq[String]): Row
 }
 
