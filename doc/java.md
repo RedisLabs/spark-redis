@@ -76,7 +76,9 @@ SparkSession spark = SparkSession
                 .config("spark.redis.port", "6379")
                 .getOrCreate();
 
-Dataset<Row> df = spark.createDataFrame(Arrays.asList(new Person("John", 35), new Person("Peter", 40)), Person.class);
+Dataset<Row> df = spark.createDataFrame(Arrays.asList(
+                new Person("John", 35),
+                new Person("Peter", 40)), Person.class);
 
 df.write()
         .format("org.apache.spark.sql.redis")
