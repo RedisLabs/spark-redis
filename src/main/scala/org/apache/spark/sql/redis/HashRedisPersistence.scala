@@ -17,8 +17,8 @@ class HashRedisPersistence extends RedisPersistence[Any] {
 
   override def save(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
     value match {
-      case v: Map[String, String] =>
-        val javaValue = v.asJava
+      case v: Map[_, _] =>
+        val javaValue = v.asInstanceOf[Map[String, String]].asJava
         pipeline.hmset(key, javaValue)
         if (ttl > 0) {
           pipeline.expire(key, ttl)
@@ -54,8 +54,8 @@ class HashRedisPersistence extends RedisPersistence[Any] {
   override def decodeRow(key: (String, String), value: Any, schema: => StructType,
                          inferSchema: Boolean, requiredColumns: Seq[String]): Row = {
     val values = value match {
-      case v: JMap[String, String] => v.asScala.toSeq
-      case v: JList[String] => requiredColumns.zip(v.asScala)
+      case v: JMap[_, _] => v.asInstanceOf[JMap[String, String]].asScala.toSeq
+      case v: JList[_] => requiredColumns.zip(v.asInstanceOf[JList[String]].asScala)
     }
     val results = values :+ key
     val actualSchema = if (!inferSchema) schema else {
