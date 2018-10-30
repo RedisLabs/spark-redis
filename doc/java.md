@@ -7,7 +7,7 @@ Java because of the Scala/Java interoperability.
 ## RDD
 
 Please, refer to the detailed documentation of [RDD support](rdd.md) for the full list of available features.
-The RDD functions are available in the following way:
+The RDD functions are available in `RedisContext`. Example:
 
 ```java
 SparkConf sparkConf = new SparkConf()
@@ -93,11 +93,11 @@ df.write()
 The following example demonstrates how to create a stream from Redis list `myList`. Please, refer to [Streaming](streaming.md) for more details.
 
 ```java
-  SparkConf sparkConf = new SparkConf()
-                .setAppName("MyApp")
-                .setMaster("local[*]")
-                .set("redis.host", "localhost")
-                .set("redis.port", "6379");
+SparkConf sparkConf = new SparkConf()
+            .setAppName("MyApp")
+            .setMaster("local[*]")
+            .set("redis.host", "localhost")
+            .set("redis.port", "6379");
 
 JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(1));
 
