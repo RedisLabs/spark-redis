@@ -3,8 +3,9 @@ package org.apache.spark.sql.redis
 import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.Keys
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.util.{ConnectionUtils, Logging}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
@@ -213,7 +214,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     } else {
       val firstKey = keys.first()
       val node = getMasterNode(redisConfig.hosts, firstKey)
-      ConnectionUtils.withConnection(node.connect()) { conn =>
+      withConnection(node.connect()) { conn =>
         val results = conn.hgetAll(firstKey).asScala.toSeq :+ keyName -> firstKey
         val fields = results.map(kv => StructField(kv._1, StringType)).toArray
         StructType(fields)
@@ -258,17 +259,15 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     */
   private def scanRows(node: RedisNode, keys: Seq[String], schema: StructType,
                        requiredColumns: Seq[String]): Seq[Row] = {
-    val conn = node.connect()
-
-    val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
-      persistence.load(pipeline, key, requiredColumns)
+    withConnection(node.connect()) { conn =>
+      val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
+        persistence.load(pipeline, key, requiredColumns)
+      }
+      keys.zip(pipelineValues).map { case (key, value) =>
+        val keyMap = keyName -> tableKey(keysPrefixPattern, key)
+        persistence.decodeRow(keyMap, value, schema, requiredColumns)
+      }
     }
-    val rows = keys.zip(pipelineValues).map { case (key, value) =>
-      val keyMap = keyName -> tableKey(keysPrefixPattern, key)
-      persistence.decodeRow(keyMap, value, schema, requiredColumns)
-    }
-    conn.close()
-    rows
   }
 }
 
