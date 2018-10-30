@@ -6,7 +6,7 @@ Java because of the Scala/Java interoperability.
 
 ## RDD
 
-Please, refer to the detailed documentation of [RDD support](#rdd.md) for the full list of available features.
+Please, refer to the detailed documentation of [RDD support](rdd.md) for the full list of available features.
 The RDD functions are available in the following way:
 
 ```java
@@ -31,7 +31,7 @@ redisContext.toRedisKV(rdd.rdd(), ttl, redisConfig, readWriteConfig);
 
 ## Datasets and DataFrames
 
-The Dataset/DataFrame API is identical to Scala. Please, refer to [DataFrame page](#dataframe.md) for details. Here is an
+The Dataset/DataFrame API is identical to Scala. Please, refer to [DataFrame page](dataframe.md) for details. Here is an
 example with Java:
 
 ```Java
