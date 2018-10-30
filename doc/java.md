@@ -31,7 +31,7 @@ redisContext.toRedisKV(rdd.rdd(), ttl, redisConfig, readWriteConfig);
 
 ## Datasets and DataFrames
 
-The Dataset/DataFrame API is identical to Scala. Please, refer to [DataFrame page](dataframe.md) for details. Here is an
+The Dataset/DataFrame API is the same in Java and Scala. Please, refer to [DataFrame page](dataframe.md) for details. Here is an
 example with Java:
 
 ```Java
