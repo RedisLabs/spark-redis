@@ -34,7 +34,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
     }
   }
 
-  override def encodeRow(key: (String, String), value: Row): Map[String, String] = {
+  override def encodeRow(keyName: String, value: Row): Map[String, String] = {
     val fields = value.schema.fields.map(_.name)
     val kvMap = value.getValuesMap[Any](fields)
     kvMap
@@ -44,7 +44,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
       }
       .filter { case (k, _) =>
         // don't store key values
-        k != key._1
+        k != keyName
       }
       .map { case (k, v) =>
         k -> String.valueOf(v)

@@ -133,7 +133,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         foreachWithPipeline(conn, keys) { (pipeline, key) =>
           val row = rowsWithKey(key)
-          val encodedRow = persistence.encodeRow(keyName -> key, row)
+          val encodedRow = persistence.encodeRow(keyName, row)
           persistence.save(pipeline, key, encodedRow, ttl)
         }
         conn.close()
