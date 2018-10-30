@@ -149,10 +149,18 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         new GenericRow(Array[Any]())
       }
     } else {
+      val filteredSchema = {
+        val requiredColumnsSet = Set(requiredColumns: _*)
+        val filteredFields = schema.fields
+          .filter { f =>
+            requiredColumnsSet.contains(f.name)
+          }
+        StructType(filteredFields)
+      }
       keysRdd.mapPartitions { partition =>
         groupKeysByNode(redisConfig.hosts, partition)
           .flatMap { case (node, keys) =>
-            scanRows(node, keys, requiredColumns)
+            scanRows(node, keys, filteredSchema, requiredColumns)
           }
           .iterator
       }
@@ -248,7 +256,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String],
+  private def scanRows(node: RedisNode, keys: Seq[String], schema: StructType,
                        requiredColumns: Seq[String]): Seq[Row] = {
     val conn = node.connect()
 
@@ -257,23 +265,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
     val rows = keys.zip(pipelineValues).map { case (key, value) =>
       val keyMap = keyName -> tableKey(keysPrefixPattern, key)
-      persistence.decodeRow(keyMap, value, filteredSchema(requiredColumns), requiredColumns)
+      persistence.decodeRow(keyMap, value, schema, requiredColumns)
     }
     conn.close()
     rows
-  }
-
-  private def filteredSchema(requiredColumns: Seq[String]): StructType = {
-    if (requiredColumns.nonEmpty) {
-      val requiredColumnsSet = Set(requiredColumns: _*)
-      val filteredFields = schema.fields
-        .filter { f =>
-          requiredColumnsSet.contains(f.name)
-        }
-      StructType(filteredFields)
-    } else {
-      schema
-    }
   }
 }
 
