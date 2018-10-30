@@ -247,7 +247,7 @@ root
 +-----+---+
 | John| 30|
 |Peter| 45|
-+-----+---+ 
++-----+---+
 ```
 
 To read with a Spark SQL:
@@ -296,7 +296,41 @@ The output is:
 root
  |-- name: string (nullable = true)
  |-- age: string (nullable = true)
+ |-- _id: string (nullable = true)
 ```
+
+Note: If your schema has a field named `_id` or it was inferred. The
+Redis key will be stored in that field. Spark Redis will also try to
+extract the key based on your pattern. (you can also change the name
+of key column, please refer to [Specifying Redis key](#specifying-redis-key))
+- if the pattern ends with `*` and it's the only wildcard, all the
+trailing value will be extracted, e.g.
+    ```scala
+    df.show()
+    ```
+    ```bash
+    +-----+---+-----+
+    | name|age|  _id|
+    +-----+---+-----+
+    | John| 30| John|
+    |Peter| 45|Peter|
+    +-----+---+-----+
+    ```
+- otherwise, all Redis key will be kept as is, e.g.
+    ```scala
+    val df = // code ommitted...
+                .option("keys.pattern", "p*:*")
+                .load()
+    df.show()
+    ```
+    ```bash
+    +-----+---+------------+
+    | name|age|         _id|
+    +-----+---+------------+
+    | John| 30| person:John|
+    |Peter| 45|person:Peter|
+    +-----+---+------------+
+    ```
 
 ## DataFrame options
 
