@@ -59,7 +59,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /** parameters **/
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
-  private val keysPrefixPattern = keysPatternOpt.orElse(tableNameOpt).getOrElse("")
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val keyName = keyColumn.getOrElse("_id")
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
@@ -68,6 +67,27 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+
+  /**
+    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
+    */
+  private val dataKeyPattern = keysPatternOpt
+    .orElse(tableNameOpt.map(tableName => tableDataKeyPattern(tableName)))
+    .getOrElse {
+      val msg = s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."
+      throw new IllegalArgumentException(msg)
+    }
+
+  /**
+    * Support key column extraction from Redis prefix pattern. Otherwise,
+    * return Redis key unmodified.
+    */
+  private val keysPrefixPattern =
+    if (dataKeyPattern.endsWith("*") && dataKeyPattern.count(_ == '*') == 1) {
+      dataKeyPattern
+    } else {
+      ""
+    }
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
@@ -95,7 +115,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     currentSchema = saveSchema(schema)
     if (overwrite) {
       // truncate the table
-      sc.fromRedisKeyPattern(dataKeyPattern()).foreachPartition { partition =>
+      sc.fromRedisKeyPattern(dataKeyPattern).foreachPartition { partition =>
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
           val conn = node.connect()
           foreachWithPipeline(conn, keys) { (pipeline, key) =>
@@ -123,7 +143,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")
-    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(), partitionNum = numPartitions)
+    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions)
     if (requiredColumns.isEmpty) {
       keysRdd.map { _ =>
         new GenericRow(Array[Any]())
@@ -146,7 +166,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     * @return true if data exists in redis
     */
   def isEmpty: Boolean = {
-    sc.fromRedisKeyPattern(dataKeyPattern()).isEmpty()
+    sc.fromRedisKeyPattern(dataKeyPattern).isEmpty()
   }
 
   /**
@@ -172,21 +192,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   /**
-    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
-    */
-  private def dataKeyPattern(): String = {
-    keysPatternOpt
-      .orElse(
-        tableNameOpt.map(tableName => tableDataKeyPattern(tableName))
-      )
-      .getOrElse(throw new IllegalArgumentException(s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."))
-  }
-
-  /**
     * infer schema from a random redis row
     */
   private def inferSchema(): StructType = {
-    val keys = sc.fromRedisKeyPattern(dataKeyPattern())
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern)
     if (keys.isEmpty()) {
       throw new IllegalStateException("No key is available")
     } else {
@@ -282,14 +291,11 @@ object RedisSourceRelation {
   def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
 
   def tableKey(keysPrefixPattern: String, redisKey: String): String = {
-    if (keysPrefixPattern.isEmpty) {
-      redisKey
-    } else if (keysPrefixPattern.endsWith(":*")) {
-      // keysPattern:*
+    if (keysPrefixPattern.endsWith("*")) {
+      // keysPattern*
       redisKey.substring(keysPrefixPattern.length - 1)
     } else {
-      // tableName:$key
-      redisKey.substring(keysPrefixPattern.length + 1)
+      redisKey
     }
   }
 }

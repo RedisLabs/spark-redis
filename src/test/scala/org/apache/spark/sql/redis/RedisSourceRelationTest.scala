@@ -7,18 +7,13 @@ import org.scalatest.{FunSuite, Matchers}
   */
 class RedisSourceRelationTest extends FunSuite with Matchers {
 
-  test("redis key extractor with table name") {
-    val key = RedisSourceRelation.tableKey("table", "table:key")
+  test("redis key extractor with prefix pattern") {
+    val key = RedisSourceRelation.tableKey("table*", "tablekey")
     key shouldBe "key"
   }
 
-  test("redis key extractor with keys pattern") {
-    val key = RedisSourceRelation.tableKey("table:*", "table:key")
-    key shouldBe "key"
-  }
-
-  test("redis key extractor with empty pattern") {
-    val key = RedisSourceRelation.tableKey("", "key")
+  test("redis key extractor with other patterns") {
+    val key = RedisSourceRelation.tableKey("*table", "key")
     key shouldBe "key"
   }
 }
