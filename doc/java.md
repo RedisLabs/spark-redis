@@ -81,11 +81,11 @@ Dataset<Row> df = spark.createDataFrame(Arrays.asList(
                 new Person("Peter", 40)), Person.class);
 
 df.write()
-        .format("org.apache.spark.sql.redis")
-        .option("table", "person")
-        .option("key.column", "name")
-        .mode(SaveMode.Overwrite)
-        .save();
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .mode(SaveMode.Overwrite)
+  .save();
 ```
 
 ## Streaming
