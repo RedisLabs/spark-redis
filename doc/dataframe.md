@@ -290,22 +290,22 @@ Spark-Redis tries to extract the key based on the key pattern:
 - if the pattern ends with `*` and it's the only wildcard, the trailing substring will be extracted
 - otherwise there is no extraction - the key is kept as is, e.g.
 
+    ```scala
+    val df = // code omitted...
+                .option("keys.pattern", "p*:*")
+                .option("key.column", "id")
+                .load()
+    df.show()
+    ```
 
-      ```scala
-      val df = // code omitted...
-                  .option("keys.pattern", "p*:*")
-                  .option("key.column", "id")
-                  .load()
-      df.show()
-      ```
-      ```bash
-      +-----+---+------------+
-      | name|age|          id|
-      +-----+---+------------+
-      | John| 30| person:John|
-      |Peter| 45|person:Peter|
-      +-----+---+------------+
-      ```
+    ```bash
+    +-----+---+------------+
+    | name|age|          id|
+    +-----+---+------------+
+    | John| 30| person:John|
+    |Peter| 45|person:Peter|
+    +-----+---+------------+
+    ```
 
 Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. 
 Also we don't specify `key.column` option in this example, so the column `_id` will be created. 
