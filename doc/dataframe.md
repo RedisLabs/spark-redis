@@ -318,9 +318,9 @@ trailing value will be extracted, e.g.
     |Peter| 45|Peter|
     +-----+---+-----+
     ```
-- otherwise, all Redis key will be kept as is, e.g.
+- otherwise, all Redis keys will be kept as is, e.g.
     ```scala
-    val df = // code ommitted...
+    val df = // code omitted...
                 .option("keys.pattern", "p*:*")
                 .load()
     df.show()
