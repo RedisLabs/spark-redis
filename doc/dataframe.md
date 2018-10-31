@@ -289,6 +289,8 @@ df.show()
 Spark-Redis tries to extract the key based on the key pattern:
 - if the pattern ends with `*` and it's the only wildcard, the trailing substring will be extracted
 - otherwise there is no extraction - the key is kept as is, e.g.
+
+
       ```scala
       val df = // code omitted...
                   .option("keys.pattern", "p*:*")
