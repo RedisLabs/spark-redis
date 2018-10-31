@@ -1,6 +1,5 @@
 package com.redislabs.provider.redis.util
 
-import com.redislabs.provider.redis.RedisEndpoint
 import redis.clients.jedis.Jedis
 
 /**
@@ -8,8 +7,7 @@ import redis.clients.jedis.Jedis
   */
 object ConnectionUtils {
 
-  def withConnection[A](endpoint: RedisEndpoint)(body: Jedis => A): A = {
-    val conn = endpoint.connect()
+  def withConnection[A](conn: Jedis)(body: Jedis => A): A = {
     val res = body(conn)
     conn.close()
     res

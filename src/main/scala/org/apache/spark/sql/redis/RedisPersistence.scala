@@ -13,9 +13,26 @@ trait RedisPersistence[T] extends Serializable {
 
   def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit
 
-  def encodeRow(value: Row): T
+  /**
+    * Encode dataframe row before storing it in Redis.
+    *
+    * @param keyName field name that should be encoded in special way, e.g. in Redis keys.
+    * @param value   row to encode.
+    * @return encoded row
+    */
+  def encodeRow(keyName: String, value: Row): T
 
-  def decodeRow(value: T, schema: => StructType, inferSchema: Boolean): Row
+  /**
+    * Decode dataframe row stored in Redis.
+    *
+    * @param keyMap          extracted name/value of key column from Redis key
+    * @param value           encoded row
+    * @param schema          row schema
+    * @param requiredColumns required columns to decode
+    * @return decoded row
+    */
+  def decodeRow(keyMap: (String, String), value: T, schema: StructType,
+                requiredColumns: Seq[String]): Row
 }
 
 object RedisPersistence {

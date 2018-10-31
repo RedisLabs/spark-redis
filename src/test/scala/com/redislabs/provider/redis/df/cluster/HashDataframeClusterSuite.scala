@@ -15,7 +15,7 @@ class HashDataframeClusterSuite extends HashDataframeSuite with RedisClusterEnv 
     val host = redisConfig.initialHost
     val hostAndPort = new HostAndPort(host.host, host.port)
     val conn = new JedisCluster(hostAndPort)
-    conn.hmset(tableName + ":" + value("name"), value.asJava)
+    conn.hmset(tableName + ":" + key, value.asJava)
     conn.close()
   }
 }

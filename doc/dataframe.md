@@ -93,6 +93,40 @@ The keys in Redis:
 2) "person:Peter"
 ```
 
+The keys will not be persisted in Redis hashes
+
+```bash
+127.0.0.1:6379> hgetall person:John
+1) "age"
+2) "30"
+```
+
+In order to load the keys back, you also need to specify
+the key column parameter while reading
+
+```scala
+val df = spark.read
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .load()
+```
+
+Otherwise, a field with name `_id` of type `String` will be populated
+
+```bash
+root
+ |-- _id: string (nullable = true)
+ |-- age: integer (nullable = false)
+
++-----+---+
+|  _id|age|
++-----+---+
+| John| 30|
+|Peter| 45|
++-----+---+
+```
+
 ### Save Modes
 
 Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
@@ -213,7 +247,7 @@ root
 +-----+---+
 | John| 30|
 |Peter| 45|
-+-----+---+ 
++-----+---+
 ```
 
 To read with a Spark SQL:
@@ -262,7 +296,41 @@ The output is:
 root
  |-- name: string (nullable = true)
  |-- age: string (nullable = true)
+ |-- _id: string (nullable = true)
 ```
+
+Note: If your schema has a field named `_id` or it was inferred. The
+Redis key will be stored in that field. Spark Redis will also try to
+extract the key based on your pattern. (you can also change the name
+of key column, please refer to [Specifying Redis key](#specifying-redis-key))
+- if the pattern ends with `*` and it's the only wildcard, all the
+trailing value will be extracted, e.g.
+    ```scala
+    df.show()
+    ```
+    ```bash
+    +-----+---+-----+
+    | name|age|  _id|
+    +-----+---+-----+
+    | John| 30| John|
+    |Peter| 45|Peter|
+    +-----+---+-----+
+    ```
+- otherwise, all Redis key will be kept as is, e.g.
+    ```scala
+    val df = // code ommitted...
+                .option("keys.pattern", "p*:*")
+                .load()
+    df.show()
+    ```
+    ```bash
+    +-----+---+------------+
+    | name|age|         _id|
+    +-----+---+------------+
+    | John| 30| person:John|
+    |Peter| 45|person:Peter|
+    +-----+---+------------+
+    ```
 
 ## DataFrame options
 
@@ -280,3 +348,4 @@ root
 ## Known limitations
 
  - Nested DataFrame fields are not currently supported with Hash model. Consider making DataFrame schema flat or using Binary persistence model.
+ - Key column deserialization relies on pattern prefix, e.g. keysPattern:*, tableName:$key

@@ -25,6 +25,7 @@ trait CsvDataframeSuite extends RedisDataframeSuite with Matchers {
 
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeyColumn, "id")
       .load()
       .cache()
 
