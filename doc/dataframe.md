@@ -113,7 +113,7 @@ val df = spark.read
   .load()
 ```
 
-Otherwise, a field with name `_id` of type `String` will be populated
+Otherwise, a column with name `_id` of type `String` will be created:
 
 ```bash
 root
@@ -206,7 +206,7 @@ There are two options how you can read a DataFrame:
 To read a previously saved DataFrame, specify the table name that was used for saving. Example:
 
 ```scala
-object DataFrameTests {
+object DataFrameExample {
 
   case class Person(name: String, age: Int)
 
@@ -252,6 +252,8 @@ root
 +-----+---+
 ```
 
+If they `key.column` option was used for writing, then it should be also used for reading table back. See [Specifying Redis key](#specifying-redis-key) for details.
+
 To read with a Spark SQL:
 
 ```scala
@@ -266,22 +268,60 @@ val loadedDf = spark.sql(s"SELECT * FROM person")
 
 To read Redis Hashes you have to provide keys pattern with `.option("keys.pattern", keysPattern)` option. The DataFrame schema should be explicitly specified or can be inferred from a random row.
 
-An example of explicit schema:
-
-```scala
- val df = spark.read
-               .format("org.apache.spark.sql.redis")
-               .schema(
-                  StructType(Array(
-                    StructField("name", StringType),
-                    StructField("age", IntegerType))
-                  )
-               ) 
-               .option("keys.pattern", "person:*")
-               .load()
+```bash
+hset person:1 name John age 30
+hset person:2 name Peter age 45
 ```
 
-Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. Example:
+An example of providing an explicit schema and specifying `key.column`:
+
+```scala
+val df = spark.read
+              .format("org.apache.spark.sql.redis")
+              .schema(
+                StructType(Array(
+                  StructField("id", IntegerType),
+                  StructField("name", StringType),
+                  StructField("age", IntegerType))
+                )
+              )
+              .option("keys.pattern", "person:*")
+              .option("key.column", "id")
+              .load()
+              
+df.show()
+```
+
+```bash
++---+-----+---+
+| id| name|age|
++---+-----+---+
+|  1| John| 30|
+|  2|Peter| 45|
++---+-----+---+
+```
+
+Spark-Redis tries to extract the key based on the key pattern:
+- if the pattern ends with `*` and it's the only wildcard, the trailing substring will be extracted
+- otherwise there is no extraction - the key is kept as is, e.g.
+      ```scala
+      val df = // code omitted...
+                  .option("keys.pattern", "p*:*")
+                  .option("key.column", "id")
+                  .load()
+      df.show()
+      ```
+      ```bash
+      +-----+---+------------+
+      | name|age|          id|
+      +-----+---+------------+
+      | John| 30| person:John|
+      |Peter| 45|person:Peter|
+      +-----+---+------------+
+
+Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. 
+Also we don't specify `key.column` option in this example, so the column `_id` will be created. 
+Example:
 
 ```scala
     val df = spark.read
@@ -301,38 +341,6 @@ root
  |-- _id: string (nullable = true)
 ```
 
-Note: If your schema has a field named `_id` or it was inferred, the
-Redis key will be stored in that field. Spark-Redis will also try to
-extract the key based on your pattern. (you can also change the name
-of key column, please refer to [Specifying Redis key](#specifying-redis-key))
-- if the pattern ends with `*` and it's the only wildcard, all the
-trailing value will be extracted, e.g.
-    ```scala
-    df.show()
-    ```
-    ```bash
-    +-----+---+-----+
-    | name|age|  _id|
-    +-----+---+-----+
-    | John| 30| John|
-    |Peter| 45|Peter|
-    +-----+---+-----+
-    ```
-- otherwise, all Redis keys will be kept as is, e.g.
-    ```scala
-    val df = // code omitted...
-                .option("keys.pattern", "p*:*")
-                .load()
-    df.show()
-    ```
-    ```bash
-    +-----+---+------------+
-    | name|age|         _id|
-    +-----+---+------------+
-    | John| 30| person:John|
-    |Peter| 45|person:Peter|
-    +-----+---+------------+
-    ```
 
 ## DataFrame options
 
