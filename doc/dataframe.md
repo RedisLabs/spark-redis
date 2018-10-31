@@ -301,8 +301,8 @@ root
  |-- _id: string (nullable = true)
 ```
 
-Note: If your schema has a field named `_id` or it was inferred. The
-Redis key will be stored in that field. Spark Redis will also try to
+Note: If your schema has a field named `_id` or it was inferred, the
+Redis key will be stored in that field. Spark-Redis will also try to
 extract the key based on your pattern. (you can also change the name
 of key column, please refer to [Specifying Redis key](#specifying-redis-key))
 - if the pattern ends with `*` and it's the only wildcard, all the
@@ -340,7 +340,8 @@ trailing value will be extracted, e.g.
 | ----------------- | ------------------------------------------------------------------------------------------| --------------------- | ------- |
 | model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
 | partitions.number | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
-| key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
+| key.column        | When writing - specifies unique column used as a Redis key, by default a key is auto-generated. 
+                      When reading - specifies column name to store hash key                                    | `String`              | -       |
 | ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
 | infer.schema      | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
 | max.pipeline.size | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |
