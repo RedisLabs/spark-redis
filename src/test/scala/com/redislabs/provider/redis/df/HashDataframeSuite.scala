@@ -204,7 +204,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     saveHash(tableName, "John",
       Map("age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
     val loadedPersons = spark.read.format(RedisFormat)
-      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
       .option(SqlOptionKeyColumn, "name")
       .schema(Person.schema)
       .load()
@@ -232,7 +232,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     saveHash(tableName, "John",
       Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
     val loadedPersons = spark.read.format(RedisFormat)
-      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
       .schema(Person.schema)
       .load()
       .as[Person]
@@ -244,7 +244,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     val tableName = generateTableName("entityId")
     saveHash(tableName, "id", Map("name" -> "name"))
     val loadedPersons = spark.read.format(RedisFormat)
-      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
       .schema(EntityId.schema)
       .load()
       .as[EntityId]
