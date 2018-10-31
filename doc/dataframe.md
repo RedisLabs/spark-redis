@@ -303,6 +303,7 @@ Spark-Redis tries to extract the key based on the key pattern:
       | John| 30| person:John|
       |Peter| 45|person:Peter|
       +-----+---+------------+
+      ```
 
 Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. 
 Also we don't specify `key.column` option in this example, so the column `_id` will be created. 
