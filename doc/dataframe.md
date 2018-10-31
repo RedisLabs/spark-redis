@@ -28,12 +28,13 @@ object DataFrameExample {
   case class Person(name: String, age: Int)
 
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("redis-df")
-      .setMaster("local[*]")
-      .set("spark.redis.host", "localhost")
-      .set("spark.redis.port", "6379")
-
-    val spark = SparkSession.builder().config(conf).getOrCreate()
+    val spark = SparkSession
+      .builder()
+      .appName("redis-df")
+      .master("local[*]")
+      .config("spark.redis.host", "localhost")
+      .config("spark.redis.port", "6379")
+      .getOrCreate()
 
     val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
@@ -210,12 +211,13 @@ object DataFrameTests {
   case class Person(name: String, age: Int)
 
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("redis-df")
-      .setMaster("local[*]")
-      .set("spark.redis.host", "localhost")
-      .set("spark.redis.port", "6379")
-
-    val spark = SparkSession.builder().config(conf).getOrCreate()
+    val spark = SparkSession
+          .builder()
+          .appName("redis-df")
+          .master("local[*]")
+          .config("spark.redis.host", "localhost")
+          .config("spark.redis.port", "6379")
+          .getOrCreate()
 
     val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
