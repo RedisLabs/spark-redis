@@ -243,13 +243,13 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
   test("read default key column from Redis keys") {
     val tableName = generateTableName("entityId")
     saveHash(tableName, "id", Map("name" -> "name"))
-    val loadedPersons = spark.read.format(RedisFormat)
+    val loadedEntities = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
       .schema(EntityId.schema)
       .load()
       .as[EntityId]
       .collect()
-    loadedPersons should contain(EntityId("id", "name"))
+    loadedEntities should contain(EntityId("id", "name"))
   }
 
   def saveMap(tableName: String): Unit = {
