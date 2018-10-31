@@ -340,7 +340,7 @@ trailing value will be extracted, e.g.
 | ----------------- | ------------------------------------------------------------------------------------------| --------------------- | ------- |
 | model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
 | partitions.number | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
-| key.column        | When writing - specifies unique column used as a Redis key, by default a key is auto-generated. <br/> When reading - specifies column name to store hash key | `String`              | -       |
+| key.column        | when writing - specifies unique column used as a Redis key, by default a key is auto-generated. <br/> When reading - specifies column name to store hash key | `String`              | -       |
 | ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
 | infer.schema      | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
 | max.pipeline.size | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |
