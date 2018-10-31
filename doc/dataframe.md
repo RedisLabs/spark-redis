@@ -350,4 +350,3 @@ trailing value will be extracted, e.g.
 ## Known limitations
 
  - Nested DataFrame fields are not currently supported with Hash model. Consider making DataFrame schema flat or using Binary persistence model.
- - Key column deserialization relies on pattern prefix, e.g. keysPattern:*, tableName:$key
