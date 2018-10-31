@@ -113,21 +113,6 @@ val df = spark.read
   .load()
 ```
 
-Otherwise, a column with name `_id` of type `String` will be created:
-
-```bash
-root
- |-- _id: string (nullable = true)
- |-- age: integer (nullable = false)
-
-+-----+---+
-|  _id|age|
-+-----+---+
-| John| 30|
-|Peter| 45|
-+-----+---+
-```
-
 ### Save Modes
 
 Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
