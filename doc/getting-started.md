@@ -20,25 +20,21 @@ cd spark-redis
 mvn clean package -DskipTests
 ```
 
-## Using the library
-Add Spark-Redis to Spark with the `--jars` command line option. For example, use it from spark-shell, include it in the following manner:
+## Using the library with spark shell
+Add Spark-Redis to Spark with the `--jars` command line option. 
 
-```
+```bash
 $ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
-
-Welcome to
-      ____              __
-     / __/__  ___ _____/ /__
-    _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 2.3.1
-      /_/
-
-Using Scala version 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_101)
 ```
 
-The following sections contain code snippets that demonstrate the use of Spark-Redis. To use the sample code, you'll need to replace `your.redis.server` and `6379` with your Redis database's IP address or hostname and port, respectively.
+By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
 
-### Configuring Connections to Redis using SparkConf
+```bash
+$ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
+```
+
+
+### Configuring connections to Redis in a self-contained application
 
 Below is an example configuration of SparkContext with redis configuration:
 
@@ -47,19 +43,31 @@ import com.redislabs.provider.redis._
 
 ...
 
-sc = new SparkContext(new SparkConf()
+val sc = new SparkContext(new SparkConf()
       .setMaster("local")
       .setAppName("myApp")
-
       // initial redis host - can be any node in cluster mode
       .set("spark.redis.host", "localhost")
-
       // initial redis port
       .set("spark.redis.port", "6379")
-
       // optional redis AUTH password
-      .set("spark.redis.auth", "")
+      .set("spark.redis.auth", "passwd")
   )
+```
+
+The SparkSession can be configured in a similar manner:
+
+```scala
+val spark = SparkSession
+  .builder()
+  .appName("myApp")
+  .master("local[*]")
+  .config("spark.redis.host", "localhost")
+  .config("spark.redis.port", "6379")
+  .config("spark.redis.auth", "passwd")
+  .getOrCreate()
+  
+val sc = spark.sparkContext  
 ```
 
 ### Create RDD
@@ -83,6 +91,8 @@ df.write
 ### Create Stream
 
 ```scala
+import com.redislabs.provider.redis._
+
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStream(Array("foo", "bar"),
     storageLevel = StorageLevel.MEMORY_AND_DISK_2)

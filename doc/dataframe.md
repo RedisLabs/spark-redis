@@ -74,7 +74,7 @@ It is used by spark-redis internally when reading DataFrame back to Spark memory
 
 ### Specifying Redis key
 
-By default, spark-redis generates UUID identifier for each row to ensure
+By default spark-redis generates UUID identifier for each row to ensure
 their uniqueness. However, you can also provide your own column as a key. This is controlled with `key.column` option:
 
 ```scala
@@ -137,7 +137,7 @@ df.write
 
 ### Persistence model
 
-By default, DataFrames are persisted as Redis Hashes. It allows to write data with Spark and query from non-Spark environment.
+By default DataFrames are persisted as Redis Hashes. It allows to write data with Spark and query from non-Spark environment.
 It also enables projection query optimization when only a small subset of columns are selected. On the other hand, there is currently 
 a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
 If it is not possible due to some constraints, you may consider using Binary persistence model.
