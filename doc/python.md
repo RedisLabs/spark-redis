@@ -8,7 +8,7 @@ Here is an example:
 1. Run `pyspark` providing the spark-redis jar file 
 
 ```bash
-$ ./bin/pyspark --jars /your/path/to/spark-redis-<version>-jar-with-dependencies.jar
+$ ./bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
 ```
 
 By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
