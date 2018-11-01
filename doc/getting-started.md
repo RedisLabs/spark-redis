@@ -20,7 +20,7 @@ cd spark-redis
 mvn clean package -DskipTests
 ```
 
-## Using the library with spark shell
+### Using the library with spark shell
 Add Spark-Redis to Spark with the `--jars` command line option. 
 
 ```bash
