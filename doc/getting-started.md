@@ -34,7 +34,7 @@ $ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.j
 ```
 
 
-### Configuring connections to Redis in a self-contained application
+### Configuring connection to Redis in a self-contained application
 
 Below is an example configuration of SparkContext with redis configuration:
 
