@@ -62,16 +62,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     */
   @volatile private var currentSchema: StructType = _
 
-  /** parameters **/
-  private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
-  private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
+  /** parameters (sorted alphabetically) **/
+  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val keyName = keyColumn.getOrElse("_id")
+  private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
-  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
+  private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
 
   /**
