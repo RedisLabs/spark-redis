@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
   */
 class HashDataframeStandaloneSuite extends HashDataframeSuite with RedisStandaloneEnv {
 
-  override def saveHash(tableName: String, key: String, value: Map[String, String]): Unit = {
+  override def saveMap(tableName: String, key: String, value: Map[String, String]): Unit = {
     val host = redisConfig.initialHost
     withConnection(host.connect()) { conn =>
       conn.hmset(tableName + ":" + key, value.asJava)

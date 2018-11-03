@@ -19,6 +19,11 @@ object Person {
     Person("Peter", 35, "110 Wall Street", 200.3)
   )
 
+  val dataMaps = Seq(
+    Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
+    Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
+  )
+
   val schema = StructType(Array(
     StructField("name", StringType),
     StructField("age", IntegerType),
