@@ -6,6 +6,7 @@ import com.redislabs.provider.redis.toRedisContext
 import com.redislabs.provider.redis.util.Person.{data, _}
 import com.redislabs.provider.redis.util.TestUtils._
 import com.redislabs.provider.redis.util.{EntityId, Person}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
 import org.apache.spark.sql.redis._
@@ -255,6 +256,28 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   test("load filtered binary keys with hashes") {
     val tableName = generateTableName(TableNamePrefix)
+    val df = spark.createDataFrame(data)
+    df.write.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .save()
+    val extraKey = RedisSourceRelation.uuid()
+    saveMap(tableName, extraKey, Person.dataMaps.head)
+    val loadedDf = spark.read.format(RedisFormat)
+      .option(SqlOptionTableName, tableName)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .option(SqlOptionFilterKeysByType, value = true)
+      .load()
+      .cache()
+    val countFiltered = loadedDf.count()
+    countFiltered shouldBe 2
+    val countAll = sc.fromRedisKeyPattern(tableDataKeyPattern(tableName)).count()
+    countAll shouldBe 3
+    verifyDf(loadedDf)
+  }
+
+  test("load unfiltered binary keys with hashes") {
+    val tableName = generateTableName(TableNamePrefix)
     val extraKey = RedisSourceRelation.uuid()
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
@@ -262,20 +285,14 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionModel, SqlOptionModelBinary)
       .save()
     saveMap(tableName, extraKey, Person.dataMaps.head)
-    val loadedIds = spark.read.format(RedisFormat)
-      .schema(Person.fullSchema)
-      .option(SqlOptionTableName, tableName)
-      .option(SqlOptionModel, SqlOptionModelBinary)
-      .option(SqlOptionFilterKeysByType, value = true)
-      .load()
-      .collect()
-      .map { r =>
-        r.getAs[String]("_id")
-      }
-    loadedIds shouldBe 2
-    loadedIds should not contain extraKey
-    val countAll = sc.fromRedisKeyPattern(tableDataKeyPattern(tableName)).count()
-    countAll shouldBe 3
+    intercept[SparkException] {
+      spark.read.format(RedisFormat)
+        .schema(Person.fullSchema)
+        .option(SqlOptionTableName, tableName)
+        .option(SqlOptionModel, SqlOptionModelBinary)
+        .load()
+        .collect()
+    }
   }
 
   def saveMap(tableName: String): Unit = {
