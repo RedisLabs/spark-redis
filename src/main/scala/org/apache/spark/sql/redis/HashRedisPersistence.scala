@@ -1,6 +1,7 @@
 package org.apache.spark.sql.redis
 
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
+import java.util.{List => JList}
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -12,10 +13,10 @@ import scala.collection.JavaConverters._
 /**
   * @author The Viet Nguyen
   */
-class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
+class HashRedisPersistence extends RedisPersistence[Any] {
 
-  override def save(pipeline: Pipeline, key: String, value: Map[String, String], ttl: Int): Unit = {
-    val javaValue = value.asJava
+  override def save(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
+    val javaValue = value.asInstanceOf[Map[String, String]].asJava
     pipeline.hmset(key, javaValue)
     if (ttl > 0) {
       pipeline.expire(key, ttl)
@@ -23,36 +24,33 @@ class HashRedisPersistence extends RedisPersistence[Map[String, String]] {
   }
 
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit = {
-    if (requiredColumns.isEmpty) {
-      pipeline.hgetAll(key)
-    } else {
-      pipeline.hmget(key, requiredColumns: _*)
-    }
+    pipeline.hmget(key, requiredColumns: _*)
   }
 
-  override def encodeRow(value: Row): Map[String, String] = {
+  override def encodeRow(keyName: String, value: Row): Map[String, String] = {
     val fields = value.schema.fields.map(_.name)
     val kvMap = value.getValuesMap[Any](fields)
     kvMap
-      .filter { case (k, v) =>
+      .filter { case (_, v) =>
         // don't store null values
         v != null
+      }
+      .filter { case (k, _) =>
+        // don't store key values
+        k != keyName
       }
       .map { case (k, v) =>
         k -> String.valueOf(v)
       }
   }
 
-  override def decodeRow(value: Map[String, String], schema: => StructType,
-                         inferSchema: Boolean): Row = {
-    val actualSchema = if (!inferSchema) schema else {
-      val fields = value.keys
-        .map(StructField(_, StringType))
-        .toArray
-      StructType(fields)
-    }
-    val fieldsValue = parseFields(value, actualSchema)
-    new GenericRowWithSchema(fieldsValue, actualSchema)
+  override def decodeRow(keyMap: (String, String), value: Any, schema: StructType,
+                         requiredColumns: Seq[String]): Row = {
+    val scalaValue = value.asInstanceOf[JList[String]].asScala
+    val values = requiredColumns.zip(scalaValue)
+    val results = values :+ keyMap
+    val fieldsValue = parseFields(results.toMap, schema)
+    new GenericRowWithSchema(fieldsValue, schema)
   }
 
   private def parseFields(value: Map[String, String], schema: StructType): Array[Any] =

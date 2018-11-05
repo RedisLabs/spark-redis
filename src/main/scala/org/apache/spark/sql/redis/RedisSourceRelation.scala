@@ -1,8 +1,9 @@
 package org.apache.spark.sql.redis
 
-import java.util.{UUID, List => JList, Map => JMap}
+import java.util.UUID
 
 import com.redislabs.provider.redis.rdd.Keys
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
@@ -11,11 +12,12 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.{PipelineBase, Protocol}
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class RedisSourceRelation(override val sqlContext: SQLContext,
                           parameters: Map[String, String],
@@ -54,18 +56,44 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   logInfo(s"Redis config initial host: ${redisConfig.initialHost}")
 
   @transient private val sc = sqlContext.sparkContext
+
+  /**
+    * Will be filled while saving data to Redis or reading from Redis.
+    */
   @volatile private var currentSchema: StructType = _
 
   /** parameters **/
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
+  private val keyName = keyColumn.getOrElse("_id")
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+
+  /**
+    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
+    */
+  private val dataKeyPattern = keysPatternOpt
+    .orElse(tableNameOpt.map(tableName => tableDataKeyPattern(tableName)))
+    .getOrElse {
+      val msg = s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."
+      throw new IllegalArgumentException(msg)
+    }
+
+  /**
+    * Support key column extraction from Redis prefix pattern. Otherwise,
+    * return Redis key unmodified.
+    */
+  private val keysPrefixPattern =
+    if (dataKeyPattern.endsWith("*") && dataKeyPattern.count(_ == '*') == 1) {
+      dataKeyPattern
+    } else {
+      ""
+    }
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
@@ -75,14 +103,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def schema: StructType = {
     if (currentSchema == null) {
-      currentSchema = userSpecifiedSchema
-        .getOrElse {
-          if (inferSchemaEnabled) {
-            inferSchema()
-          } else {
-            loadSchema()
-          }
-        }
+      currentSchema = userSpecifiedSchema.getOrElse {
+        if (inferSchemaEnabled) inferSchema() else loadSchema()
+      }
     }
     currentSchema
   }
@@ -93,7 +116,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     currentSchema = saveSchema(schema)
     if (overwrite) {
       // truncate the table
-      sc.fromRedisKeyPattern(dataKeyPattern()).foreachPartition { partition =>
+      sc.fromRedisKeyPattern(dataKeyPattern).foreachPartition { partition =>
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
           val conn = node.connect()
           foreachWithPipeline(conn, keys) { (pipeline, key) =>
@@ -111,7 +134,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val conn = node.connect()
         foreachWithPipeline(conn, keys) { (pipeline, key) =>
           val row = rowsWithKey(key)
-          val encodedRow = persistence.encodeRow(row)
+          val encodedRow = persistence.encodeRow(keyName, row)
           persistence.save(pipeline, key, encodedRow, ttl)
         }
         conn.close()
@@ -121,16 +144,24 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")
-    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern(), partitionNum = numPartitions)
+    val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions)
     if (requiredColumns.isEmpty) {
       keysRdd.map { _ =>
         new GenericRow(Array[Any]())
       }
     } else {
+      val filteredSchema = {
+        val requiredColumnsSet = Set(requiredColumns: _*)
+        val filteredFields = schema.fields
+          .filter { f =>
+            requiredColumnsSet.contains(f.name)
+          }
+        StructType(filteredFields)
+      }
       keysRdd.mapPartitions { partition =>
         groupKeysByNode(redisConfig.hosts, partition)
           .flatMap { case (node, keys) =>
-            scanRows(node, keys, requiredColumns)
+            scanRows(node, keys, filteredSchema, requiredColumns)
           }
           .iterator
       }
@@ -144,7 +175,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     * @return true if data exists in redis
     */
   def isEmpty: Boolean = {
-    sc.fromRedisKeyPattern(dataKeyPattern()).isEmpty()
+    sc.fromRedisKeyPattern(dataKeyPattern).isEmpty()
   }
 
   /**
@@ -170,35 +201,24 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   /**
-    * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
-    */
-  private def dataKeyPattern(): String = {
-    keysPatternOpt
-      .orElse(
-        tableNameOpt.map(tableName => tableDataKeyPattern(tableName))
-      )
-      .getOrElse(throw new IllegalArgumentException(s"Neither '$SqlOptionKeysPattern' or '$SqlOptionTableName' option is set."))
-  }
-
-  /**
     * infer schema from a random redis row
     */
   private def inferSchema(): StructType = {
-    val keys = sc.fromRedisKeyPattern(dataKeyPattern())
+    if (persistenceModel != SqlOptionModelHash) {
+      throw new IllegalArgumentException(s"Cannot infer schema from model '$persistenceModel'. " +
+        s"Currently, only '$SqlOptionModelHash' is supported")
+    }
+    val keys = sc.fromRedisKeyPattern(dataKeyPattern)
     if (keys.isEmpty()) {
       throw new IllegalStateException("No key is available")
     } else {
       val firstKey = keys.first()
       val node = getMasterNode(redisConfig.hosts, firstKey)
-      scanRows(node, Seq(firstKey), Seq())
-        .collectFirst {
-          case r: Row =>
-            logDebug(s"Row for schema inference: $r")
-            r.schema
-        }
-        .getOrElse {
-          throw new IllegalStateException("No row is available")
-        }
+      withConnection(node.connect()) { conn =>
+        val results = conn.hgetAll(firstKey).asScala.toSeq :+ keyName -> firstKey
+        val fields = results.map(kv => StructField(kv._1, StringType)).toArray
+        StructType(fields)
+      }
     }
   }
 
@@ -237,42 +257,18 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String], requiredColumns: Seq[String]): Seq[Row] = {
-    def filteredSchema(): StructType = {
-      val requiredColumnsSet = Set(requiredColumns: _*)
-      val filteredFields = schema.fields
-        .filter { f =>
-          requiredColumnsSet.contains(f.name)
-        }
-      StructType(filteredFields)
-    }
-
-    val conn = node.connect()
-
-    val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
-      persistence.load(pipeline, key, requiredColumns)
-    }
-
-    val rows =
-      if (requiredColumns.isEmpty || persistenceModel == SqlOptionModelBinary) {
-        pipelineValues
-          .map {
-            case jmap: JMap[_, _] => jmap.toMap
-            case value: Any => value
-          }
-          .map { value =>
-            persistence.decodeRow(value, schema, inferSchemaEnabled)
-          }
-      } else {
-        pipelineValues.map { case values: JList[_] =>
-          val value = requiredColumns.zip(values.asInstanceOf[JList[String]]).toMap
-          persistence.decodeRow(value, filteredSchema(), inferSchemaEnabled)
-        }
+  private def scanRows(node: RedisNode, keys: Seq[String], schema: StructType,
+                       requiredColumns: Seq[String]): Seq[Row] = {
+    withConnection(node.connect()) { conn =>
+      val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
+        persistence.load(pipeline, key, requiredColumns)
       }
-    conn.close()
-    rows
+      keys.zip(pipelineValues).map { case (key, value) =>
+        val keyMap = keyName -> tableKey(keysPrefixPattern, key)
+        persistence.decodeRow(keyMap, value, schema, requiredColumns)
+      }
+    }
   }
-
 }
 
 object RedisSourceRelation {
@@ -286,4 +282,13 @@ object RedisSourceRelation {
   def uuid(): String = UUID.randomUUID().toString.replace("-", "")
 
   def tableDataKeyPattern(tableName: String): String = s"$tableName:*"
+
+  def tableKey(keysPrefixPattern: String, redisKey: String): String = {
+    if (keysPrefixPattern.endsWith("*")) {
+      // keysPattern*
+      redisKey.substring(keysPrefixPattern.length - 1)
+    } else {
+      redisKey
+    }
+  }
 }
