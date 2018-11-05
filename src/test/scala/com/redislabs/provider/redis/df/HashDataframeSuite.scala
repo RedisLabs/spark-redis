@@ -255,23 +255,27 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   test("load filtered binary keys with hashes") {
     val tableName = generateTableName(TableNamePrefix)
+    val extraKey = RedisSourceRelation.uuid()
     val df = spark.createDataFrame(data)
     df.write.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
       .option(SqlOptionModel, SqlOptionModelBinary)
       .save()
-    val loadedDf = spark.read.format(RedisFormat)
+    saveMap(tableName, extraKey, Person.dataMaps.head)
+    val loadedIds = spark.read.format(RedisFormat)
+      .schema(Person.fullSchema)
       .option(SqlOptionTableName, tableName)
       .option(SqlOptionModel, SqlOptionModelBinary)
       .option(SqlOptionFilterKeysByType, value = true)
       .load()
-      .cache()
-    saveMap(tableName, RedisSourceRelation.uuid(), Person.dataMaps.head)
-    val countFiltered = loadedDf.count()
-    countFiltered shouldBe 2
+      .collect()
+      .map { r =>
+        r.getAs[String]("_id")
+      }
+    loadedIds shouldBe 2
+    loadedIds should not contain extraKey
     val countAll = sc.fromRedisKeyPattern(tableDataKeyPattern(tableName)).count()
     countAll shouldBe 3
-    verifyDf(loadedDf)
   }
 
   def saveMap(tableName: String): Unit = {

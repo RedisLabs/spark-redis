@@ -278,7 +278,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
         persistence.load(pipeline, key, requiredColumns)
       }
-      keys.zip(pipelineValues).map { case (key, value) =>
+      filteredKeys.zip(pipelineValues).map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         persistence.decodeRow(keyMap, value, schema, requiredColumns)
       }

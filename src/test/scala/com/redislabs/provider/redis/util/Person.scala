@@ -31,6 +31,8 @@ object Person {
     StructField("salary", DoubleType)
   ))
 
+  val fullSchema = StructType(schema.fields :+ StructField("_id", StringType))
+
   def df(spark: SparkSession): DataFrame = spark.createDataFrame(data)
 
   def generatePersonTableName(): String = generateTableName(TableNamePrefix)
