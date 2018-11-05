@@ -6,7 +6,7 @@ import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, RedisNode, toRedisContext}
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -62,16 +62,17 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     */
   @volatile private var currentSchema: StructType = _
 
-  /** parameters **/
-  private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
-  private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
+  /** parameters (sorted alphabetically) **/
+  private val filterKeysByTypeEnabled = parameters.get(SqlOptionFilterKeysByType).exists(_.toBoolean)
+  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val keyName = keyColumn.getOrElse("_id")
+  private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
-  private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
   private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
+  private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
 
   /**
@@ -158,16 +159,21 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           }
         StructType(filteredFields)
       }
+      val keyType =
+        if (persistenceModel == SqlOptionModelBinary) {
+          RedisDataTypeString
+        } else {
+          RedisDataTypeHash
+        }
       keysRdd.mapPartitions { partition =>
         groupKeysByNode(redisConfig.hosts, partition)
           .flatMap { case (node, keys) =>
-            scanRows(node, keys, filteredSchema, requiredColumns)
+            scanRows(node, keys, keyType, filteredSchema, requiredColumns)
           }
           .iterator
       }
     }
   }
-
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = filters
 
@@ -257,13 +263,22 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String], schema: StructType,
+  private def scanRows(node: RedisNode, keys: Seq[String], keyType: String, schema: StructType,
                        requiredColumns: Seq[String]): Seq[Row] = {
     withConnection(node.connect()) { conn =>
-      val pipelineValues = mapWithPipeline(conn, keys) { (pipeline, key) =>
+      val filteredKeys =
+        if (filterKeysByTypeEnabled) {
+          val keyTypes = mapWithPipeline(conn, keys) { (pipeline, key) =>
+            pipeline.`type`(key)
+          }
+          keys.zip(keyTypes).filter(_._2 == keyType).map(_._1)
+        } else {
+          keys
+        }
+      val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
         persistence.load(pipeline, key, requiredColumns)
       }
-      keys.zip(pipelineValues).map { case (key, value) =>
+      filteredKeys.zip(pipelineValues).map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         persistence.decodeRow(keyMap, value, schema, requiredColumns)
       }

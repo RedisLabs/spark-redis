@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
   */
 class HashDataframeClusterSuite extends HashDataframeSuite with RedisClusterEnv {
 
-  override def saveHash(tableName: String, key: String, value: Map[String, String]): Unit = {
+  override def saveMap(tableName: String, key: String, value: Map[String, String]): Unit = {
     val host = redisConfig.initialHost
     val hostAndPort = new HostAndPort(host.host, host.port)
     val conn = new JedisCluster(hostAndPort)

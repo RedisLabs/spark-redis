@@ -6,6 +6,8 @@ package org.apache.spark.sql
 package object redis {
 
   val RedisFormat = "org.apache.spark.sql.redis"
+
+  val SqlOptionFilterKeysByType = "filter.keys.by.type"
   val SqlOptionNumPartitions = "partitions.number"
   /**
     * Default read operation number of partitions.
