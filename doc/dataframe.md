@@ -28,12 +28,13 @@ object DataFrameExample {
   case class Person(name: String, age: Int)
 
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("redis-df")
-      .setMaster("local[*]")
-      .set("spark.redis.host", "localhost")
-      .set("spark.redis.port", "6379")
-
-    val spark = SparkSession.builder().config(conf).getOrCreate()
+    val spark = SparkSession
+      .builder()
+      .appName("redis-df")
+      .master("local[*]")
+      .config("spark.redis.host", "localhost")
+      .config("spark.redis.port", "6379")
+      .getOrCreate()
 
     val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
@@ -93,6 +94,25 @@ The keys in Redis:
 2) "person:Peter"
 ```
 
+The keys will not be persisted in Redis hashes
+
+```bash
+127.0.0.1:6379> hgetall person:John
+1) "age"
+2) "30"
+```
+
+In order to load the keys back, you also need to specify
+the key column parameter while reading
+
+```scala
+val df = spark.read
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .load()
+```
+
 ### Save Modes
 
 Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
@@ -142,8 +162,8 @@ It also enables projection query optimization when only a small subset of column
 a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
 If it is not possible due to some constraints, you may consider using Binary persistence model.
 
-With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis. This implies that 
-storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
+With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis (the default Java Serialization is used).
+This implies that storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
 of Binary model is a larger memory footprint.   
 
 To enable Binary model use `option("model", "binary")`, e.g.
@@ -171,17 +191,18 @@ There are two options how you can read a DataFrame:
 To read a previously saved DataFrame, specify the table name that was used for saving. Example:
 
 ```scala
-object DataFrameTests {
+object DataFrameExample {
 
   case class Person(name: String, age: Int)
 
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("redis-df")
-      .setMaster("local[*]")
-      .set("spark.redis.host", "localhost")
-      .set("spark.redis.port", "6379")
-
-    val spark = SparkSession.builder().config(conf).getOrCreate()
+    val spark = SparkSession
+          .builder()
+          .appName("redis-df")
+          .master("local[*]")
+          .config("spark.redis.host", "localhost")
+          .config("spark.redis.port", "6379")
+          .getOrCreate()
 
     val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
@@ -213,8 +234,10 @@ root
 +-----+---+
 | John| 30|
 |Peter| 45|
-+-----+---+ 
++-----+---+
 ```
+
+If they `key.column` option was used for writing, then it should be also used for reading table back. See [Specifying Redis key](#specifying-redis-key) for details.
 
 To read with a Spark SQL:
 
@@ -230,22 +253,63 @@ val loadedDf = spark.sql(s"SELECT * FROM person")
 
 To read Redis Hashes you have to provide keys pattern with `.option("keys.pattern", keysPattern)` option. The DataFrame schema should be explicitly specified or can be inferred from a random row.
 
-An example of explicit schema:
-
-```scala
- val df = spark.read
-               .format("org.apache.spark.sql.redis")
-               .schema(
-                  StructType(Array(
-                    StructField("name", StringType),
-                    StructField("age", IntegerType))
-                  )
-               ) 
-               .option("keys.pattern", "person:*")
-               .load()
+```bash
+hset person:1 name John age 30
+hset person:2 name Peter age 45
 ```
 
-Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. Example:
+An example of providing an explicit schema and specifying `key.column`:
+
+```scala
+val df = spark.read
+              .format("org.apache.spark.sql.redis")
+              .schema(
+                StructType(Array(
+                  StructField("id", IntegerType),
+                  StructField("name", StringType),
+                  StructField("age", IntegerType))
+                )
+              )
+              .option("keys.pattern", "person:*")
+              .option("key.column", "id")
+              .load()
+              
+df.show()
+```
+
+```bash
++---+-----+---+
+| id| name|age|
++---+-----+---+
+|  1| John| 30|
+|  2|Peter| 45|
++---+-----+---+
+```
+
+Spark-Redis tries to extract the key based on the key pattern:
+- if the pattern ends with `*` and it's the only wildcard, the trailing substring will be extracted
+- otherwise there is no extraction - the key is kept as is, e.g.
+
+    ```scala
+    val df = // code omitted...
+                .option("keys.pattern", "p*:*")
+                .option("key.column", "id")
+                .load()
+    df.show()
+    ```
+
+    ```bash
+    +-----+---+------------+
+    | name|age|          id|
+    +-----+---+------------+
+    | John| 30| person:John|
+    |Peter| 45|person:Peter|
+    +-----+---+------------+
+    ```
+
+Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. 
+Also we don't specify `key.column` option in this example, so the column `_id` will be created. 
+Example:
 
 ```scala
     val df = spark.read
@@ -262,7 +326,9 @@ The output is:
 root
  |-- name: string (nullable = true)
  |-- age: string (nullable = true)
+ |-- _id: string (nullable = true)
 ```
+
 
 ## DataFrame options
 
@@ -270,11 +336,11 @@ root
 | ----------------- | ------------------------------------------------------------------------------------------| --------------------- | ------- |
 | model             | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
 | partitions.number | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
-| key.column        | specify unique column used as a Redis key, by default a key is auto-generated             | `String`              | -       |
+| key.column        | when writing - specifies unique column used as a Redis key, by default a key is auto-generated. <br/> When reading - specifies column name to store hash key | `String`              | -       |
 | ttl               | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
 | infer.schema      | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
-| max.pipeline.size | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 10000   |
-| scan.count        | count option of SCAN command (used to iterate over keys)                                  | `Int`                 | 10000   |
+| max.pipeline.size | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |
+| scan.count        | count option of SCAN command (used to iterate over keys)                                  | `Int`                 | 100     |
 
 
 ## Known limitations

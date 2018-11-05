@@ -1,7 +1,8 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.df.Person.data
-import com.redislabs.provider.redis.rdd.SparkRedisSuite
+import com.redislabs.provider.redis.SparkRedisSuite
+import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.Person.data
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
@@ -9,7 +10,7 @@ import org.scalatest.Matchers
 /**
   * @author The Viet Nguyen
   */
-trait DefaultTestDataset extends SparkRedisSuite with Matchers {
+trait RedisDataframeSuite extends SparkRedisSuite with Matchers {
 
   import TestSqlImplicits._
 

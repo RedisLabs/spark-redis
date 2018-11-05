@@ -1,15 +1,14 @@
 package com.redislabs.provider.redis.df
 
-import com.redislabs.provider.redis.df.Person.{TableNamePrefix, generateTableName}
-import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
+import com.redislabs.provider.redis.util.Person.{TableNamePrefix}
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
+import com.redislabs.provider.redis.util.TestUtils._
 
 /**
   * @author The Viet Nguyen
   */
-class FilteredDataframeStandaloneSuite extends RedisStandaloneSuite with DefaultTestDataset
-  with Matchers {
+trait FilteredDataframeSuite extends RedisDataframeSuite with Matchers {
 
   test("select none fields") {
     val tableName = generateTableName(TableNamePrefix)

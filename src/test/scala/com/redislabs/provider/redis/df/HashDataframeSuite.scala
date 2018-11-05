@@ -2,19 +2,19 @@ package com.redislabs.provider.redis.df
 
 import java.sql.{Date, Timestamp}
 
-import com.redislabs.provider.redis.df.Person.{data, _}
-import com.redislabs.provider.redis.rdd.RedisStandaloneSuite
+import com.redislabs.provider.redis.util.Person.{data, _}
+import com.redislabs.provider.redis.util.TestUtils._
+import com.redislabs.provider.redis.util.{EntityId, Person}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types._
 import org.scalatest.Matchers
 
-import scala.collection.JavaConverters._
-
 /**
   * @author The Viet Nguyen
   */
-class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers with DefaultTestDataset {
+trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   import TestSqlImplicits._
 
@@ -76,16 +76,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
 
   test("load dataframe with inferred schema") {
     val tableName = generateTableName(TableNamePrefix)
-    val node = redisConfig.initialHost
-    val conn = node.connect()
-    val data = Seq(
-      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
-      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
-    )
-    data.map(_.asJava)
-      .foreach { person =>
-        conn.hmset(tableName + ":" + person.get("name"), person)
-      }
+    saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
       .option(SqlOptionInferSchema, "true")
@@ -107,16 +98,7 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
 
   test("load dataframe with provided schema") {
     val tableName = generateTableName(TableNamePrefix)
-    val node = redisConfig.initialHost
-    val conn = node.connect()
-    val data = Seq(
-      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
-      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
-    )
-    data.map(_.asJava)
-      .foreach { person =>
-        conn.hmset(tableName + ":" + person.get("name"), person)
-      }
+    saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
       .schema(StructType(Array(
@@ -217,4 +199,68 @@ class HashDataframeStandaloneSuite extends RedisStandaloneSuite with Matchers wi
     row.getAs[java.sql.Timestamp]("_10") should be(Timestamp.valueOf("2017-12-02 03:04:00"))
   }
 
+  test("read key column from Redis keys") {
+    val tableName = generateTableName("person")
+    saveHash(tableName, "John",
+      Map("age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+      .option(SqlOptionKeyColumn, "name")
+      .schema(Person.schema)
+      .load()
+      .as[Person]
+      .collect()
+    loadedPersons should contain(Person.data.head)
+  }
+
+  test("read key column from Redis keys with prefix pattern") {
+    val tableName = generateTableName("person")
+    saveHash(tableName, "John",
+      Map("age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+      .option(SqlOptionKeyColumn, "name")
+      .schema(Person.schema)
+      .load()
+      .as[Person]
+      .collect()
+    loadedPersons should contain(Person.data.head)
+  }
+
+  test("read key column from Redis keys (when _id field does not exist)") {
+    val tableName = generateTableName("person")
+    saveHash(tableName, "John",
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"))
+    val loadedPersons = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+      .schema(Person.schema)
+      .load()
+      .as[Person]
+      .collect()
+    loadedPersons should contain(Person.data.head)
+  }
+
+  test("read default key column from Redis keys") {
+    val tableName = generateTableName("entityId")
+    saveHash(tableName, "id", Map("name" -> "name"))
+    val loadedEntities = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+      .schema(EntityId.schema)
+      .load()
+      .as[EntityId]
+      .collect()
+    loadedEntities should contain(EntityId("id", "name"))
+  }
+
+  def saveMap(tableName: String): Unit = {
+    val data = Seq(
+      Map("name" -> "John", "age" -> "30", "address" -> "60 Wall Street", "salary" -> "150.5"),
+      Map("name" -> "Peter", "age" -> "35", "address" -> "110 Wall Street", "salary" -> "200.3")
+    )
+    data.foreach { person =>
+      saveHash(tableName, person("name"), person)
+    }
+  }
+
+  def saveHash(tableName: String, key: String, value: Map[String, String]): Unit
 }

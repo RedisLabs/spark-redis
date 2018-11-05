@@ -86,11 +86,11 @@ case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int)
 object ReadWriteConfig {
   /** maximum number of commands per pipeline **/
   val MaxPipelineSizeConfKey = "spark.redis.max.pipeline.size"
-  val MaxPipelineSizeDefault = 10000
+  val MaxPipelineSizeDefault = 100
 
   /** count option of SCAN command **/
   val ScanCountConfKey = "spark.redis.scan.count"
-  val ScanCountDefault = 10000
+  val ScanCountDefault = 100
 
   val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault)
 
