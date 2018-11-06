@@ -255,7 +255,7 @@ class RedisKeysRDD(sc: SparkContext,
         slot >= sPos && slot <= ePos
       }).iterator
     } else {
-      getKeys(nodes, sPos, ePos, keyPattern).iterator
+      getKeys(nodes, sPos, ePos, keyPattern)
     }
   }
 
@@ -408,34 +408,43 @@ trait Keys {
   }
 
   /**
-    * @param nodes list of RedisNode
+    * @param _nodes list of RedisNode
     * @param sPos  start position of slots
     * @param ePos  end position of slots
     * @param keyPattern
     * @return keys whose slot is in [sPos, ePos]
     */
-  def getKeys(nodes: Array[RedisNode],
+  def getKeys(_nodes: Array[RedisNode],
               sPos: Int,
               ePos: Int,
               keyPattern: String)
-             (implicit readWriteConfig: ReadWriteConfig): util.HashSet[String] = {
-    val keys = new util.HashSet[String]()
+             (implicit readWriteConfig: ReadWriteConfig): Iterator[String] = {
+    println(s"getting keys $sPos $ePos")
+    // TODO: ....
+    val nodes = _nodes.groupBy(n => (n.endpoint.host, n.endpoint.port)).map(_._2.head)
+
+
     if (isRedisRegex(keyPattern)) {
-      nodes.foreach { node =>
+      nodes.iterator.map { node =>
+        // TODO:
+        val allKeys = new util.HashSet[String]()
+        println(s"node = $node")
+
         val conn = node.endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        val res = keys.addAll(scanKeys(conn, params).filter { key =>
+        val scannedKeys = scanKeys(conn, params).filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
-        })
+        }
+        val newKeys = scannedKeys.filter(k => allKeys.add(k))
         conn.close()
-        res
-      }
+//        allKeys.toList.sorted.foreach(println)
+        newKeys.iterator
+      }.flatten
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)
-      if (slot >= sPos && slot <= ePos) keys.add(keyPattern)
+      if (slot >= sPos && slot <= ePos) Iterator(keyPattern) else Iterator()
     }
-    keys
   }
 
   /**
