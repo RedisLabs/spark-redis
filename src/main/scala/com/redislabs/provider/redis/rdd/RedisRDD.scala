@@ -393,22 +393,6 @@ trait Keys {
     judge(key, false)
   }
 
-  /**
-    * @param jedis
-    * @param params
-    * @return keys of params pattern in jedis
-    */
-  private def scanKeys(jedis: Jedis, params: ScanParams): util.HashSet[String] = {
-    val keys = new util.HashSet[String]
-    var cursor = "0"
-    do {
-      val scan = jedis.scan(cursor, params)
-      keys.addAll(scan.getResult)
-      cursor = scan.getStringCursor
-    } while (cursor != "0")
-    keys
-  }
-
   class CursorIterator(jedis: Jedis, params: ScanParams) extends Iterator[util.List[String]] {
     var first = true
     var cursor = "0"
@@ -437,29 +421,27 @@ trait Keys {
   }
 
   /**
-    * @param _nodes list of RedisNode
+    * @param nodes list of RedisNode
     * @param sPos   start position of slots
     * @param ePos   end position of slots
     * @param keyPattern
     * @return keys whose slot is in [sPos, ePos]
     */
-  def getKeys(_nodes: Array[RedisNode],
+  def getKeys(nodes: Array[RedisNode],
               sPos: Int,
               ePos: Int,
               keyPattern: String)
              (implicit readWriteConfig: ReadWriteConfig): Iterator[String] = {
     println(s"getting keys $sPos $ePos")
-    // TODO: ....
-    val nodes = _nodes.groupBy(n => (n.endpoint.host, n.endpoint.port)).map(_._2.head)
-
+    val endpoints = nodes.map(_.endpoint).distinct
 
     if (isRedisRegex(keyPattern)) {
-      nodes.iterator.map { node =>
+      endpoints.iterator.map { endpoint =>
         // TODO:
         val allKeys = new util.HashSet[String]()
-        println(s"node = $node")
+        println(s"endpoint = $endpoint")
 
-        val conn = node.endpoint.connect()
+        val conn = endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
         val scannedKeys = new CursorIterator(conn, params).flatten.filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)

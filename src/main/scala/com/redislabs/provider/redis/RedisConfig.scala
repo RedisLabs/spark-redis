@@ -64,7 +64,11 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     * @return a new Jedis instance
     */
   def connect(): Jedis = {
-    ConnectionPool.connect(this)
+//    val start = System.currentTimeMillis()
+    val r = ConnectionPool.connect(this)
+//    val end = System.currentTimeMillis()
+//    println(s"Connect $this ${end - start}")
+    r
   }
 }
 

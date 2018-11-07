@@ -36,4 +36,8 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
     val targetCnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).distinct.count
     assert(returnedCnt == targetCnt)
   }
+
+  test("my test") {
+    getKeys(redisConfig.hosts, 0, 16383, "*").foreach(k => println(s"foreach $k"))
+  }
 }

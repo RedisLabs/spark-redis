@@ -130,15 +130,18 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
     // write data
     data.foreachPartition { partition =>
-      val rowsWithKey: Map[String, Row] = partition.map(row => dataKeyId(row) -> row).toMap
-      groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-        val conn = node.connect()
-        foreachWithPipeline(conn, keys) { (pipeline, key) =>
-          val row = rowsWithKey(key)
-          val encodedRow = persistence.encodeRow(keyName, row)
-          persistence.save(pipeline, key, encodedRow, ttl)
+      // TODO:
+      partition.grouped(10000).foreach { batch =>
+        val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
+        groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
+          val conn = node.connect()
+          foreachWithPipeline(conn, keys) { (pipeline, key) =>
+            val row = rowsWithKey(key)
+            val encodedRow = persistence.encodeRow(keyName, row)
+            persistence.save(pipeline, key, encodedRow, ttl)
+          }
+          conn.close()
         }
-        conn.close()
       }
     }
   }
@@ -166,11 +169,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           RedisDataTypeHash
         }
       keysRdd.mapPartitions { partition =>
-        groupKeysByNode(redisConfig.hosts, partition)
-          .flatMap { case (node, keys) =>
-            scanRows(node, keys, keyType, filteredSchema, requiredColumns)
-          }
-          .iterator
+        // TODO: config param
+        partition.grouped(10000).map { batch =>
+          groupKeysByNode(redisConfig.hosts, batch.iterator)
+            .flatMap { case (node, keys) =>
+              scanRows(node, keys, keyType, filteredSchema, requiredColumns)
+            }.iterator
+        }.flatten
       }
     }
   }
@@ -181,7 +186,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     * @return true if data exists in redis
     */
   def isEmpty: Boolean = {
-    sc.fromRedisKeyPattern(dataKeyPattern).isEmpty()
+    val a = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
+    println("check isempty")
+    a
   }
 
   /**
