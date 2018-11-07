@@ -247,6 +247,8 @@ class RedisKeysRDD(sc: SparkContext,
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
+    // TODO:
+    println(s"Computing partition $sPos $ePos")
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
 
     if (Option(this.keys).isDefined) {
@@ -407,10 +409,37 @@ trait Keys {
     keys
   }
 
+  class CursorIterator(jedis: Jedis, params: ScanParams) extends Iterator[util.List[String]] {
+    var first = true
+    var cursor = "0"
+
+    def fetchNext(): util.List[String] = {
+      val scan = jedis.scan(cursor, params)
+      cursor = scan.getStringCursor
+      scan.getResult
+    }
+
+    override def hasNext: Boolean = {
+      if (first) {
+        first = false
+        true
+      } else {
+        cursor != "0"
+      }
+    }
+
+    override def next(): util.List[String] = {
+      val r = fetchNext()
+//      r.foreach(println)
+//      println("---SCAN BATCH END---")
+      r
+    }
+  }
+
   /**
     * @param _nodes list of RedisNode
-    * @param sPos  start position of slots
-    * @param ePos  end position of slots
+    * @param sPos   start position of slots
+    * @param ePos   end position of slots
     * @param keyPattern
     * @return keys whose slot is in [sPos, ePos]
     */
@@ -432,14 +461,14 @@ trait Keys {
 
         val conn = node.endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        val scannedKeys = scanKeys(conn, params).filter { key =>
+        val scannedKeys = new CursorIterator(conn, params).flatten.filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         }
         val newKeys = scannedKeys.filter(k => allKeys.add(k))
         conn.close()
-//        allKeys.toList.sorted.foreach(println)
-        newKeys.iterator
+        //        allKeys.toList.sorted.foreach(println)
+        newKeys
       }.flatten
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)
