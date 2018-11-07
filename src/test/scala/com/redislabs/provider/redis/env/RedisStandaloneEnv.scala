@@ -9,7 +9,7 @@ import org.apache.spark.SparkConf
 trait RedisStandaloneEnv extends Env {
 
   override val conf: SparkConf = new SparkConf()
-    .setMaster("local").setAppName(getClass.getName)
+    .setMaster("local[*]").setAppName(getClass.getName)
     .set("spark.redis.host", redisHost)
     .set("spark.redis.port", s"$redisPort")
     .set("spark.redis.auth", redisAuth)
