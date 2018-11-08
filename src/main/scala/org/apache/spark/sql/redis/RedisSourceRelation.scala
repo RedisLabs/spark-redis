@@ -134,6 +134,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     data.foreachPartition { partition =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
+        // the following can be optimized to not create a map
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
           val conn = node.connect()
@@ -176,7 +177,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           groupKeysByNode(redisConfig.hosts, batch.iterator)
             .flatMap { case (node, keys) =>
               scanRows(node, keys, keyType, filteredSchema, requiredColumns)
-            }.iterator
+            }
         }.flatten
       }
     }

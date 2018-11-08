@@ -45,7 +45,7 @@ class RedisKVRDD(prev: RDD[String],
       val res = stringKeys.zip(response).iterator.asInstanceOf[Iterator[(String, String)]]
       conn.close()
       res
-    }.iterator
+    }
   }
 
   def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
@@ -55,7 +55,7 @@ class RedisKVRDD(prev: RDD[String],
       val res = hashKeys.flatMap(conn.hgetAll).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 }
 
@@ -84,7 +84,7 @@ class RedisListRDD(prev: RDD[String],
       val res = setKeys.flatMap(conn.smembers).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
@@ -94,7 +94,7 @@ class RedisListRDD(prev: RDD[String],
       val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 }
 
@@ -146,7 +146,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       }
       conn.close()
       res
-    }.iterator.asInstanceOf[Iterator[T]]
+    }.asInstanceOf[Iterator[T]]
   }
 
   private def getZSetByScore(nodes: Array[RedisNode],
@@ -168,7 +168,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       }
       conn.close()
       res
-    }.iterator.asInstanceOf[Iterator[T]]
+    }.asInstanceOf[Iterator[T]]
   }
 }
 
@@ -463,9 +463,9 @@ trait Keys {
     * @param keys  list of keys
     * @return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
     */
-  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Array[(RedisNode, Array[String])] = {
+  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(RedisNode, Array[String])] = {
     keys.map(key => (getMasterNode(nodes, key), key)).toArray.groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2))).toArray
+      map(x => (x._1, x._2.map(_._2))).iterator
   }
 
   /**
