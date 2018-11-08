@@ -247,8 +247,7 @@ class RedisKeysRDD(sc: SparkContext,
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
-    // TODO:
-    println(s"Computing partition $sPos $ePos")
+
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
 
     if (Option(this.keys).isDefined) {
@@ -257,6 +256,10 @@ class RedisKeysRDD(sc: SparkContext,
         slot >= sPos && slot <= ePos
       }).iterator
     } else {
+      logInfo {
+        val nodesPassMasked = nodes.map(n => n.copy(endpoint = n.endpoint.maskPassword())).mkString
+        s"Computing partition, get keys partId: ${partition.index},  [$sPos - $ePos] nodes: $nodesPassMasked"
+      }
       getKeys(nodes, sPos, ePos, keyPattern)
     }
   }
@@ -393,37 +396,28 @@ trait Keys {
     judge(key, false)
   }
 
-  class CursorIterator(jedis: Jedis, params: ScanParams) extends Iterator[util.List[String]] {
-    var first = true
+  /**
+    * Scan keys, the result may contain duplicates
+    *
+    * @param jedis
+    * @param params
+    * @return keys of params pattern in jedis
+    */
+  private def scanKeys(jedis: Jedis, params: ScanParams): util.List[String] = {
+    val keys = new util.ArrayList[String]
     var cursor = "0"
-
-    def fetchNext(): util.List[String] = {
+    do {
       val scan = jedis.scan(cursor, params)
+      keys.addAll(scan.getResult)
       cursor = scan.getStringCursor
-      scan.getResult
-    }
-
-    override def hasNext: Boolean = {
-      if (first) {
-        first = false
-        true
-      } else {
-        cursor != "0"
-      }
-    }
-
-    override def next(): util.List[String] = {
-      val r = fetchNext()
-//      r.foreach(println)
-//      println("---SCAN BATCH END---")
-      r
-    }
+    } while (cursor != "0")
+    keys
   }
 
   /**
     * @param nodes list of RedisNode
-    * @param sPos   start position of slots
-    * @param ePos   end position of slots
+    * @param sPos  start position of slots
+    * @param ePos  end position of slots
     * @param keyPattern
     * @return keys whose slot is in [sPos, ePos]
     */
@@ -432,25 +426,19 @@ trait Keys {
               ePos: Int,
               keyPattern: String)
              (implicit readWriteConfig: ReadWriteConfig): Iterator[String] = {
-    println(s"getting keys $sPos $ePos")
     val endpoints = nodes.map(_.endpoint).distinct
 
     if (isRedisRegex(keyPattern)) {
       endpoints.iterator.map { endpoint =>
-        // TODO:
-        val allKeys = new util.HashSet[String]()
-        println(s"endpoint = $endpoint")
-
+        val keys = new util.HashSet[String]()
         val conn = endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        val scannedKeys = new CursorIterator(conn, params).flatten.filter { key =>
+        keys.addAll(scanKeys(conn, params).filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
-        }
-        val newKeys = scannedKeys.filter(k => allKeys.add(k))
+        })
         conn.close()
-        //        allKeys.toList.sorted.foreach(println)
-        newKeys
+        keys.iterator()
       }.flatten
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)

@@ -24,4 +24,7 @@ package object redis {
 
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
   val SqlOptionScanCount = "scan.count"
+
+  val SqlOptionIteratorGroupingSize = "iterator.grouping.size"
+  val SqlOptionIteratorGroupingSizeDefault = 1000
 }

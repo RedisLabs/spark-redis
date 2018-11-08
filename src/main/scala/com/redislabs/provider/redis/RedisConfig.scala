@@ -64,11 +64,12 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     * @return a new Jedis instance
     */
   def connect(): Jedis = {
-//    val start = System.currentTimeMillis()
-    val r = ConnectionPool.connect(this)
-//    val end = System.currentTimeMillis()
-//    println(s"Connect $this ${end - start}")
-    r
+    ConnectionPool.connect(this)
+  }
+
+  def maskPassword(): RedisEndpoint = {
+    // mask password
+    this.copy(auth = "")
   }
 }
 

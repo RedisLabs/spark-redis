@@ -37,7 +37,4 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
     assert(returnedCnt == targetCnt)
   }
 
-  test("my test") {
-    getKeys(redisConfig.hosts, 0, 16383, "*").foreach(k => println(s"foreach $k"))
-  }
 }

@@ -65,6 +65,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /** parameters (sorted alphabetically) **/
   private val filterKeysByTypeEnabled = parameters.get(SqlOptionFilterKeysByType).exists(_.toBoolean)
   private val inferSchemaEnabled = parameters.get(SqlOptionInferSchema).exists(_.toBoolean)
+  private val iteratorGroupingSize = parameters.get(SqlOptionIteratorGroupingSize).map(_.toInt)
+    .getOrElse(SqlOptionIteratorGroupingSizeDefault)
   private val keyColumn = parameters.get(SqlOptionKeyColumn)
   private val keyName = keyColumn.getOrElse("_id")
   private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
@@ -130,8 +132,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
     // write data
     data.foreachPartition { partition =>
-      // TODO:
-      partition.grouped(10000).foreach { batch =>
+      // grouped iterator to only allocate memory for a portion of rows
+      partition.grouped(iteratorGroupingSize).foreach { batch =>
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
           val conn = node.connect()
@@ -169,8 +171,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           RedisDataTypeHash
         }
       keysRdd.mapPartitions { partition =>
-        // TODO: config param
-        partition.grouped(10000).map { batch =>
+        // grouped iterator to only allocate memory for a portion of rows
+        partition.grouped(iteratorGroupingSize).map { batch =>
           groupKeysByNode(redisConfig.hosts, batch.iterator)
             .flatMap { case (node, keys) =>
               scanRows(node, keys, keyType, filteredSchema, requiredColumns)
