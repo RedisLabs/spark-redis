@@ -45,7 +45,7 @@ class RedisKVRDD(prev: RDD[String],
       val res = stringKeys.zip(response).iterator.asInstanceOf[Iterator[(String, String)]]
       conn.close()
       res
-    }.iterator
+    }
   }
 
   def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
@@ -55,7 +55,7 @@ class RedisKVRDD(prev: RDD[String],
       val res = hashKeys.flatMap(conn.hgetAll).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 }
 
@@ -84,7 +84,7 @@ class RedisListRDD(prev: RDD[String],
       val res = setKeys.flatMap(conn.smembers).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
@@ -94,7 +94,7 @@ class RedisListRDD(prev: RDD[String],
       val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
       conn.close()
       res
-    }.iterator
+    }
   }
 }
 
@@ -146,7 +146,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       }
       conn.close()
       res
-    }.iterator.asInstanceOf[Iterator[T]]
+    }.asInstanceOf[Iterator[T]]
   }
 
   private def getZSetByScore(nodes: Array[RedisNode],
@@ -168,7 +168,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       }
       conn.close()
       res
-    }.iterator.asInstanceOf[Iterator[T]]
+    }.asInstanceOf[Iterator[T]]
   }
 }
 
@@ -255,7 +255,11 @@ class RedisKeysRDD(sc: SparkContext,
         slot >= sPos && slot <= ePos
       }).iterator
     } else {
-      getKeys(nodes, sPos, ePos, keyPattern).iterator
+      logInfo {
+        val nodesPassMasked = nodes.map(n => n.copy(endpoint = n.endpoint.maskPassword())).mkString
+        s"Computing partition, get keys partId: ${partition.index},  [$sPos - $ePos] nodes: $nodesPassMasked"
+      }
+      getKeys(nodes, sPos, ePos, keyPattern)
     }
   }
 
@@ -392,12 +396,14 @@ trait Keys {
   }
 
   /**
+    * Scan keys, the result may contain duplicates
+    *
     * @param jedis
     * @param params
     * @return keys of params pattern in jedis
     */
-  private def scanKeys(jedis: Jedis, params: ScanParams): util.HashSet[String] = {
-    val keys = new util.HashSet[String]
+  private def scanKeys(jedis: Jedis, params: ScanParams): util.List[String] = {
+    val keys = new util.ArrayList[String]
     var cursor = "0"
     do {
       val scan = jedis.scan(cursor, params)
@@ -418,24 +424,25 @@ trait Keys {
               sPos: Int,
               ePos: Int,
               keyPattern: String)
-             (implicit readWriteConfig: ReadWriteConfig): util.HashSet[String] = {
-    val keys = new util.HashSet[String]()
+             (implicit readWriteConfig: ReadWriteConfig): Iterator[String] = {
+    val endpoints = nodes.map(_.endpoint).distinct
+
     if (isRedisRegex(keyPattern)) {
-      nodes.foreach { node =>
-        val conn = node.endpoint.connect()
+      endpoints.iterator.map { endpoint =>
+        val keys = new util.HashSet[String]()
+        val conn = endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        val res = keys.addAll(scanKeys(conn, params).filter { key =>
+        keys.addAll(scanKeys(conn, params).filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
         })
         conn.close()
-        res
-      }
+        keys.iterator()
+      }.flatten
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)
-      if (slot >= sPos && slot <= ePos) keys.add(keyPattern)
+      if (slot >= sPos && slot <= ePos) Iterator(keyPattern) else Iterator()
     }
-    keys
   }
 
   /**
@@ -456,9 +463,9 @@ trait Keys {
     * @param keys  list of keys
     * @return (node: (key1, key2, ...), node2: (key3, key4,...), ...)
     */
-  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Array[(RedisNode, Array[String])] = {
+  def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(RedisNode, Array[String])] = {
     keys.map(key => (getMasterNode(nodes, key), key)).toArray.groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2))).toArray
+      map(x => (x._1, x._2.map(_._2))).iterator
   }
 
   /**

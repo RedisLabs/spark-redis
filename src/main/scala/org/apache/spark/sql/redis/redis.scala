@@ -6,6 +6,8 @@ package org.apache.spark.sql
 package object redis {
 
   val RedisFormat = "org.apache.spark.sql.redis"
+
+  val SqlOptionFilterKeysByType = "filter.keys.by.type"
   val SqlOptionNumPartitions = "partitions.number"
   /**
     * Default read operation number of partitions.
@@ -22,4 +24,7 @@ package object redis {
 
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
   val SqlOptionScanCount = "scan.count"
+
+  val SqlOptionIteratorGroupingSize = "iterator.grouping.size"
+  val SqlOptionIteratorGroupingSizeDefault = 1000
 }

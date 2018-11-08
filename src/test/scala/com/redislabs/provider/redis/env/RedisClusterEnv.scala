@@ -11,7 +11,7 @@ trait RedisClusterEnv extends Env {
   override val redisPort = 7379
 
   override val conf: SparkConf = new SparkConf()
-    .setMaster("local").setAppName(getClass.getName)
+    .setMaster("local[*]").setAppName(getClass.getName)
     .set("spark.redis.host", redisHost)
     .set("spark.redis.port", s"$redisPort")
 

@@ -112,4 +112,15 @@ trait DataframeBenchmarkSuite extends RedisDataframeSuite with RedisBenchmarks w
         }
     }
   }
+
+  test(s"$suiteTags, Take 10") {
+    time(s"$suiteTags, Take 10") {
+      spark.read.format(RedisFormat)
+        .option(SqlOptionModel, persistentModel)
+        .option(SqlOptionTableName, tableName)
+        .option(SqlOptionNumPartitions, 8)
+        .load()
+        .take(10)
+    }
+  }
 }

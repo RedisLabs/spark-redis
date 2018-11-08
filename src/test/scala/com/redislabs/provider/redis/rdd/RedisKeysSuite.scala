@@ -12,7 +12,7 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
 
   test("getKeys - cluster") {
     val returnedKeys = getKeys(redisConfig.hosts, 0, 1024, "*")
-      .asScala.toArray.sorted
+      .toArray.sorted
 
     val targetKeys = (sc.parallelize(content.split("\\W+")).collect :+
       "all:words:cnt:sortedset" :+
@@ -28,7 +28,6 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
 
   test("groupKeysByNode - cluster") {
     val allkeys = getKeys(redisConfig.hosts, 0, 16383, "*")
-      .asScala.iterator
     val nodeKeysPairs = groupKeysByNode(redisConfig.hosts, allkeys)
     val returnedCnt = nodeKeysPairs.map { x =>
       filterKeysByType(x._1.connect(), x._2, "string").length
@@ -37,4 +36,5 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
     val targetCnt = sc.parallelize(content.split("\\W+").filter(!_.isEmpty)).distinct.count
     assert(returnedCnt == targetCnt)
   }
+
 }
