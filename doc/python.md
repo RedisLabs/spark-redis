@@ -8,8 +8,15 @@ Here is an example:
 1. Run `pyspark` providing the spark-redis jar file 
 
 ```bash
-$ ./bin/pyspark --jars /your/path/to/spark-redis-<version>-jar-with-dependencies.jar
+$ ./bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
 ```
+
+By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
+
+```bash
+$ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
+```
+
 
 2. Read DataFrame from json, write/read from Redis:
 ```python
@@ -19,7 +26,7 @@ loadedDf = spark.read.format("org.apache.spark.sql.redis").option("table", "peop
 loadedDf.show()
 ```
 
-2. Check the data with redis-cli:
+3. Check the data with redis-cli:
 
 ```bash
 127.0.0.1:6379> hgetall people:Justin
@@ -28,4 +35,17 @@ loadedDf.show()
 3) "name"
 4) "Justin"
 ```
+
+The self-contained application can be configured in the following manner:
+
+```python
+SparkSession\
+    .builder\
+    .appName("myApp")\ 
+    .config("spark.redis.host", "localhost")\ 
+    .config("spark.redis.port", "6379")\
+    .config("spark.redis.auth", "passwd")\ 
+    .getOrCreate()
+```
+
 
