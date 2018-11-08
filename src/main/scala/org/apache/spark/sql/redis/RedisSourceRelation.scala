@@ -188,9 +188,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     * @return true if data exists in redis
     */
   def isEmpty: Boolean = {
-    val a = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
-    println("check isempty")
-    a
+    sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
   }
 
   /**

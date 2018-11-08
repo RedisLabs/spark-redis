@@ -247,7 +247,6 @@ class RedisKeysRDD(sc: SparkContext,
     val partition: RedisPartition = split.asInstanceOf[RedisPartition]
     val sPos = partition.slots._1
     val ePos = partition.slots._2
-
     val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
 
     if (Option(this.keys).isDefined) {

@@ -67,8 +67,10 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     ConnectionPool.connect(this)
   }
 
+  /**
+    * @return config with masked password. Used for logging.
+    */
   def maskPassword(): RedisEndpoint = {
-    // mask password
     this.copy(auth = "")
   }
 }
