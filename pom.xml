@@ -49,7 +49,7 @@
 		<java.version>1.8</java.version>
 		<scala.major.version>2.11</scala.major.version>
 		<scala.complete.version>${scala.major.version}.12</scala.complete.version>
-		<jedis.version>2.9.0</jedis.version>
+		<jedis.version>3.0.0-SNAPSHOT</jedis.version>
 		<spark.version>2.3.1</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
@@ -64,6 +64,20 @@
     		<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
   		</repository>
 	</distributionManagement>
+
+	<!-- TODO: temporal to get jedis SNAPSHOT -->
+	<repositories>
+		<repository>
+			<id>oss.sonatype.org-snapshot</id>
+			<url>http://oss.sonatype.org/content/repositories/snapshots</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 
 	<build>
 		<plugins>
@@ -258,7 +272,7 @@
             <version>2.0</version>
         </dependency>
         <dependency>
-            <groupId>redis.clients</groupId>
+            <groupId>com.redislabs</groupId>
             <artifactId>jedis</artifactId>
             <version>${jedis.version}</version>
             <type>jar</type>

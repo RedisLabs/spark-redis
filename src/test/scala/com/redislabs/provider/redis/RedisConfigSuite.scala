@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis
 
 import org.scalatest.{FunSuite, Matchers}
-import redis.clients.util.JedisClusterCRC16
+import redis.clients.jedis.util.JedisClusterCRC16
 
 class RedisConfigSuite extends FunSuite with Matchers {
 
