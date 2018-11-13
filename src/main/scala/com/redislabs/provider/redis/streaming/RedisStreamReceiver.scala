@@ -2,8 +2,9 @@ package com.redislabs.provider.redis.streaming
 
 import java.util.AbstractMap.SimpleEntry
 
-import com.redislabs.provider.redis.RedisConfig
-import com.redislabs.provider.redis.util.Logging
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
+import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
+import com.redislabs.provider.redis.util.{Logging, PipelineUtils}
 import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
@@ -18,6 +19,7 @@ import scala.collection.JavaConversions._
   */
 class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
                           redisConfig: RedisConfig,
+                          readWriteConfig: ReadWriteConfig,
                           storageLevel: StorageLevel)
   extends Receiver[StreamItem](storageLevel) with Logging {
 
@@ -27,7 +29,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
     try {
       // start consumers in separate threads
       for (c <- consumersConfig) {
-        executorPool.submit(new MessageHandler(c, redisConfig))
+        executorPool.submit(new MessageHandler(c, redisConfig, readWriteConfig))
       }
     } finally {
       // terminate threads after the work is done
@@ -39,7 +41,8 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
   }
 
   private class MessageHandler(conf: ConsumerConfig,
-                               redisConfig: RedisConfig) extends Runnable {
+                               redisConfig: RedisConfig,
+                               implicit val readWriteConfig: ReadWriteConfig) extends Runnable {
 
     val jedis: Jedis = redisConfig.connectionForKey(conf.streamKey)
 
@@ -93,9 +96,9 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         // call store(multiple-records) to reliably store in Spark memory
         store(streamItems.iterator)
         // ack redis
-        for (entry <- entries) {
-          // TODO: pipeline?
-          jedis.xack(conf.streamKey, conf.groupName, entry.getID)
+        foreachWithPipeline(jedis, entries) { (pipeline, entry) =>
+          logInfo("unack" + entry)   // TODO
+          pipeline.xack(conf.streamKey, conf.groupName, entry.getID)
         }
       }
     }
@@ -120,9 +123,8 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           // call store(multiple-records) to reliably store in Spark memory
           store(streamItems.iterator)
           // ack redis
-          for (entry <- entries) {
-            // TODO: pipeline?
-            jedis.xack(key, conf.groupName, entry.getID)
+          foreachWithPipeline(jedis, entries) { (pipeline, entry) =>
+            pipeline.xack(key, conf.groupName, entry.getID)
           }
         }
       }

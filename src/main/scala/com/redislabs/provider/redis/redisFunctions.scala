@@ -461,7 +461,8 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
   def createRedisXStream(consumersConfig: Seq[ConsumerConfig],
                          storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
                         (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)): InputDStream[StreamItem] = {
-    val receiver = new RedisStreamReceiver(consumersConfig, redisConfig, storageLevel)
+    val readWriteConfig = ReadWriteConfig.fromSparkConf(ssc.sparkContext.getConf)
+    val receiver = new RedisStreamReceiver(consumersConfig, redisConfig, readWriteConfig, storageLevel)
     ssc.receiverStream(receiver)
   }
 }
