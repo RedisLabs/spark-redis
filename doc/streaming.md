@@ -25,7 +25,7 @@ val spark = SparkSession.builder.appName("Redis Stream Example")
 
 val ssc = new StreamingContext(spark.sparkContext, Seconds(1))
 
-val stream: InputDStream[StreamItem] = ssc.createRedisXStream(Seq(ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1")))
+val stream = ssc.createRedisXStream(Seq(ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1")))
 stream.print()
 
 ssc.start()
