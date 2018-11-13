@@ -12,6 +12,8 @@ import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 import scala.collection.JavaConversions._
 
 /**
+  * Receives messages from Redis Stream
+  *
   * TODO: max rate controller?
   */
 class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
