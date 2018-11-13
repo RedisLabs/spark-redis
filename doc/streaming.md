@@ -44,7 +44,7 @@ ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", IdOffset(42, 0
 
 Please note, spark-redis will attempt to create a consumer group with the specified offset, but if the consumer group already exists, 
 it will use the existing offset. It means, for example, if you decide to re-process all the messages from the beginning, 
-just changing the offset to `Earliest` may not be enough in some cases. You may need to either manually delete the consumer 
+just changing the offset to `Earliest` may not be enough. You may need to either manually delete the consumer 
 group with `XGROUP DESTROY` or modify the offset with `XGROUP SETID`.
 
 The DStream is implemented with a [Reliable Receiver](https://spark.apache.org/docs/latest/streaming-custom-receivers.html#receiver-reliability) that guarantees 
