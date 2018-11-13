@@ -34,14 +34,12 @@ ssc.awaitTermination()
 ```
 
 It will automatically create a consumer group if it doesn't exist and will start listening for the messages in the stream. 
+
 By default it pulls messages starting from the latest message. If you need to start from the earliest message or any specific position in the stream, specify the `offset` parameter:
 
 ```scala
-ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", offset = Earliest)
-```
-
-```scala
-ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", IdOffset(42, 0))
+ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", offset = Earliest) // start from '0-0'
+ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", IdOffset(42, 0))   // start from '42-0'
 ```
 
 The DStream is implemented with a [Reliable Receiver](https://spark.apache.org/docs/latest/streaming-custom-receivers.html#receiver-reliability) that guarantees 
