@@ -48,7 +48,7 @@ just changing the offset to `Earliest` may not be enough. You may need to either
 group with `XGROUP DESTROY` or modify the offset with `XGROUP SETID`.
 
 The DStream is implemented with a [Reliable Receiver](https://spark.apache.org/docs/latest/streaming-custom-receivers.html#receiver-reliability) that acknowledges 
-after the data has been stored in Spark. As with any other Receiver to achieve strong fault-tolerance guarantees and ensure zero data loss, you have to enable [write-ahead logs](https://spark.apache.org/docs/latest/streaming-programming-guide.html#deploying-applications). 
+after the data has been stored in Spark. As with any other Receiver to achieve strong fault-tolerance guarantees and ensure zero data loss, you have to enable [write-ahead logs](https://spark.apache.org/docs/latest/streaming-programming-guide.html#deploying-applications) and checkpointing. 
 
 The received data is stored with `StorageLevel.MEMORY_AND_DISK_2` by default. 
 Storage level can be configured with `storageLevel` parameter, e.g.:
