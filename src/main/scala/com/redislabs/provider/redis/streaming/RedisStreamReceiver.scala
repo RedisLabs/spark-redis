@@ -141,7 +141,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
   * @param consumerName consumer name
   * @param offset       stream offset
   * @param batchSize    maximum number of pulled items in a read API call
-  * @param block        time in milliseconds to wait in a blocking call until the data becomes available
+  * @param block        time in milliseconds to wait for data in a blocking read API call
   */
 case class ConsumerConfig(streamKey: String,
                           groupName: String,
