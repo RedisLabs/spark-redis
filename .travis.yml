@@ -2,8 +2,11 @@ sudo: required
 language: scala
 scala:
     - 2.11.2
-before_install:
 install:
+    - wget http://download.redis.io/releases/redis-5.0.0.tar.gz
+    - tar -xzvf redis-5.0.0.tar.gz
+    - make -C redis-5.0.0 -j4
+    - export PATH=$PWD/redis-5.0.0/src:$PATH
 script: make test
 cache:
     directories:
