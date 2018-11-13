@@ -60,7 +60,6 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           case Latest => EntryID.LAST_ENTRY
           case IdOffset(v1, v2) => new EntryID(v1, v2)
         }
-        // TODO: reset id?
         jedis.xgroupCreate(conf.streamKey, conf.groupName, entryId, true)
       } catch {
         case e: Exception =>
@@ -89,7 +88,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         }
 
         val streamItems = entriesToItems(conf.streamKey, entries)
-        // store in spark memory
+        // call store(multiple-records) to reliably store in Spark memory
         store(streamItems.iterator)
         // ack redis
         for (entry <- entries) {
@@ -116,7 +115,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           val key = streamMessages.getKey
           val entries = streamMessages.getValue
           val streamItems = entriesToItems(key, entries)
-          // store in spark memory
+          // call store(multiple-records) to reliably store in Spark memory
           store(streamItems.iterator)
           // ack redis
           for (entry <- entries) {
