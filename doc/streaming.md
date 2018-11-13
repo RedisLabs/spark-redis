@@ -42,6 +42,11 @@ ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", offset = Earli
 ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", IdOffset(42, 0))   // start from '42-0'
 ```
 
+Please note, spark-redis will attempt to create a consumer group with the specified offset, but if the consumer group already exists, 
+it will use the existing offset. It means, for example, if you decide to re-process all the messages from the beginning, 
+just changing the offset to `Earliest` may not be enough in some cases. You may need to either manually delete the consumer 
+group with `XGROUP DESTROY` or modify the offset with `XGROUP SETID`.
+
 The DStream is implemented with a [Reliable Receiver](https://spark.apache.org/docs/latest/streaming-custom-receivers.html#receiver-reliability) that guarantees 
 fault-tolerance and ensures zero data loss. The received data is stored with `StorageLevel.MEMORY_AND_DISK_2` by default. 
 Storage level can be configured with `storageLevel` parameter, e.g.:
@@ -63,8 +68,8 @@ ssc.createRedisXStream(Seq(
 ```
 
 In this example we created an input DStream that corresponds to a single receiver running in a Spark executor. The receiver will create two threads pulling 
-data from the streams in parallel. However if the data receiving becomes a bottleneck, you may want to start multiple receivers on different executors (worker machines).
-This can be achieved by creating multiple input DStreams and `union` them together. You can read more about about it [here](https://spark.apache.org/docs/latest/streaming-programming-guide.html#level-of-parallelism-in-data-receiving)
+data from the streams in parallel. However if the data receiving becomes a bottleneck, you may want to start multiple receivers in different executors (worker machines).
+This can be achieved by creating multiple input DStreams and `union` them together. You can read more about about it [here](https://spark.apache.org/docs/latest/streaming-programming-guide.html#level-of-parallelism-in-data-receiving).
 
 For example, the following will create two receivers pulling the data from `my-stream` and balancing the load:  
 
