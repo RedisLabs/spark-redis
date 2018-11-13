@@ -11,6 +11,9 @@ import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
 import scala.collection.JavaConversions._
 
+/**
+  * TODO: max rate controller?
+  */
 class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
                           redisConfig: RedisConfig,
                           storageLevel: StorageLevel)
@@ -46,7 +49,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         receiveNewMessages()
       } catch {
         case e: Exception =>
-          reportError("Error handling message", e)
+          restart("Error handling message. Restarting.", e)
       }
     }
 
@@ -57,7 +60,8 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           case Latest => EntryID.LAST_ENTRY
           case IdOffset(v1, v2) => new EntryID(v1, v2)
         }
-        jedis.xgroupCreate(conf.streamKey, conf.groupName, entryId)
+        // TODO: reset id?
+        jedis.xgroupCreate(conf.streamKey, conf.groupName, entryId, true)
       } catch {
         case e: Exception =>
           if (!e.getMessage.contains("already exists")) throw e
