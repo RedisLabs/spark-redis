@@ -35,6 +35,8 @@ ssc.awaitTermination()
 
 It will automatically create a consumer group if it doesn't exist and will start listening for the messages in the stream. 
 
+### Stream Offset
+
 By default it pulls messages starting from the latest message. If you need to start from the earliest message or any specific position in the stream, specify the `offset` parameter:
 
 ```scala
@@ -47,6 +49,8 @@ it will use the existing offset. It means, for example, if you decide to re-proc
 just changing the offset to `Earliest` may not be enough. You may need to either manually delete the consumer 
 group with `XGROUP DESTROY` or modify the offset with `XGROUP SETID`.
 
+### Receiver reliability
+
 The DStream is implemented with a [Reliable Receiver](https://spark.apache.org/docs/latest/streaming-custom-receivers.html#receiver-reliability) that acknowledges 
 after the data has been stored in Spark. As with any other Receiver to achieve strong fault-tolerance guarantees and ensure zero data loss, you have to enable [write-ahead logs](https://spark.apache.org/docs/latest/streaming-programming-guide.html#deploying-applications) and checkpointing. 
 
@@ -55,7 +59,6 @@ Storage level can be configured with `storageLevel` parameter, e.g.:
 ```scala
 ssc.createRedisXStream(conf, storageLevel = StorageLevel.MEMORY_AND_DISK_SER_2)
 ```
-
 
 ### Level of Parallelism
 
@@ -83,6 +86,22 @@ val streams = Seq(
 
 val stream = ssc.union(streams)
 stream.print()
+```
+
+### Configuration
+
+If the cluster resources is not large enough to process data as fast as it is being received, the receiving rate can be limited:
+
+```scala
+ConsumerConfig("stream", "group", "c-1", rateLimitPerConsumer = Some(100)) // 100 items per second
+```
+
+It defines the number of received items per second per consumer.
+
+Another options you can configure are `batchSize` and `block`. They define the maximum number of pulled items and time in milliseconds to wait in a `XREADGROUP` call. 
+
+```scala
+ConsumerConfig("stream", "group", "c-1", batchSize = 50, block = 200)
 ```
 
 
