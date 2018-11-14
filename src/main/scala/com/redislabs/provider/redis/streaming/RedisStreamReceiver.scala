@@ -2,20 +2,19 @@ package com.redislabs.provider.redis.streaming
 
 import java.util.AbstractMap.SimpleEntry
 
-import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
+import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
-import com.redislabs.provider.redis.util.{Logging, PipelineUtils}
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
 import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
+import org.spark_project.guava.util.concurrent.RateLimiter
 import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
 import scala.collection.JavaConversions._
 
 /**
   * Receives messages from Redis Stream
-  *
-  * TODO: max rate controller?
   */
 class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
                           redisConfig: RedisConfig,
@@ -45,6 +44,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
                                implicit val readWriteConfig: ReadWriteConfig) extends Runnable {
 
     val jedis: Jedis = redisConfig.connectionForKey(conf.streamKey)
+    val rateLimiterOpt: Option[RateLimiter] = conf.rateLimitPerConsumer.map(r => RateLimiter.create(r))
 
     override def run(): Unit = {
       logInfo(s"Starting MessageHandler $conf")
@@ -91,15 +91,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         if (entries.isEmpty) {
           continue = false
         }
-
-        val streamItems = entriesToItems(conf.streamKey, entries)
-        // call store(multiple-records) to reliably store in Spark memory
-        store(streamItems.iterator)
-        // ack redis
-        foreachWithPipeline(jedis, entries) { (pipeline, entry) =>
-          logInfo("unack" + entry)   // TODO
-          pipeline.xack(conf.streamKey, conf.groupName, entry.getID)
-        }
+        storeAndAck(conf.streamKey, entries)
       }
     }
 
@@ -119,13 +111,21 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         for (streamMessages <- response) {
           val key = streamMessages.getKey
           val entries = streamMessages.getValue
-          val streamItems = entriesToItems(key, entries)
-          // call store(multiple-records) to reliably store in Spark memory
-          store(streamItems.iterator)
-          // ack redis
-          foreachWithPipeline(jedis, entries) { (pipeline, entry) =>
-            pipeline.xack(key, conf.groupName, entry.getID)
-          }
+          storeAndAck(key, entries)
+        }
+      }
+    }
+
+    def storeAndAck(streamKey: String, entries: Seq[StreamEntry]): Unit = {
+      if (entries.nonEmpty) {
+        // limit the rate if it's enabled
+        rateLimiterOpt.foreach(_.acquire(entries.size))
+        val streamItems = entriesToItems(streamKey, entries)
+        // call store(multiple-records) to reliably store in Spark memory
+        store(streamItems.iterator)
+        // ack redis
+        foreachWithPipeline(jedis, entries) { (pipeline, entry) =>
+          pipeline.xack(streamKey, conf.groupName, entry.getID)
         }
       }
     }
@@ -143,17 +143,19 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
 /**
   *
   *
-  * @param streamKey    redis stream key
-  * @param groupName    consumer group name
-  * @param consumerName consumer name
-  * @param offset       stream offset
-  * @param batchSize    maximum number of pulled items in a read API call
-  * @param block        time in milliseconds to wait for data in a blocking read API call
+  * @param streamKey            redis stream key
+  * @param groupName            consumer group name
+  * @param consumerName         consumer name
+  * @param offset               stream offset
+  * @param rateLimitPerConsumer maximum retrieved messages per second per single consumer
+  * @param batchSize            maximum number of pulled items in a read API call
+  * @param block                time in milliseconds to wait for data in a blocking read API call
   */
 case class ConsumerConfig(streamKey: String,
                           groupName: String,
                           consumerName: String,
                           offset: Offset = Latest,
+                          rateLimitPerConsumer: Option[Int] = None,
                           batchSize: Int = 100,
                           block: Long = 500)
 

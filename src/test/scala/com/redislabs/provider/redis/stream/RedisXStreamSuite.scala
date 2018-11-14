@@ -56,7 +56,6 @@ trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
         conn.lpop(listKey) should be("2-0 c -> 3")
       }
     }
-
   }
 
 }
