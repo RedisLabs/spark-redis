@@ -13,6 +13,7 @@ trait RedisStandaloneEnv extends Env {
     .set("spark.redis.host", redisHost)
     .set("spark.redis.port", s"$redisPort")
     .set("spark.redis.auth", redisAuth)
+    .set("spark.streaming.stopGracefullyOnShutdown", "true")
 
   override val redisConfig: RedisConfig =
     new RedisConfig(RedisEndpoint(redisHost, redisPort, redisAuth))

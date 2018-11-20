@@ -1,17 +1,27 @@
 package com.redislabs.provider.redis
 
+import com.redislabs.provider.redis.env.Env
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
-trait SparkStreamingRedisSuite extends SparkRedisSuite {
+/**
+  * For spark streaming test we have to create spark and streaming context for each test
+  */
+trait SparkStreamingRedisSuite extends FunSuite with Env with BeforeAndAfterEach {
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
+  override protected def beforeEach(): Unit = {
+    super.beforeEach()
+    spark = SparkSession.builder().config(conf).getOrCreate()
+    sc = spark.sparkContext
     ssc = new StreamingContext(sc, Seconds(1))
   }
 
-  override def afterAll(): Unit = {
+  override protected def afterEach(): Unit = {
     ssc.stop()
-    super.afterAll()
+    spark.stop
+    System.clearProperty("spark.driver.port")
+    super.afterEach()
   }
 
 }
