@@ -141,8 +141,6 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
 }
 
 /**
-  *
-  *
   * @param streamKey            redis stream key
   * @param groupName            consumer group name
   * @param consumerName         consumer name
