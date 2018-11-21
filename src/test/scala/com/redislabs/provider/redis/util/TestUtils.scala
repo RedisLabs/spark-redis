@@ -9,4 +9,8 @@ object TestUtils {
     prefix + UUID.randomUUID().toString.replace("-", "")
   }
 
+  def generateRandomKey(): String = {
+    UUID.randomUUID().toString.replace("-", "")
+  }
+
 }

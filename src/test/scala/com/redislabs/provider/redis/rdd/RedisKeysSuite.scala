@@ -2,7 +2,7 @@ package com.redislabs.provider.redis.rdd
 
 import com.redislabs.provider.redis.ReadWriteConfig
 import org.scalatest.Matchers
-import redis.clients.util.JedisClusterCRC16
+import redis.clients.jedis.util.JedisClusterCRC16
 
 import scala.collection.JavaConverters._
 
