@@ -1,8 +1,11 @@
 package org.apache.spark.sql.redis.stream
 
+import com.redislabs.provider.redis.RedisConfig
+import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
+import org.apache.spark.sql.redis.StreamOptionStreamKey
 import org.apache.spark.sql.redis.stream.RedisSource.Entity
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -17,16 +20,28 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val sc = sqlContext.sparkContext
 
-  private var offset = RedisSourceOffset("0")
+  private val redisConfig = RedisConfig.fromSparkConf(sc.getConf)
+
+  private val streamKey = parameters.getOrElse(StreamOptionStreamKey,
+    throw new IllegalArgumentException("Please specify 'stream.key'"))
 
   override def schema: StructType = userDefinedSchema.getOrElse {
     throw new IllegalArgumentException("Please specify schema")
   }
 
   override def getOffset: Option[Offset] = {
-    val previousOffset = offset
-    offset = offset.copy(String.valueOf(offset.offset.toInt + 1))
-    Some(previousOffset)
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      val info = conn.xinfo(XINFO.StreamKey, streamKey)
+      info.get(XINFO.LastEntry)
+        .flatMap {
+          case entry: Map[String, AnyRef] =>
+            entry.get(XINFO.EntryId)
+        }
+        .map {
+          case index: String =>
+            RedisSourceOffset(index)
+        }
+    }
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
