@@ -24,7 +24,7 @@ object ConnectionUtils {
       val client = jedis.getClient
       client.sendCommand(XINFO, args: _*)
       val response = asList(client.getOne)
-      Map(XINFO.LastEntry -> Map(XINFO.LastEntryIndex ->
+      Map(XINFO.LastEntry -> Map(XINFO.EntryId ->
         asString(asList(response.get(13)).get(0))))
     }
 
@@ -39,7 +39,7 @@ object ConnectionUtils {
 
     val StreamKey = "STREAM"
     val LastEntry = "last-entry"
-    val LastEntryIndex = "_id"
+    val EntryId = "_id"
 
     override def getRaw: Array[Byte] = SafeEncoder.encode("XINFO")
   }
