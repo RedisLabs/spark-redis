@@ -5,15 +5,9 @@ import org.apache.spark.sql.execution.streaming.Offset
 /**
   * @author The Viet Nguyen
   */
-class RedisSourceOffset(start: String, end: String) extends Offset {
+case class RedisSourceOffset(offset: String) extends Offset {
 
-  override def json(): String =
-    s"""
-       |{
-       |  "start": "$start",
-       |  "end": "$end"
-       |}
-    """.stripMargin
+  override def json(): String = offset
 }
 
 case object RedisSourceOffset {

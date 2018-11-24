@@ -17,16 +17,26 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val sc = sqlContext.sparkContext
 
+  private var offset = RedisSourceOffset("0")
+
   override def schema: StructType = userDefinedSchema.getOrElse {
     throw new IllegalArgumentException("Please specify schema")
   }
 
-  override def getOffset: Option[Offset] = Some(RedisSourceOffset.Greatest)
+  override def getOffset: Option[Offset] = {
+    val previousOffset = offset
+    offset = offset.copy(String.valueOf(offset.offset.toInt + 1))
+    Some(previousOffset)
+  }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val data = Seq(Entity("1"), Entity("2"), Entity("3"))
     val internalRdd = sc.parallelize(data).map { r => InternalRow(UTF8String.fromString(r._id)) }
     sqlContext.internalCreateDataFrame(internalRdd, schema, isStreaming = true)
+  }
+
+
+  override def commit(end: Offset): Unit = {
   }
 
   override def stop(): Unit = {
