@@ -1,4 +1,4 @@
-package com.redislabs.provider.redis.stream.sql
+package org.apache.spark.sql.redis.stream
 
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
