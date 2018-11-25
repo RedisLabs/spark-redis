@@ -1,7 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.RedisConfig
-import com.redislabs.provider.redis.streaming.ConsumerConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -46,8 +45,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val localSchema = currentSchema
-    val internalRdd = new RedisSourceRdd(sc, redisConfig,
-      ConsumerConfig(streamKey, "group55", "consumer-123"))
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, streamKey,
+      RedisSourceOffsetRange(start, end))
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id)
         val values = ParseUtils.parseFields(fieldMap, localSchema)

@@ -21,10 +21,10 @@ class RedisStreamSourceSuite extends FunSuite with RedisStandaloneEnv {
       .schema(Person.fullSchema)
       .option(StreamOptionStreamKey, "mystream")
       .load()
-    val personCounts = persons.groupBy("_id")
+    val personCounts = persons.groupBy("salary")
       .count()
     val query = personCounts.writeStream
-      .outputMode("update")
+      .outputMode("complete")
       .format("console")
       .start()
     query.awaitTermination()
