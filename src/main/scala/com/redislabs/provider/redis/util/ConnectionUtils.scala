@@ -6,6 +6,8 @@ import redis.clients.jedis.Jedis
 import redis.clients.jedis.commands.ProtocolCommand
 import redis.clients.jedis.util.SafeEncoder
 
+import scala.collection.JavaConverters._
+
 /**
   * @author The Viet Nguyen
   */
@@ -20,12 +22,18 @@ object ConnectionUtils {
   implicit class JedisExt(jedis: Jedis) {
 
     //TODO: temporary solution to get latest offset while not supported by Jedis
-    def xinfo(args: String*): Map[String, AnyRef] = {
+    def xinfo(args: String*): Map[String, Any] = {
       val client = jedis.getClient
       client.sendCommand(XINFO, args: _*)
-      val response = asList(client.getOne)
-      Map(XINFO.LastEntry -> Map(XINFO.EntryId ->
-        asString(asList(response.get(13)).get(0))))
+      asList(client.getOne).asScala.grouped(2)
+        .map { group =>
+          val key = asString(group.head)
+          val value = group(1) match {
+            case arr: Array[Byte] => asString(arr)
+            case other: Any => other
+          }
+          key -> value
+        }.toMap
     }
 
     private def asList(any: Any): JList[Any] =
@@ -38,6 +46,7 @@ object ConnectionUtils {
   object XINFO extends ProtocolCommand {
 
     val StreamKey = "STREAM"
+    val LastGeneratedId = "last-generated-id"
     val LastEntry = "last-entry"
     val EntryId = "_id"
 

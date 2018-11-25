@@ -18,7 +18,6 @@ class ConnectionUtilsTest extends FunSuite with Matchers with RedisStandaloneEnv
     val data = Map("key" -> "value").asJava
     val entryId = conn.xadd(streamKey, new EntryID(0, 1), data)
     val info = conn.xinfo(XINFO.StreamKey, streamKey)
-    info.get(XINFO.LastEntry) shouldBe
-      Some(Map(XINFO.EntryId -> entryId.toString))
+    info.get(XINFO.LastGeneratedId) shouldBe Some(entryId.toString)
   }
 }

@@ -36,11 +36,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   override def getOffset: Option[Offset] = {
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val info = conn.xinfo(XINFO.StreamKey, streamKey)
-      info.get(XINFO.LastEntry)
-        .flatMap {
-          case entry: Map[String, AnyRef] =>
-            entry.get(XINFO.EntryId)
-        }
+      info.get(XINFO.LastGeneratedId)
         .map {
           case index: String =>
             RedisSourceOffset(index)
