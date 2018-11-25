@@ -50,12 +50,15 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val localSchema = currentSchema
-    val simpleSchema = StructType(localSchema.fields.filter(_.name != "_id"))
     val internalRdd = new RedisSourceRdd(sc, redisConfig,
       ConsumerConfig(streamKey, "group55", "consumer-123"))
       .map { case (id, fields) =>
-        val fieldMap = fields.asScala.toMap
-        val values = UTF8String.fromString(id) +: ParseUtils.parseFields(fieldMap, simpleSchema)
+        val fieldMap = fields.asScala.toMap + ("_id" -> id)
+        val values = ParseUtils.parseFields(fieldMap, localSchema)
+          .map {
+            case str: String => UTF8String.fromString(str)
+            case other: Any => other
+          }
         InternalRow(values: _*)
       }
     sqlContext.internalCreateDataFrame(internalRdd, schema, isStreaming = true)
