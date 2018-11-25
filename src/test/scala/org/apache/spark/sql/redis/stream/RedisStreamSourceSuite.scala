@@ -1,6 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.env.RedisStandaloneEnv
+import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis.StreamOptionStreamKey
 import org.scalatest.FunSuite
@@ -17,6 +18,7 @@ class RedisStreamSourceSuite extends FunSuite with RedisStandaloneEnv {
       .getOrCreate()
     val persons = spark.readStream
       .format("redis")
+      .schema(Person.fullSchema)
       .option(StreamOptionStreamKey, "mystream")
       .load()
     val personCounts = persons.groupBy("_id")
