@@ -19,7 +19,7 @@ object ConnectionUtils {
     res
   }
 
-  implicit class JedisExt(jedis: Jedis) {
+  implicit class JedisExt(val jedis: Jedis) extends AnyVal {
 
     //TODO: temporary solution to get latest offset while not supported by Jedis
     def xinfo(args: String*): Map[String, Any] = {
