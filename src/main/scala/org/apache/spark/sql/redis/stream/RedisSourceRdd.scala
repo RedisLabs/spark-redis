@@ -5,6 +5,7 @@ import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.StreamUtils.createConsumerGroupIfNotExist
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import redis.clients.jedis.EntryID
@@ -23,6 +24,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val streamKey = offsetRange.streamKey
     val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      createConsumerGroupIfNotExist(conn, streamKey, "group55", new EntryID(0, 0))
       conn.xreadGroup("group55", "consumer-123", 1000, 100, false, streams)
         .asScala
         .flatMap { entry =>
