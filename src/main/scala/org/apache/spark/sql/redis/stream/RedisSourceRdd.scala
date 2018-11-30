@@ -24,7 +24,8 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val streamKey = offsetRange.streamKey
     val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      createConsumerGroupIfNotExist(conn, streamKey, "group55", new EntryID(0, 0))
+      val start = offsetRange.start.orElse(Some("0-0")).map(new EntryID(_)).get
+      createConsumerGroupIfNotExist(conn, streamKey, "group55", start)
       conn.xreadGroup("group55", "consumer-123", 1000, 100, false, streams)
         .asScala
         .flatMap { entry =>
