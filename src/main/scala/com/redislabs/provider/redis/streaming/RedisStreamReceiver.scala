@@ -2,8 +2,8 @@ package com.redislabs.provider.redis.streaming
 
 import java.util.AbstractMap.SimpleEntry
 
-import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
+import com.redislabs.provider.redis.util.{Logging, StreamUtils}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
 import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
@@ -59,17 +59,12 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
     }
 
     def createConsumerGroupIfNotExist(): Unit = {
-      try {
-        val entryId = conf.offset match {
-          case Earliest => new EntryID(0, 0)
-          case Latest => EntryID.LAST_ENTRY
-          case IdOffset(v1, v2) => new EntryID(v1, v2)
-        }
-        jedis.xgroupCreate(conf.streamKey, conf.groupName, entryId, true)
-      } catch {
-        case e: Exception =>
-          if (!e.getMessage.contains("already exists")) throw e
+      val entryId = conf.offset match {
+        case Earliest => new EntryID(0, 0)
+        case Latest => EntryID.LAST_ENTRY
+        case IdOffset(v1, v2) => new EntryID(v1, v2)
       }
+      StreamUtils.createConsumerGroupIfNotExist(jedis, conf.streamKey, conf.groupName, entryId)
     }
 
     def receiveUnacknowledged(): Unit = {
