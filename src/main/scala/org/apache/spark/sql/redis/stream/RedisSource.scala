@@ -45,8 +45,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val localSchema = currentSchema
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, streamKey,
-      RedisSourceOffsetRange(start, end))
+    val offsetRange = RedisSourceOffsetRange(streamKey, end.json())
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRange)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
