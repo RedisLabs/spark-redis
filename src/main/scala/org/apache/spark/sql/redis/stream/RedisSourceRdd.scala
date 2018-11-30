@@ -1,5 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
+import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
@@ -20,11 +21,16 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override def compute(split: Partition, context: TaskContext):
   Iterator[(String, JMap[String, String])] = {
     val streamKey = offsetRange.streamKey
+    val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      conn.xrange(streamKey, new EntryID(0, 0), new EntryID(offsetRange.end), Int.MaxValue).asScala
-        .map { entry =>
-          val id = entry.getID
-          id.toString -> entry.getFields
+      conn.xreadGroup("group55", "consumer-123", 1000, 100, false, streams)
+        .asScala
+        .flatMap { entry =>
+          val entryKey = entry.getKey
+          entry.getValue.asScala
+            .map { streamEntry =>
+              entryKey -> streamEntry.getFields
+            }
         }.iterator
     }
   }
