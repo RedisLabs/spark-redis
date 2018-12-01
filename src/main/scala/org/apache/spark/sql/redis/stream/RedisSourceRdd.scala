@@ -1,14 +1,15 @@
 package org.apache.spark.sql.redis.stream
 
 import java.util.AbstractMap.SimpleEntry
-import java.util.{Map => JMap}
+import java.util.Map.Entry
+import java.util.{List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.createConsumerGroupIfNotExist
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import redis.clients.jedis.EntryID
+import redis.clients.jedis.{EntryID, StreamEntry}
 
 import scala.collection.JavaConverters._
 
@@ -28,14 +29,19 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       createConsumerGroupIfNotExist(conn, streamKey, "group55", start)
       conn.xreadGroup("group55", "consumer-123", 1000, 100, false, streams)
         .asScala
-        .flatMap { entry =>
-          val entryKey = entry.getKey
-          entry.getValue.asScala
-            .map { streamEntry =>
-              entryKey -> streamEntry.getFields
-            }
+        .flatMap {
+          flattenRddEntry
         }.iterator
     }
+  }
+
+  private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]]):
+  Seq[(String, JMap[String, String])] = {
+    entry.getValue.asScala
+      .map { streamEntry =>
+        val id = streamEntry.getID
+        id.toString -> streamEntry.getFields
+      }
   }
 
   override protected def getPartitions: Array[Partition] =
