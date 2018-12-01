@@ -26,17 +26,17 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override def compute(split: Partition, context: TaskContext):
   Iterator[(EntryID, JMap[String, String])] = {
     val streamKey = offsetRange.streamKey
-    val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(StreamUtils.EntryIdEarliest)
       val end = new EntryID(offsetRange.end)
       createConsumerGroupIfNotExist(conn, streamKey, "group55", start)
-      unreadMessages(conn, streams, end)
+      unreadMessages(conn, streamKey, end)
     }
   }
 
-  private def unreadMessages(conn: Jedis, unreadEntry: Entry[String, EntryID], end: EntryID):
+  private def unreadMessages(conn: Jedis, streamKey: String, end: EntryID):
   Iterator[(EntryID, JMap[String, String])] = {
+    val unreadEntry = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     import scala.math.Ordering.Implicits._
     Stream.continually {
       conn.xreadGroup("group55", "consumer-123", 1000, 100, false, unreadEntry)
