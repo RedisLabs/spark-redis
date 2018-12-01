@@ -45,12 +45,12 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val localSchema = currentSchema
-    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset])
-      .map(_.offsets).map(_.mapValues(_.offset)).getOrElse(Map())
-    val offsetEnd = end.asInstanceOf[RedisSourceOffset]
-      .offsets(streamKey)
+    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
+      .map(_.groupBy(_._2.groupName)).getOrElse(Map())
+    val offsetEnd = end.asInstanceOf[RedisSourceOffset].offsets(streamKey)
+    val offsetStart = offsetStarts.get(streamKey).flatMap(_.get(offsetEnd.groupName)).map(_.offset)
     val offsetRange = RedisSourceOffsetRange(streamKey, offsetEnd.groupName,
-      offsetStarts.get(streamKey), offsetEnd.offset)
+      offsetStart, offsetEnd.offset)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRange)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
