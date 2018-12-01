@@ -15,6 +15,8 @@ import redis.clients.jedis.{EntryID, StreamEntry}
 import scala.collection.JavaConverters._
 
 /**
+  * RDD of EntryID -> StreamEntry.fields
+  *
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
