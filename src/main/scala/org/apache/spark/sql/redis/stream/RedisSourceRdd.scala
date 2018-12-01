@@ -8,6 +8,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.redis.stream.RedisSourceRdd.StreamK
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
@@ -35,17 +36,20 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   }
 
   private def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[(EntryID, JMap[String, String])] = messages(conn, offsetRange, EntryID.UNRECEIVED_ENTRY)
+  Iterator[(EntryID, JMap[String, String])] = messages(conn, offsetRange) {
+    val startEntry = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
+    Stream.continually {
+      val streamGroup = conn
+        .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
+      None -> streamGroup
+    }
+  }
 
-  private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange, start: EntryID):
-  Iterator[(EntryID, JMap[String, String])] = {
-    val startEntry = new SimpleEntry(offsetRange.streamKey, start)
-    val initialMin = offsetRange.start.map(new EntryID(_))
+  private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
+                      (streamGroups: => StreamK): Iterator[(EntryID, JMap[String, String])] = {
     val end = new EntryID(offsetRange.end)
     import scala.math.Ordering.Implicits._
-    Stream.continually {
-      initialMin -> conn.xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
-    }
+    streamGroups
       .takeWhile { case (_, response) =>
         !response.isEmpty
       }
@@ -78,6 +82,11 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override protected def getPartitions: Array[Partition] =
     offsetRanges.zipWithIndex.map { case (e, i) => RedisSourceRddPartition(i, e) }
       .toArray
+}
+
+object RedisSourceRdd {
+
+  type StreamK = Stream[(Option[EntryID], JList[JMap.Entry[String, JList[StreamEntry]]])]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
