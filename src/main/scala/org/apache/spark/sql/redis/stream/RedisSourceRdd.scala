@@ -40,23 +40,22 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange, start: EntryID):
   Iterator[(EntryID, JMap[String, String])] = {
     val startEntry = new SimpleEntry(offsetRange.streamKey, start)
-    val min = offsetRange.start.map(new EntryID(_))
+    val initialMin = offsetRange.start.map(new EntryID(_))
     val end = new EntryID(offsetRange.end)
     import scala.math.Ordering.Implicits._
     Stream.continually {
-      conn.xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
+      initialMin -> conn.xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
     }
-      .takeWhile { response =>
+      .takeWhile { case (_, response) =>
         !response.isEmpty
       }
-      .flatMap {
-        _.asScala.iterator
+      .flatMap { case (min, response) =>
+        response.asScala.iterator.map { entry =>
+          min -> entry
+        }
       }
-      .flatMap {
-        flattenRddEntry
-      }
-      .filter { case (entryId, _) =>
-        min.isEmpty || entryId >= min.get
+      .flatMap { case (min, streamEntry) =>
+        flattenRddEntry(streamEntry, min)
       }
       .takeWhile { case (entryId, _) =>
         entryId <= end
@@ -64,13 +63,16 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       .iterator
   }
 
-  private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]]):
+  private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]], min: Option[EntryID]):
   Iterator[(EntryID, JMap[String, String])] = {
-    entry.getValue.asScala
+    import scala.math.Ordering.Implicits._
+    entry.getValue.asScala.iterator
+      .filter { streamEntry =>
+        min.isEmpty || streamEntry.getID >= min.get
+      }
       .map { streamEntry =>
         streamEntry.getID -> streamEntry.getFields
       }
-      .iterator
   }
 
   override protected def getPartitions: Array[Partition] =
