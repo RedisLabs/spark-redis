@@ -8,6 +8,8 @@ import redis.clients.jedis.{EntryID, Jedis}
   */
 object StreamUtils extends Logging {
 
+  val EntryIdEarliest = new EntryID(0, 0)
+
   def createConsumerGroupIfNotExist(conn: Jedis, streamKey: String, groupName: String,
                                     offset: EntryID): Unit = {
     try {
