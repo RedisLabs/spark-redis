@@ -8,7 +8,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.redis.stream.RedisSourceRdd.{RddIterator, StreamK}
+import org.apache.spark.sql.redis.stream.RedisSourceRdd.{EntryK, RddEntry, RddIterator, StreamK}
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
@@ -20,8 +20,7 @@ import scala.collection.JavaConverters._
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
-                     offsetRanges: Seq[RedisSourceOffsetRange])
-  extends RDD[(EntryID, JMap[String, String])](sc, Nil) {
+                     offsetRanges: Seq[RedisSourceOffsetRange]) extends RDD[RddEntry](sc, Nil) {
 
   override def compute(split: Partition, context: TaskContext): RddIterator = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]
@@ -66,8 +65,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       .iterator
   }
 
-  private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]],
-                              min: Option[EntryID]): RddIterator = {
+  private def flattenRddEntry(entry: EntryK, min: Option[EntryID]): RddIterator = {
     import scala.math.Ordering.Implicits._
     entry.getValue.asScala.iterator
       .filter { streamEntry =>
@@ -87,7 +85,8 @@ object RedisSourceRdd {
 
   type RddEntry = (EntryID, JMap[String, String])
   type RddIterator = Iterator[RddEntry]
-  type StreamK = Stream[(Option[EntryID], JList[JMap.Entry[String, JList[StreamEntry]]])]
+  type EntryK = Entry[String, JList[StreamEntry]]
+  type StreamK = Stream[(Option[EntryID], JList[EntryK])]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
