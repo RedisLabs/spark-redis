@@ -49,7 +49,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val offsetRange = RedisSourceOffsetRange(streamKey, startJson, end.json())
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRange)
       .map { case (id, fields) =>
-        val fieldMap = fields.asScala.toMap + ("_id" -> id)
+        val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
           .map {
             case str: String => UTF8String.fromString(str)

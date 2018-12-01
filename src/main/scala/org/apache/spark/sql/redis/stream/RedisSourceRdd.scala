@@ -21,10 +21,10 @@ import scala.collection.JavaConverters._
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
                      offsetRange: RedisSourceOffsetRange)
-  extends RDD[(String, JMap[String, String])](sc, Nil) {
+  extends RDD[(EntryID, JMap[String, String])](sc, Nil) {
 
   override def compute(split: Partition, context: TaskContext):
-  Iterator[(String, JMap[String, String])] = {
+  Iterator[(EntryID, JMap[String, String])] = {
     val streamKey = offsetRange.streamKey
     val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
@@ -39,11 +39,10 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   }
 
   private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]]):
-  Seq[(String, JMap[String, String])] = {
+  Seq[(EntryID, JMap[String, String])] = {
     entry.getValue.asScala
       .map { streamEntry =>
-        val id = streamEntry.getID
-        id.toString -> streamEntry.getFields
+        streamEntry.getID -> streamEntry.getFields
       }
   }
 
