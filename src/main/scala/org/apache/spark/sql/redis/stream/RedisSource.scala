@@ -6,6 +6,7 @@ import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.redis.StreamOptionStreamKey
+import org.apache.spark.sql.redis.stream.RedisSourceOffset.RedisConsumerOffset
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
@@ -37,16 +38,24 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       val info = conn.xinfo(XINFO.StreamKey, streamKey)
       info.get(XINFO.LastGeneratedId)
         .map {
-          case index: String =>
-            RedisSourceOffset(index)
+          case offset: String =>
+            RedisSourceOffset(Map(streamKey -> RedisConsumerOffset("group55", offset)))
         }
     }
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     val localSchema = currentSchema
-    val startJson = start.map(_.json())
-    val offsetRange = RedisSourceOffsetRange(streamKey, startJson, end.json())
+    val offsetStart = start.map(_.asInstanceOf[RedisSourceOffset])
+      .flatMap { offset =>
+        offset.offsets.get(streamKey)
+      }
+      .map { consumerOffset =>
+        consumerOffset.offset
+      }
+    val offsetEnd = end.asInstanceOf[RedisSourceOffset]
+      .offsets.get(streamKey).map(_.offset).get
+    val offsetRange = RedisSourceOffsetRange(streamKey, offsetStart, offsetEnd)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRange)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
