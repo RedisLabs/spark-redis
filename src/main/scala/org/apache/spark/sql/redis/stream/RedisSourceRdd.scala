@@ -10,7 +10,7 @@ import com.redislabs.provider.redis.util.StreamUtils
 import com.redislabs.provider.redis.util.StreamUtils.createConsumerGroupIfNotExist
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import redis.clients.jedis.{EntryID, StreamEntry}
+import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
 import scala.collection.JavaConverters._
 
@@ -29,21 +29,40 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val streams = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(StreamUtils.EntryIdEarliest)
+      val end = new EntryID(offsetRange.end)
       createConsumerGroupIfNotExist(conn, streamKey, "group55", start)
-      conn.xreadGroup("group55", "consumer-123", 1000, 100, false, streams)
-        .asScala
-        .flatMap {
-          flattenRddEntry
-        }.iterator
+      unreadMessages(conn, streams, end)
     }
   }
 
+  private def unreadMessages(conn: Jedis, unreadEntry: Entry[String, EntryID], end: EntryID):
+  Iterator[(EntryID, JMap[String, String])] = {
+    import scala.math.Ordering.Implicits._
+    Stream.continually {
+      conn.xreadGroup("group55", "consumer-123", 1000, 100, false, unreadEntry)
+    }
+      .takeWhile { response =>
+        !response.isEmpty
+      }
+      .flatMap {
+        _.asScala.iterator
+      }
+      .flatMap {
+        flattenRddEntry
+      }
+      .takeWhile { entry =>
+        entry._1 <= end
+      }
+      .iterator
+  }
+
   private def flattenRddEntry(entry: Entry[String, JList[StreamEntry]]):
-  Seq[(EntryID, JMap[String, String])] = {
+  Iterator[(EntryID, JMap[String, String])] = {
     entry.getValue.asScala
       .map { streamEntry =>
         streamEntry.getID -> streamEntry.getFields
       }
+      .iterator
   }
 
   override protected def getPartitions: Array[Partition] =
