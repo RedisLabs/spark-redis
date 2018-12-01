@@ -6,8 +6,7 @@ import java.util.{List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.StreamUtils
-import com.redislabs.provider.redis.util.StreamUtils.createConsumerGroupIfNotExist
+import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
@@ -29,19 +28,23 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val offsetRange = partition.offsetRange
     val streamKey = offsetRange.streamKey
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      val start = offsetRange.start.map(new EntryID(_)).getOrElse(StreamUtils.EntryIdEarliest)
+      val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       createConsumerGroupIfNotExist(conn, streamKey, offsetRange.groupName, start)
       unreadMessages(conn, offsetRange)
     }
   }
 
   private def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
+  Iterator[(EntryID, JMap[String, String])] = messages(conn, offsetRange, EntryID.UNRECEIVED_ENTRY)
+
+  private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange, start: EntryID):
   Iterator[(EntryID, JMap[String, String])] = {
-    val unreadEntry = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
+    val startEntry = new SimpleEntry(offsetRange.streamKey, start)
+    val min = offsetRange.start.map(new EntryID(_))
     val end = new EntryID(offsetRange.end)
     import scala.math.Ordering.Implicits._
     Stream.continually {
-      conn.xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, unreadEntry)
+      conn.xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
     }
       .takeWhile { response =>
         !response.isEmpty
@@ -52,8 +55,11 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       .flatMap {
         flattenRddEntry
       }
-      .takeWhile { entry =>
-        entry._1 <= end
+      .filter { case (entryId, _) =>
+        min.isEmpty || entryId >= min.get
+      }
+      .takeWhile { case (entryId, _) =>
+        entryId <= end
       }
       .iterator
   }
