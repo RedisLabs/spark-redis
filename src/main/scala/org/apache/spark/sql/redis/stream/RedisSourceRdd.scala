@@ -1,7 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
 import java.util.AbstractMap.SimpleEntry
-import java.util.Map.Entry
 import java.util.{List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
@@ -85,7 +84,7 @@ object RedisSourceRdd {
 
   type RddEntry = (EntryID, JMap[String, String])
   type RddIterator = Iterator[RddEntry]
-  type EntryK = Entry[String, JList[StreamEntry]]
+  type EntryK = JMap.Entry[String, JList[StreamEntry]]
   type StreamK = Stream[(Option[EntryID], JList[EntryK])]
 }
 
