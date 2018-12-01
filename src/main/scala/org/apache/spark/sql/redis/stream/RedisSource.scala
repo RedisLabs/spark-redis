@@ -46,6 +46,12 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
+    logInfo {
+      s"""Getting batch...
+         |  start: $start
+         |  end: $end
+      """.stripMargin
+    }
     val localSchema = currentSchema
     val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
       .map(_.groupBy(_._2.groupName)).getOrElse(Map())
@@ -68,8 +74,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   override def commit(end: Offset): Unit = {
     logInfo(
-      s"""Committing offset:
-         |${end.json()}
+      s"""Committing offset..
+         |  end: ${end.json()}
          |""".stripMargin)
     val offsetEnds = end match {
       case SerializedOffset(json) =>
