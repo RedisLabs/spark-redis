@@ -68,3 +68,5 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override protected def getPartitions: Array[Partition] =
     Array(RedisSourceRddPartition(0))
 }
+
+case class RedisSourceRddPartition(index: Int) extends Partition
