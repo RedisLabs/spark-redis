@@ -51,7 +51,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val offsetStart = offsetStarts.get(streamKey).flatMap(_.get(offsetEnd.groupName)).map(_.offset)
     val offsetRange = RedisSourceOffsetRange(streamKey, offsetEnd.groupName,
       offsetStart, offsetEnd.offset)
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRange)
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, Seq(offsetRange))
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)

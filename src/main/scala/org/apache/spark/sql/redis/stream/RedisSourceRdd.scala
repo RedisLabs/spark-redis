@@ -20,11 +20,13 @@ import scala.collection.JavaConverters._
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
-                     offsetRange: RedisSourceOffsetRange)
+                     offsetRanges: Seq[RedisSourceOffsetRange])
   extends RDD[(EntryID, JMap[String, String])](sc, Nil) {
 
   override def compute(split: Partition, context: TaskContext):
   Iterator[(EntryID, JMap[String, String])] = {
+    val partition = split.asInstanceOf[RedisSourceRddPartition]
+    val offsetRange = partition.offsetRange
     val streamKey = offsetRange.streamKey
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(StreamUtils.EntryIdEarliest)
@@ -66,7 +68,8 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   }
 
   override protected def getPartitions: Array[Partition] =
-    Array(RedisSourceRddPartition(0, offsetRange))
+    offsetRanges.zipWithIndex.map { case (e, i) => RedisSourceRddPartition(i, e) }
+      .toArray
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
