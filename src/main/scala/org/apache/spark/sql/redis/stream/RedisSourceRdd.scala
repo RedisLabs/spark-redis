@@ -15,8 +15,7 @@ import redis.clients.jedis.EntryID
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
-                     offsetRanges: Seq[RedisSourceOffsetRange])
-  extends RDD[StreamEntry](sc, Nil) {
+                     offsetRanges: Seq[RedisSourceOffsetRange]) extends RDD[StreamEntry](sc, Nil) {
 
   override def compute(split: Partition, context: TaskContext): Iterator[StreamEntry] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]

@@ -15,8 +15,7 @@ import scala.collection.JavaConverters._
   */
 object RedisStreamReader extends Logging {
 
-  def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[StreamEntry] = {
+  def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading pending stream entries...")
     messages(conn, offsetRange) {
       val initialStart = offsetRange.start.map(id => new EntryID(id))
@@ -35,8 +34,7 @@ object RedisStreamReader extends Logging {
     }
   }
 
-  def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[StreamEntry] = {
+  def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading unread stream entries...")
     messages(conn, offsetRange) {
       val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
