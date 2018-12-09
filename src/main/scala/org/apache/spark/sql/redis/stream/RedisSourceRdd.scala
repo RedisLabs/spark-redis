@@ -1,18 +1,15 @@
 package org.apache.spark.sql.redis.stream
 
-import java.util
-import java.util.AbstractMap.SimpleEntry
 import java.util.{List => JList, Map => JMap}
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.redis.stream.RedisSourceRdd.{EntryK, RddEntry, RddIterator, StreamK}
+import org.apache.spark.sql.redis.stream.RedisSourceRdd.{RddEntry, RddIterator}
+import org.apache.spark.sql.redis.stream.RedisStreamReader._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
-
-import scala.collection.JavaConverters._
+import redis.clients.jedis.{EntryID, StreamEntry}
 
 /**
   * RDD of EntryID -> StreamEntry.fields
@@ -31,72 +28,6 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       createConsumerGroupIfNotExist(conn, streamKey, offsetRange.groupName, start)
       pendingMessages(conn, offsetRange) ++ unreadMessages(conn, offsetRange)
     }
-  }
-
-  private def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): RddIterator = {
-    logInfo("Reading pending stream entries...")
-    messages(conn, offsetRange) {
-      val initialStart = offsetRange.start.map(id => new EntryID(id))
-        .getOrElse(new EntryID(0, 0))
-      val initialEntry = new SimpleEntry(offsetRange.streamKey, initialStart)
-      Stream.iterate(xreadGroup(conn, offsetRange, initialEntry)) { response =>
-        val responseOption = for {
-          lastEntries <- response.asScala.lastOption
-          lastEntry <- lastEntries.getValue.asScala.lastOption
-          lastEntryId = lastEntry.getID
-          startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
-          startEntryOffset = new SimpleEntry(offsetRange.streamKey, startEntryId)
-        } yield {
-          val response = xreadGroup(conn, offsetRange, startEntryOffset)
-          logDebug(s"Got pending entries: $response")
-          response
-        }
-        responseOption.getOrElse(new util.ArrayList)
-      }
-    }
-  }
-
-  private def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): RddIterator = {
-    logInfo("Reading unread stream entries...")
-    messages(conn, offsetRange) {
-      val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
-      Stream.continually {
-        val response = xreadGroup(conn, offsetRange, startEntryOffset)
-        logDebug(s"Got unread entries: $response")
-        response
-      }
-    }
-  }
-
-  private def xreadGroup(conn: Jedis, offsetRange: RedisSourceOffsetRange,
-                         startEntryOffset: JMap.Entry[String, EntryID]): JList[EntryK] = conn
-    .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
-
-  private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                      (streamGroups: => StreamK): RddIterator = {
-    val end = new EntryID(offsetRange.end)
-    import scala.math.Ordering.Implicits._
-    streamGroups
-      .takeWhile { response =>
-        !response.isEmpty
-      }
-      .flatMap { response =>
-        response.asScala.iterator
-      }
-      .flatMap { streamEntry =>
-        flattenRddEntry(streamEntry)
-      }
-      .takeWhile { case (entryId, _) =>
-        entryId <= end
-      }
-      .iterator
-  }
-
-  private def flattenRddEntry(entry: EntryK): RddIterator = {
-    entry.getValue.asScala.iterator
-      .map { streamEntry =>
-        streamEntry.getID -> streamEntry.getFields
-      }
   }
 
   override protected def getPartitions: Array[Partition] =
