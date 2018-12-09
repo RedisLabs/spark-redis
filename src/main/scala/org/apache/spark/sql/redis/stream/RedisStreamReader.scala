@@ -18,16 +18,17 @@ object RedisStreamReader extends Logging {
   def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading pending stream entries...")
     messages(conn, offsetRange) {
+      val config = offsetRange.config
       val initialStart = offsetRange.start.map(id => new EntryID(id))
         .getOrElse(new EntryID(0, 0))
-      val initialEntry = new SimpleEntry(offsetRange.streamKey, initialStart)
+      val initialEntry = new SimpleEntry(config.streamKey, initialStart)
       Iterator.iterate(xreadGroup(conn, offsetRange, initialEntry)) { response =>
         val responseOption = for {
           lastEntries <- response.asScala.lastOption
           lastEntry <- lastEntries.getValue.asScala.lastOption
           lastEntryId = lastEntry.getID
           startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
-          startEntryOffset = new SimpleEntry(offsetRange.streamKey, startEntryId)
+          startEntryOffset = new SimpleEntry(config.streamKey, startEntryId)
         } yield xreadGroup(conn, offsetRange, startEntryOffset)
         responseOption.getOrElse(new util.ArrayList)
       }
@@ -37,7 +38,8 @@ object RedisStreamReader extends Logging {
   def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading unread stream entries...")
     messages(conn, offsetRange) {
-      val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
+      val config = offsetRange.config
+      val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
       Iterator.continually {
         xreadGroup(conn, offsetRange, startEntryOffset)
       }
@@ -45,8 +47,11 @@ object RedisStreamReader extends Logging {
   }
 
   private def xreadGroup(conn: Jedis, offsetRange: RedisSourceOffsetRange,
-                         startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = conn
-    .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
+                         startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = {
+    val config = offsetRange.config
+    conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block,
+      false, startEntryOffset)
+  }
 
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
                       (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {

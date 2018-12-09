@@ -20,10 +20,11 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override def compute(split: Partition, context: TaskContext): Iterator[StreamEntry] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]
     val offsetRange = partition.offsetRange
-    val streamKey = offsetRange.streamKey
+    val consumerConfig = offsetRange.config
+    val streamKey = consumerConfig.streamKey
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
-      createConsumerGroupIfNotExist(conn, streamKey, offsetRange.groupName, start)
+      createConsumerGroupIfNotExist(conn, streamKey, consumerConfig.groupName, start)
       pendingMessages(conn, offsetRange) ++ unreadMessages(conn, offsetRange)
     }
   }

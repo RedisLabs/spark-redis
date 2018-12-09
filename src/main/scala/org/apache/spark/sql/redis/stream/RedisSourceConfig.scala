@@ -12,8 +12,10 @@ object RedisSourceConfig {
   def fromMap(config: Map[String, String]): RedisSourceConfig = {
     val streamKey = config.getOrElse(StreamOptionStreamKey,
       throw new IllegalArgumentException("Please specify 'stream.key'"))
-    RedisSourceConfig(Seq(RedisConsumerConfig(streamKey, "group55", "consumer-123")), 100, 500)
+    val consumerConfigs = Seq(RedisConsumerConfig(streamKey, "group55", "consumer-123", 100, 500))
+    RedisSourceConfig(consumerConfigs, 100, 500)
   }
 }
 
-case class RedisConsumerConfig(streamKey: String, groupName: String, consumerName: String)
+case class RedisConsumerConfig(streamKey: String, groupName: String, consumerName: String,
+                               batchSize: Int, block: Int)

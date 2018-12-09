@@ -5,6 +5,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
+import org.apache.spark.sql.redis.stream.RedisSource.configsMap
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
@@ -55,12 +56,13 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
       .map(_.groupBy(_._2.groupName)).getOrElse(Map())
     val offsetEnds = end.asInstanceOf[RedisSourceOffset]
+    val configs = configsMap(sourceConfig.consumerConfigs)
     val offsetRanges = offsetEnds.offsets
       .map { case (streamKey, offsetEnd) =>
         val offsetStart = offsetStarts.get(streamKey)
           .flatMap(_.get(offsetEnd.groupName))
           .map(_.offset)
-        RedisSourceOffsetRange(streamKey, offsetEnd.groupName, offsetStart, offsetEnd.offset)
+        RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
       }
       .toSeq
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
@@ -85,9 +87,10 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       case SerializedOffset(json) =>
         RedisSourceOffset.fromJson(json)
     }
+    val configs = configsMap(sourceConfig.consumerConfigs)
     offsetEnds.offsets.foreach { case (streamKey, offsetEnd) =>
       val groupName = offsetEnd.groupName
-      val offsetRange = RedisSourceOffsetRange(streamKey, groupName, None, offsetEnd.offset)
+      val offsetRange = RedisSourceOffsetRange(None, offsetEnd.offset, configs(streamKey))
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
         RedisStreamReader.pendingMessages(conn, offsetRange)
           .map { entries => entries._1 }
@@ -105,6 +108,13 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 }
 
 object RedisSource {
+
+  def configsMap(configs: Seq[RedisConsumerConfig]): Map[String, RedisConsumerConfig] =
+    configs
+      .map { config =>
+        config.streamKey -> config
+      }
+      .toMap
 
   case class Entity(_id: String)
 

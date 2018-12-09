@@ -24,5 +24,4 @@ object RedisSourceOffset {
 
 case class RedisConsumerOffset(groupName: String, offset: String)
 
-case class RedisSourceOffsetRange(streamKey: String, groupName: String, start: Option[String],
-                                  end: String)
+case class RedisSourceOffsetRange(start: Option[String], end: String, config: RedisConsumerConfig)
