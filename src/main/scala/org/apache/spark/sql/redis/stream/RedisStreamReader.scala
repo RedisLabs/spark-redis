@@ -28,11 +28,7 @@ object RedisStreamReader extends Logging {
           lastEntryId = lastEntry.getID
           startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
           startEntryOffset = new SimpleEntry(offsetRange.streamKey, startEntryId)
-        } yield {
-          val response = xreadGroup(conn, offsetRange, startEntryOffset)
-          logDebug(s"Got pending entries: $response")
-          response
-        }
+        } yield xreadGroup(conn, offsetRange, startEntryOffset)
         responseOption.getOrElse(new util.ArrayList)
       }
     }
@@ -43,9 +39,7 @@ object RedisStreamReader extends Logging {
     messages(conn, offsetRange) {
       val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
       Stream.continually {
-        val response = xreadGroup(conn, offsetRange, startEntryOffset)
-        logDebug(s"Got unread entries: $response")
-        response
+        xreadGroup(conn, offsetRange, startEntryOffset)
       }
     }
   }
@@ -63,7 +57,9 @@ object RedisStreamReader extends Logging {
         !response.isEmpty
       }
       .flatMap { response =>
-        response.asScala.iterator
+        val responseScala = response.asScala
+        logDebug(s"Got entries: $responseScala")
+        responseScala.iterator
       }
       .flatMap { streamEntry =>
         flattenRddEntry(streamEntry)
