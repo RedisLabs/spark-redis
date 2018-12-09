@@ -5,7 +5,6 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
-import org.apache.spark.sql.redis.StreamOptionStreamKey
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
@@ -23,8 +22,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val redisConfig = RedisConfig.fromSparkConf(sc.getConf)
 
-  private val streamKey = parameters.getOrElse(StreamOptionStreamKey,
-    throw new IllegalArgumentException("Please specify 'stream.key'"))
+  private val sourceConfig = RedisSourceConfig.fromMap(parameters)
 
   private val currentSchema = userDefinedSchema.getOrElse {
     throw new IllegalArgumentException("Please specify schema")
@@ -33,14 +31,17 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   override def schema: StructType = currentSchema
 
   override def getOffset: Option[Offset] = {
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      val info = conn.xinfo(XINFO.StreamKey, streamKey)
-      info.get(XINFO.LastGeneratedId)
-        .map {
-          case offset: String =>
-            RedisSourceOffset(Map(streamKey -> RedisConsumerOffset("group55", offset)))
-        }
+    val initialOffset = RedisSourceOffset(Map())
+    val combinedOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
+      val streamKey = e.streamKey
+      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+        val infoMap = conn.xinfo(XINFO.StreamKey, streamKey)
+        val offsetId = infoMap(XINFO.LastGeneratedId)
+        val streamOffset = streamKey -> RedisConsumerOffset(e.groupName, String.valueOf(offsetId))
+        acc.copy(acc.offsets + streamOffset)
+      }
     }
+    Some(combinedOffset)
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
@@ -53,11 +54,16 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val localSchema = currentSchema
     val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
       .map(_.groupBy(_._2.groupName)).getOrElse(Map())
-    val offsetEnd = end.asInstanceOf[RedisSourceOffset].offsets(streamKey)
-    val offsetStart = offsetStarts.get(streamKey).flatMap(_.get(offsetEnd.groupName)).map(_.offset)
-    val offsetRange = RedisSourceOffsetRange(streamKey, offsetEnd.groupName,
-      offsetStart, offsetEnd.offset)
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, Seq(offsetRange))
+    val offsetEnds = end.asInstanceOf[RedisSourceOffset]
+    val offsetRanges = offsetEnds.offsets
+      .map { case (streamKey, offsetEnd) =>
+        val offsetStart = offsetStarts.get(streamKey)
+          .flatMap(_.get(offsetEnd.groupName))
+          .map(_.offset)
+        RedisSourceOffsetRange(streamKey, offsetEnd.groupName, offsetStart, offsetEnd.offset)
+      }
+      .toSeq
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
@@ -79,16 +85,18 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       case SerializedOffset(json) =>
         RedisSourceOffset.fromJson(json)
     }
-    val offsetEnd = offsetEnds.offsets(streamKey)
-    val offsetRange = RedisSourceOffsetRange(streamKey, offsetEnd.groupName, None, offsetEnd.offset)
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      RedisStreamReader.pendingMessages(conn, offsetRange)
-        .map { entries => entries._1 }
-        .grouped(100)
-        .foreach { entries =>
-          conn.xack(streamKey, offsetEnd.groupName, entries: _*)
-          logDebug(s"Committed entries: $entries")
-        }
+    offsetEnds.offsets.foreach { case (streamKey, offsetEnd) =>
+      val groupName = offsetEnd.groupName
+      val offsetRange = RedisSourceOffsetRange(streamKey, groupName, None, offsetEnd.offset)
+      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+        RedisStreamReader.pendingMessages(conn, offsetRange)
+          .map { entries => entries._1 }
+          .grouped(sourceConfig.batchSize)
+          .foreach { entries =>
+            conn.xack(streamKey, groupName, entries: _*)
+            logDebug(s"Committed entries: $entries")
+          }
+      }
     }
   }
 
