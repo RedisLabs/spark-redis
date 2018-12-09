@@ -78,8 +78,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val offsetRanges = getOffsetRanges(None, offsetEnds, sourceConfig.consumerConfigs)
     new RedisSourceRdd(sc, redisConfig, offsetRanges, true)
-      .foreachPartition {
-        _.foreach { _ =>
+      .foreachPartition { partition =>
+        partition.foreach { _ =>
           // evaluate
         }
       }
