@@ -92,7 +92,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       val groupName = offsetEnd.groupName
       val offsetRange = RedisSourceOffsetRange(None, offsetEnd.offset, configs(streamKey))
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        RedisStreamReader.pendingMessages(conn, offsetRange)
+        RedisStreamReader.pendingStreamEntries(conn, offsetRange)
           .map { entries => entries._1 }
           .grouped(sourceConfig.batchSize)
           .foreach { entries =>

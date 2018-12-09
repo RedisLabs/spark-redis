@@ -25,7 +25,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       createConsumerGroupIfNotExist(conn, streamKey, consumerConfig.groupName, start)
-      pendingMessages(conn, offsetRange) ++ unreadMessages(conn, offsetRange)
+      pendingStreamEntries(conn, offsetRange) ++ unreadStreamEntries(conn, offsetRange)
     }
   }
 
