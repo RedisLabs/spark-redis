@@ -5,7 +5,7 @@ import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.util.Logging
-import org.apache.spark.sql.redis.stream.RedisSourceTypes.{EntryIdWithFields, StreamEntryBatch, StreamEntryBatches}
+import org.apache.spark.sql.redis.stream.RedisSourceTypes.{StreamEntry, StreamEntryBatch, StreamEntryBatches}
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
@@ -16,7 +16,7 @@ import scala.collection.JavaConverters._
 object RedisStreamReader extends Logging {
 
   def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[EntryIdWithFields] = {
+  Iterator[StreamEntry] = {
     logInfo("Reading pending stream entries...")
     messages(conn, offsetRange) {
       val initialStart = offsetRange.start.map(id => new EntryID(id))
@@ -36,7 +36,7 @@ object RedisStreamReader extends Logging {
   }
 
   def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[EntryIdWithFields] = {
+  Iterator[StreamEntry] = {
     logInfo("Reading unread stream entries...")
     messages(conn, offsetRange) {
       val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
@@ -51,7 +51,7 @@ object RedisStreamReader extends Logging {
     .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
 
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                      (streamGroups: => Iterator[StreamEntryBatches]): Iterator[EntryIdWithFields] = {
+                      (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
     import scala.math.Ordering.Implicits._
     val end = new EntryID(offsetRange.end)
     streamGroups
@@ -71,7 +71,7 @@ object RedisStreamReader extends Logging {
       }
   }
 
-  private def flattenRddEntry(entry: StreamEntryBatch): Iterator[EntryIdWithFields] = {
+  private def flattenRddEntry(entry: StreamEntryBatch): Iterator[StreamEntry] = {
     entry.getValue.asScala.iterator
       .map { streamEntry =>
         streamEntry.getID -> streamEntry.getFields
