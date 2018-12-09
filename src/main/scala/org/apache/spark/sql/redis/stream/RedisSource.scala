@@ -65,7 +65,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
         RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
       }
       .toSeq
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
+    val streamReader = new RedisStreamReader(false)
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, streamReader)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
@@ -88,11 +89,12 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
         RedisSourceOffset.fromJson(json)
     }
     val configs = configsMap(sourceConfig.consumerConfigs)
+    val streamReader = new RedisStreamReader(true)
     offsetEnds.offsets.foreach { case (streamKey, offsetEnd) =>
       val groupName = offsetEnd.groupName
       val offsetRange = RedisSourceOffsetRange(None, offsetEnd.offset, configs(streamKey))
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        RedisStreamReader.pendingStreamEntries(conn, offsetRange)
+        streamReader.pendingStreamEntries(conn, offsetRange)
           .map { entries => entries._1 }
           .grouped(sourceConfig.batchSize)
           .foreach { entries =>

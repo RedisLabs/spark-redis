@@ -9,11 +9,12 @@ import org.apache.spark.sql.redis.stream.RedisSourceTypes.{StreamEntry, StreamEn
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
+import scala.math.Ordering.Implicits._
 
 /**
   * @author The Viet Nguyen
   */
-object RedisStreamReader extends Logging {
+class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
   def pendingStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange):
   Iterator[StreamEntry] = {
@@ -52,14 +53,25 @@ object RedisStreamReader extends Logging {
                                      startEntryOffset: JMap.Entry[String, EntryID]):
   StreamEntryBatches = {
     val config = offsetRange.config
-    conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block,
-      false, startEntryOffset)
+    val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize,
+      config.block, false, startEntryOffset)
+    if (autoAck) {
+      logInfo(s"Auto acknowledging: $response")
+      val end = new EntryID(offsetRange.end)
+      val responseScala = response.asScala
+      responseScala.foreach { batch =>
+        val entryIds = batch.getValue.asScala.map(_.getID).filter(_ <= end)
+        if (entryIds.nonEmpty) {
+          conn.xack(batch.getKey, config.groupName, entryIds: _*)
+        }
+      }
+    }
+    response
   }
 
   private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
                                  (streamGroups: => Iterator[StreamEntryBatches]):
   Iterator[StreamEntry] = {
-    import scala.math.Ordering.Implicits._
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
