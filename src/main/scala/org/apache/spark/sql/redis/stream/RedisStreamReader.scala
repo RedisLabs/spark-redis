@@ -5,7 +5,7 @@ import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.util.Logging
-import org.apache.spark.sql.redis.stream.RedisSourceRdd._
+import org.apache.spark.sql.redis.stream.RedisSourceTypes.{EntryIdWithFields, StreamBatches, StreamKeyWithEntries}
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._

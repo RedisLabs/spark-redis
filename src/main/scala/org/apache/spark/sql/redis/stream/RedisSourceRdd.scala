@@ -1,15 +1,13 @@
 package org.apache.spark.sql.redis.stream
 
-import java.util.{List => JList, Map => JMap}
-
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.redis.stream.RedisSourceRdd.EntryIdWithFields
+import org.apache.spark.sql.redis.stream.RedisSourceTypes.EntryIdWithFields
 import org.apache.spark.sql.redis.stream.RedisStreamReader._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import redis.clients.jedis.{EntryID, StreamEntry}
+import redis.clients.jedis.EntryID
 
 /**
   * RDD of EntryID -> StreamEntry.fields
@@ -34,13 +32,6 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
   override protected def getPartitions: Array[Partition] =
     offsetRanges.zipWithIndex.map { case (e, i) => RedisSourceRddPartition(i, e) }
       .toArray
-}
-
-object RedisSourceRdd {
-
-  type EntryIdWithFields = (EntryID, JMap[String, String])
-  type StreamKeyWithEntries = JMap.Entry[String, JList[StreamEntry]]
-  type StreamBatches = JList[StreamKeyWithEntries]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
