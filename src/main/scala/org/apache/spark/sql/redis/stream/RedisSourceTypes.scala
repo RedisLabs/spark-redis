@@ -10,6 +10,6 @@ import redis.clients.jedis.{EntryID, StreamEntry}
 object RedisSourceTypes {
 
   type EntryIdWithFields = (EntryID, JMap[String, String])
-  type StreamKeyWithEntries = JMap.Entry[String, JList[StreamEntry]]
-  type StreamBatches = JList[StreamKeyWithEntries]
+  type StreamEntryBatch = JMap.Entry[String, JList[StreamEntry]]
+  type StreamEntryBatches = JList[StreamEntryBatch]
 }

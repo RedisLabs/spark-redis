@@ -5,7 +5,7 @@ import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.util.Logging
-import org.apache.spark.sql.redis.stream.RedisSourceTypes.{EntryIdWithFields, StreamBatches, StreamKeyWithEntries}
+import org.apache.spark.sql.redis.stream.RedisSourceTypes.{EntryIdWithFields, StreamEntryBatch, StreamEntryBatches}
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
@@ -47,11 +47,11 @@ object RedisStreamReader extends Logging {
   }
 
   private def xreadGroup(conn: Jedis, offsetRange: RedisSourceOffsetRange,
-                         startEntryOffset: JMap.Entry[String, EntryID]): StreamBatches = conn
+                         startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = conn
     .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
 
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                      (streamGroups: => Iterator[StreamBatches]): Iterator[EntryIdWithFields] = {
+                      (streamGroups: => Iterator[StreamEntryBatches]): Iterator[EntryIdWithFields] = {
     import scala.math.Ordering.Implicits._
     val end = new EntryID(offsetRange.end)
     streamGroups
@@ -71,7 +71,7 @@ object RedisStreamReader extends Logging {
       }
   }
 
-  private def flattenRddEntry(entry: StreamKeyWithEntries): Iterator[EntryIdWithFields] = {
+  private def flattenRddEntry(entry: StreamEntryBatch): Iterator[EntryIdWithFields] = {
     entry.getValue.asScala.iterator
       .map { streamEntry =>
         streamEntry.getID -> streamEntry.getFields
