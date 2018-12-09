@@ -2,10 +2,10 @@ package org.apache.spark.sql.redis.stream
 
 import java.util
 import java.util.AbstractMap.SimpleEntry
-import java.util.{List => JList, Map => JMap}
+import java.util.{Map => JMap}
 
 import com.redislabs.provider.redis.util.Logging
-import org.apache.spark.sql.redis.stream.RedisSourceRdd.{EntryIdWithFieldsIterator, StreamK, StreamKeyWithEntries}
+import org.apache.spark.sql.redis.stream.RedisSourceRdd.{EntryIdWithFieldsIterator, StreamBatches, StreamK, StreamKeyWithEntries}
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
@@ -47,8 +47,7 @@ object RedisStreamReader extends Logging {
   }
 
   private def xreadGroup(conn: Jedis, offsetRange: RedisSourceOffsetRange,
-                         startEntryOffset: JMap.Entry[String, EntryID]):
-  JList[StreamKeyWithEntries] = conn
+                         startEntryOffset: JMap.Entry[String, EntryID]): StreamBatches = conn
     .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
 
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)

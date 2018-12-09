@@ -41,7 +41,8 @@ object RedisSourceRdd {
   type EntryIdWithFields = (EntryID, JMap[String, String])
   type EntryIdWithFieldsIterator = Iterator[EntryIdWithFields]
   type StreamKeyWithEntries = JMap.Entry[String, JList[StreamEntry]]
-  type StreamK = Stream[JList[StreamKeyWithEntries]]
+  type StreamBatches = JList[StreamKeyWithEntries]
+  type StreamK = Stream[StreamBatches]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
