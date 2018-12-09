@@ -47,7 +47,9 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
           startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
           startEntryOffset = new SimpleEntry(offsetRange.streamKey, startEntryId)
         } yield {
-          xreadGroup(conn, offsetRange, startEntryOffset)
+          val response = xreadGroup(conn, offsetRange, startEntryOffset)
+          logDebug(s"Got pending entries: $response")
+          response
         }
         responseOption.getOrElse(new util.ArrayList)
       }
@@ -59,7 +61,9 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     messages(conn, offsetRange) {
       val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
       Stream.continually {
-        xreadGroup(conn, offsetRange, startEntryOffset)
+        val response = xreadGroup(conn, offsetRange, startEntryOffset)
+        logDebug(s"Got unread entries: $response")
+        response
       }
     }
   }
