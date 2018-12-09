@@ -6,7 +6,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.redis.stream.RedisSourceRdd.{EntryIdWithFields, EntryIdWithFieldsIterator}
+import org.apache.spark.sql.redis.stream.RedisSourceRdd.EntryIdWithFields
 import org.apache.spark.sql.redis.stream.RedisStreamReader._
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import redis.clients.jedis.{EntryID, StreamEntry}
@@ -20,7 +20,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
                      offsetRanges: Seq[RedisSourceOffsetRange])
   extends RDD[EntryIdWithFields](sc, Nil) {
 
-  override def compute(split: Partition, context: TaskContext): EntryIdWithFieldsIterator = {
+  override def compute(split: Partition, context: TaskContext): Iterator[EntryIdWithFields] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]
     val offsetRange = partition.offsetRange
     val streamKey = offsetRange.streamKey
@@ -39,10 +39,8 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
 object RedisSourceRdd {
 
   type EntryIdWithFields = (EntryID, JMap[String, String])
-  type EntryIdWithFieldsIterator = Iterator[EntryIdWithFields]
   type StreamKeyWithEntries = JMap.Entry[String, JList[StreamEntry]]
   type StreamBatches = JList[StreamKeyWithEntries]
-  type StreamK = Iterator[StreamBatches]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
