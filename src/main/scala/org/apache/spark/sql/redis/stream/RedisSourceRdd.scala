@@ -14,8 +14,10 @@ import redis.clients.jedis.EntryID
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
-                     offsetRanges: Seq[RedisSourceOffsetRange], streamReader: RedisStreamReader)
+                     offsetRanges: Seq[RedisSourceOffsetRange], autoAck: Boolean = false)
   extends RDD[StreamEntry](sc, Nil) {
+
+  private val streamReader = new RedisStreamReader(autoAck)
 
   override def compute(split: Partition, context: TaskContext): Iterator[StreamEntry] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]

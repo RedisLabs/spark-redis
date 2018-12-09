@@ -65,8 +65,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
         RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
       }
       .toSeq
-    val streamReader = new RedisStreamReader(false)
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, streamReader)
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, false)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
