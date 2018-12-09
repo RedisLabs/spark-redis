@@ -5,7 +5,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
-import org.apache.spark.sql.redis.stream.RedisSource.{configsMap, getOffsetRanges}
+import org.apache.spark.sql.redis.stream.RedisSource.getOffsetRanges
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
@@ -76,21 +76,13 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       case SerializedOffset(json) =>
         RedisSourceOffset.fromJson(json)
     }
-    val configs = configsMap(sourceConfig.consumerConfigs)
-    val streamReader = new RedisStreamReader(true)
-    offsetEnds.offsets.foreach { case (streamKey, offsetEnd) =>
-      val groupName = offsetEnd.groupName
-      val offsetRange = RedisSourceOffsetRange(None, offsetEnd.offset, configs(streamKey))
-      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        streamReader.pendingStreamEntries(conn, offsetRange)
-          .map { entries => entries._1 }
-          .grouped(sourceConfig.batchSize)
-          .foreach { entries =>
-            conn.xack(streamKey, groupName, entries: _*)
-            logDebug(s"Committed entries: $entries")
-          }
+    val offsetRanges = getOffsetRanges(None, offsetEnds, sourceConfig.consumerConfigs)
+    new RedisSourceRdd(sc, redisConfig, offsetRanges, true)
+      .foreachPartition {
+        _.foreach { _ =>
+          // evaluate
+        }
       }
-    }
   }
 
   override def stop(): Unit = {
