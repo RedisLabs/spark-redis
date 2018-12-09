@@ -1,5 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
+import java.util
 import java.util.AbstractMap.SimpleEntry
 import java.util.{List => JList, Map => JMap}
 
@@ -28,35 +29,58 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       createConsumerGroupIfNotExist(conn, streamKey, offsetRange.groupName, start)
-      unreadMessages(conn, offsetRange)
+      pendingMessages(conn, offsetRange) ++ unreadMessages(conn, offsetRange)
     }
   }
 
-  private def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): RddIterator =
+  private def pendingMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): RddIterator = {
+    logInfo("Reading pending stream entries...")
     messages(conn, offsetRange) {
-      val startEntry = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
-      Stream.continually {
-        val streamGroup = conn
-          .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntry)
-        None -> streamGroup
+      val initialStart = offsetRange.start.map(id => new EntryID(id))
+        .getOrElse(new EntryID(0, 0))
+      val initialEntry = new SimpleEntry(offsetRange.streamKey, initialStart)
+      Stream.iterate(xreadGroup(conn, offsetRange, initialEntry)) { response =>
+        val responseOption = for {
+          lastEntries <- response.asScala.lastOption
+          lastEntry <- lastEntries.getValue.asScala.lastOption
+          lastEntryId = lastEntry.getID
+          startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
+          startEntryOffset = new SimpleEntry(offsetRange.streamKey, startEntryId)
+        } yield {
+          xreadGroup(conn, offsetRange, startEntryOffset)
+        }
+        responseOption.getOrElse(new util.ArrayList)
       }
     }
+  }
+
+  private def unreadMessages(conn: Jedis, offsetRange: RedisSourceOffsetRange): RddIterator = {
+    logInfo("Reading unread stream entries...")
+    messages(conn, offsetRange) {
+      val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
+      Stream.continually {
+        xreadGroup(conn, offsetRange, startEntryOffset)
+      }
+    }
+  }
+
+  private def xreadGroup(conn: Jedis, offsetRange: RedisSourceOffsetRange,
+                         startEntryOffset: JMap.Entry[String, EntryID]): JList[EntryK] = conn
+    .xreadGroup(offsetRange.groupName, "consumer-123", 1000, 100, false, startEntryOffset)
 
   private def messages(conn: Jedis, offsetRange: RedisSourceOffsetRange)
                       (streamGroups: => StreamK): RddIterator = {
     val end = new EntryID(offsetRange.end)
     import scala.math.Ordering.Implicits._
     streamGroups
-      .takeWhile { case (_, response) =>
+      .takeWhile { response =>
         !response.isEmpty
       }
-      .flatMap { case (min, response) =>
-        response.asScala.iterator.map { entry =>
-          min -> entry
-        }
+      .flatMap { response =>
+        response.asScala.iterator
       }
-      .flatMap { case (min, streamEntry) =>
-        flattenRddEntry(streamEntry, min)
+      .flatMap { streamEntry =>
+        flattenRddEntry(streamEntry)
       }
       .takeWhile { case (entryId, _) =>
         entryId <= end
@@ -64,12 +88,8 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
       .iterator
   }
 
-  private def flattenRddEntry(entry: EntryK, min: Option[EntryID]): RddIterator = {
-    import scala.math.Ordering.Implicits._
+  private def flattenRddEntry(entry: EntryK): RddIterator = {
     entry.getValue.asScala.iterator
-      .filter { streamEntry =>
-        min.isEmpty || streamEntry.getID >= min.get
-      }
       .map { streamEntry =>
         streamEntry.getID -> streamEntry.getFields
       }
@@ -85,7 +105,7 @@ object RedisSourceRdd {
   type RddEntry = (EntryID, JMap[String, String])
   type RddIterator = Iterator[RddEntry]
   type EntryK = JMap.Entry[String, JList[StreamEntry]]
-  type StreamK = Stream[(Option[EntryID], JList[EntryK])]
+  type StreamK = Stream[JList[EntryK]]
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)
