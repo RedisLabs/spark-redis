@@ -55,14 +55,15 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
     val config = offsetRange.config
     val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize,
       config.block, false, startEntryOffset)
+    logDebug(s"Got entries: $response")
     if (autoAck) {
-      logInfo(s"Auto acknowledging: $response")
       val end = new EntryID(offsetRange.end)
       val responseScala = response.asScala
       responseScala.foreach { batch =>
         val entryIds = batch.getValue.asScala.map(_.getID).filter(_ <= end)
         if (entryIds.nonEmpty) {
           conn.xack(batch.getKey, config.groupName, entryIds: _*)
+          logInfo(s"Acknowledged: $entryIds")
         }
       }
     }
@@ -78,9 +79,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
         !response.isEmpty
       }
       .flatMap { response =>
-        val responseScala = response.asScala
-        logDebug(s"Got entries: $responseScala")
-        responseScala.iterator
+        response.asScala.iterator
       }
       .flatMap { streamEntry =>
         flattenStreamEntries(streamEntry)
