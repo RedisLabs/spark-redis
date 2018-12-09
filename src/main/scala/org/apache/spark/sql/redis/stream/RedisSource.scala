@@ -5,7 +5,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
-import org.apache.spark.sql.redis.stream.RedisSource.configsMap
+import org.apache.spark.sql.redis.stream.RedisSource.{configsMap, getOffsetRanges}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
@@ -53,18 +53,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       """.stripMargin
     }
     val localSchema = currentSchema
-    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
-      .map(_.groupBy(_._2.groupName)).getOrElse(Map())
-    val offsetEnds = end.asInstanceOf[RedisSourceOffset]
-    val configs = configsMap(sourceConfig.consumerConfigs)
-    val offsetRanges = offsetEnds.offsets
-      .map { case (streamKey, offsetEnd) =>
-        val offsetStart = offsetStarts.get(streamKey)
-          .flatMap(_.get(offsetEnd.groupName))
-          .map(_.offset)
-        RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
-      }
-      .toSeq
+    val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, false)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
@@ -116,6 +105,22 @@ object RedisSource {
         config.streamKey -> config
       }
       .toMap
+
+  def getOffsetRanges(start: Option[Offset], end: Offset,
+                      consumerConfigs: Seq[RedisConsumerConfig]): Seq[RedisSourceOffsetRange] = {
+    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets)
+      .map(_.groupBy(_._2.groupName)).getOrElse(Map())
+    val offsetEnds = end.asInstanceOf[RedisSourceOffset]
+    val configs = configsMap(consumerConfigs)
+    offsetEnds.offsets
+      .map { case (streamKey, offsetEnd) =>
+        val offsetStart = offsetStarts.get(streamKey)
+          .flatMap(_.get(offsetEnd.groupName))
+          .map(_.offset)
+        RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
+      }
+      .toSeq
+  }
 
   case class Entity(_id: String)
 
