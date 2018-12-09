@@ -22,7 +22,7 @@ object RedisStreamReader extends Logging {
       val initialStart = offsetRange.start.map(id => new EntryID(id))
         .getOrElse(new EntryID(0, 0))
       val initialEntry = new SimpleEntry(offsetRange.streamKey, initialStart)
-      Stream.iterate(xreadGroup(conn, offsetRange, initialEntry)) { response =>
+      Iterator.iterate(xreadGroup(conn, offsetRange, initialEntry)) { response =>
         val responseOption = for {
           lastEntries <- response.asScala.lastOption
           lastEntry <- lastEntries.getValue.asScala.lastOption
@@ -40,7 +40,7 @@ object RedisStreamReader extends Logging {
     logInfo("Reading unread stream entries...")
     messages(conn, offsetRange) {
       val startEntryOffset = new SimpleEntry(offsetRange.streamKey, EntryID.UNRECEIVED_ENTRY)
-      Stream.continually {
+      Iterator.continually {
         xreadGroup(conn, offsetRange, startEntryOffset)
       }
     }
@@ -69,7 +69,6 @@ object RedisStreamReader extends Logging {
       .takeWhile { case (entryId, _) =>
         entryId <= end
       }
-      .iterator
   }
 
   private def flattenRddEntry(entry: StreamKeyWithEntries): EntryIdWithFieldsIterator = {
