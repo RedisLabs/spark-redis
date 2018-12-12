@@ -1,12 +1,13 @@
 package com.redislabs.provider.redis
 
-import com.redislabs.provider.redis.streaming.RedisInputDStream
+import com.redislabs.provider.redis.streaming.{ConsumerConfig, RedisInputDStream, RedisStreamReceiver, StreamItem}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import com.redislabs.provider.redis.rdd._
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.dstream.InputDStream
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -455,6 +456,14 @@ class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serial
                                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
                                       (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)) = {
     new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
+  }
+
+  def createRedisXStream(consumersConfig: Seq[ConsumerConfig],
+                         storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
+                        (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)): InputDStream[StreamItem] = {
+    val readWriteConfig = ReadWriteConfig.fromSparkConf(ssc.sparkContext.getConf)
+    val receiver = new RedisStreamReceiver(consumersConfig, redisConfig, readWriteConfig, storageLevel)
+    ssc.receiverStream(receiver)
   }
 }
 

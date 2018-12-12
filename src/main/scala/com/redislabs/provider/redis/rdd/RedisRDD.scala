@@ -7,8 +7,8 @@ import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis._
-import redis.clients.util.JedisClusterCRC16
+import redis.clients.jedis.{Jedis, ScanParams}
+import redis.clients.jedis.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
 import scala.reflect.{ClassTag, classTag}
@@ -408,7 +408,7 @@ trait Keys {
     do {
       val scan = jedis.scan(cursor, params)
       keys.addAll(scan.getResult)
-      cursor = scan.getStringCursor
+      cursor = scan.getCursor
     } while (cursor != "0")
     keys
   }
