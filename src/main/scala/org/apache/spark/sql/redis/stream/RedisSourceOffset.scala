@@ -6,6 +6,7 @@ import org.json4s.jackson.Serialization
 import org.json4s.{Formats, NoTypeHints}
 
 /**
+  * @param offsets A map of offset by stream key
   * @author The Viet Nguyen
   */
 case class RedisSourceOffset(offsets: Map[String, RedisConsumerOffset]) extends Offset {
