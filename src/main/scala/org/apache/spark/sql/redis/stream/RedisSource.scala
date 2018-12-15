@@ -2,6 +2,7 @@ package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
+import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
@@ -9,6 +10,7 @@ import org.apache.spark.sql.redis.stream.RedisSource.getOffsetRanges
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
+import redis.clients.jedis.EntryID
 
 import scala.collection.JavaConverters._
 
@@ -54,6 +56,13 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
+    offsetRanges.foreach { offsetRange =>
+      val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
+      val config = offsetRange.config
+      withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
+        createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start, reset = true)
+      }
+    }
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, false)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
