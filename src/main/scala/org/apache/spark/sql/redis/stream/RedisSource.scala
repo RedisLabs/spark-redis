@@ -56,6 +56,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
+    // create or reset consumer groups
     offsetRanges.foreach { offsetRange =>
       val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       val config = offsetRange.config
