@@ -29,4 +29,13 @@ class RedisStreamSourceSuite extends FunSuite with RedisStandaloneEnv {
       .start()
     query.awaitTermination()
   }
+
+  test("read stream source") {
+    // given:
+    // - I insert 100 elements to Redis XStream
+    // when:
+    // - I read stream with batch size equal to 5
+    // then:
+    // - It eventually reach the point where there are 100 acknowledged and 0 pending messages
+  }
 }
