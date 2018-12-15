@@ -79,11 +79,14 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private def createOrResetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
     // create or reset consumer groups
-    offsetRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
-      val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
-      val config = offsetRange.config
-      withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
-        createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start, resetIfExist = true)
+    offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
+      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+        subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
+          val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
+          val config = offsetRange.config
+          createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
+            resetIfExist = true)
+        }
       }
     }
   }
