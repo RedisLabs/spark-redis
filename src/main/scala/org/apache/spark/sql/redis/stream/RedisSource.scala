@@ -6,7 +6,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
+import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource.getOffsetRanges
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -58,7 +58,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
     createOrResetConsumerGroups(offsetRanges)
-    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, false)
+    val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
         val values = ParseUtils.parseFields(fieldMap, localSchema)
@@ -72,21 +72,6 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   override def commit(end: Offset): Unit = {
-    logInfo(
-      s"""Committing offset..
-         |  end: ${end.json()}
-         |""".stripMargin)
-    val offsetEnds = end match {
-      case SerializedOffset(json) =>
-        RedisSourceOffset.fromJson(json)
-    }
-    val offsetRanges = getOffsetRanges(None, offsetEnds, sourceConfig.consumerConfigs)
-    new RedisSourceRdd(sc, redisConfig, offsetRanges, true)
-      .foreachPartition { partition =>
-        partition.foreach { _ =>
-          // evaluate
-        }
-      }
   }
 
   override def stop(): Unit = {

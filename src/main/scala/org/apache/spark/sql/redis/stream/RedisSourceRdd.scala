@@ -12,7 +12,7 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
   * @author The Viet Nguyen
   */
 class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
-                     offsetRanges: Seq[RedisSourceOffsetRange], autoAck: Boolean = false)
+                     offsetRanges: Seq[RedisSourceOffsetRange], autoAck: Boolean = true)
   extends RDD[StreamEntry](sc, Nil) {
 
   private val streamReader = new RedisStreamReader(autoAck)
