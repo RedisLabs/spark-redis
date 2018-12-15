@@ -18,7 +18,7 @@ object StreamUtils extends Logging {
       case e: Exception if StringUtils.contains(e.getMessage, "already exists") =>
         logInfo(s"Consumer group exists: $groupName")
         if (reset) {
-          logInfo(s"Reset consumer group: $groupName")
+          logInfo(s"Reset consumer group: $groupName, start: $offset")
           conn.xgroupSetID(streamKey, groupName, offset)
         }
     }
