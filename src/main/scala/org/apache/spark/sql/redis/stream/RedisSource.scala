@@ -72,6 +72,10 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   override def commit(end: Offset): Unit = {
+    logInfo(
+      s"""Committing offset..
+         |  end: ${end.json()}
+         |""".stripMargin)
   }
 
   override def stop(): Unit = {
