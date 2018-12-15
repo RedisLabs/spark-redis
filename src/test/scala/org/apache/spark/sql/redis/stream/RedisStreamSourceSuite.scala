@@ -6,7 +6,6 @@ import java.util.UUID
 import com.redislabs.provider.redis.env.RedisStandaloneEnv
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Person
-import com.redislabs.provider.redis.util.StreamUtils.EntryIdEarliest
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis.StreamOptionStreamKey
 import org.scalatest.concurrent.Eventually._
@@ -68,7 +67,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       // then:
       // - It eventually reach the point where there are 10 acknowledged and 0 pending messages
       eventually(timeout(5 seconds)) {
-        val start = new SimpleEntry(streamKey, EntryIdEarliest)
+        val start = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
         val read = conn.xreadGroup("group55", UUID.randomUUID().toString, 1, 10, true, start)
         val flattenRead = read.asScala.flatMap(_.getValue.asScala)
         flattenRead shouldBe empty
