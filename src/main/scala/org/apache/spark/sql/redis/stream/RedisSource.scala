@@ -1,6 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.RedisConfig
+import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
@@ -56,14 +57,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
-    // create or reset consumer groups
-    offsetRanges.foreach { offsetRange =>
-      val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
-      val config = offsetRange.config
-      withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
-        createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start, reset = true)
-      }
-    }
+    createOrResetConsumerGroups(offsetRanges)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges, false)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
@@ -96,6 +90,17 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   override def stop(): Unit = {
+  }
+
+  private def createOrResetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
+    // create or reset consumer groups
+    offsetRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
+      val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
+      val config = offsetRange.config
+      withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
+        createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start, reset = true)
+      }
+    }
   }
 }
 
