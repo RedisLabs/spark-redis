@@ -32,11 +32,11 @@ class RedisStreamSourceSuite extends FunSuite with RedisStandaloneEnv {
 
   test("read stream source") {
     // given:
-    // - I insert 100 elements to Redis XStream
+    // - I insert 10 elements to Redis XStream
     // when:
     // - I read stream with batch size equal to 5
     // then:
-    // - It eventually reach the point where there are 100 acknowledged and 0 pending messages
+    // - It eventually reach the point where there are 10 acknowledged and 0 pending messages
   }
 
   test("read stream source with un-synchronized schedules") {
