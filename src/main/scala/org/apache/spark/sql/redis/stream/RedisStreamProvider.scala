@@ -26,6 +26,8 @@ class RedisStreamProvider extends DataSourceRegister
                             schema: Option[StructType], providerName: String,
                             parameters: Map[String, String]): Source = {
     val (_, ss) = sourceSchema(sqlContext, schema, providerName, parameters)
-    new RedisSource(sqlContext, metadataPath, Some(ss), parameters)
+    val source = new RedisSource(sqlContext, metadataPath, Some(ss), parameters)
+    source.start()
+    source
   }
 }

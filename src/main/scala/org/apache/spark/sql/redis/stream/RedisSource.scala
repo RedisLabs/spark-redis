@@ -32,6 +32,13 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     throw new IllegalArgumentException("Please specify schema")
   }
 
+  def start(): Unit = {
+    getOffset.foreach { offset =>
+      val offsetRanges = getOffsetRanges(None, offset, sourceConfig.consumerConfigs)
+      createOrResetConsumerGroups(offsetRanges)
+    }
+  }
+
   override def schema: StructType = currentSchema
 
   override def getOffset: Option[Offset] = {
@@ -57,7 +64,6 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
-    createOrResetConsumerGroups(offsetRanges)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
