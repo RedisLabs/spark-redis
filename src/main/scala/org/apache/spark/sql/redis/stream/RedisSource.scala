@@ -86,10 +86,11 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
         subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
-          val start = offsetRange.start.map(new EntryID(_)).getOrElse(EntryIdEarliest)
+          val offsetRangeStart = offsetRange.start
+          val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryIdEarliest)
           val config = offsetRange.config
           createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
-            resetIfExist = true)
+            resetIfExist = offsetRangeStart.nonEmpty)
         }
       }
     }
