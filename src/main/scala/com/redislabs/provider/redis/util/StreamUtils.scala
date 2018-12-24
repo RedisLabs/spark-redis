@@ -19,8 +19,13 @@ object StreamUtils extends Logging {
         logInfo(s"Consumer group exists: $groupName")
         if (resetIfExist) {
           logInfo(s"Reset consumer group: $groupName, start: $offset")
-          conn.xgroupSetID(streamKey, groupName, offset)
+          resetConsumerGroup(conn, streamKey, groupName, offset)
         }
     }
+  }
+
+  def resetConsumerGroup(conn: Jedis, streamKey: String, groupName: String,
+                         offset: EntryID): Unit = {
+    conn.xgroupSetID(streamKey, groupName, offset)
   }
 }
