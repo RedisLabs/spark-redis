@@ -35,7 +35,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   def start(): Unit = {
     getOffset.foreach { offset =>
       val offsetRanges = getOffsetRanges(None, offset, sourceConfig.consumerConfigs)
-      createOrResetConsumerGroups(offsetRanges)
+      createConsumerGroupsIfNotExist(offsetRanges)
     }
   }
 
@@ -88,7 +88,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   override def stop(): Unit = {
   }
 
-  private def createOrResetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
+  private def createConsumerGroupsIfNotExist(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
     // create or reset consumer groups
     forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
       val offsetRangeStart = offsetRange.start
