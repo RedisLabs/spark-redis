@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis.stream
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist}
+import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist, resetConsumerGroup}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
@@ -11,7 +11,7 @@ import org.apache.spark.sql.redis.stream.RedisSource.getOffsetRanges
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
-import redis.clients.jedis.EntryID
+import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
 
@@ -64,6 +64,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
+    resetConsumerGroups(offsetRanges)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
@@ -89,14 +90,32 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private def createOrResetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
     // create or reset consumer groups
+    forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
+      val offsetRangeStart = offsetRange.start
+      val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryIdEarliest)
+      val config = offsetRange.config
+      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
+        resetIfExist = offsetRangeStart.nonEmpty)
+    }
+  }
+
+  private def resetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
+    // create or reset consumer groups
+    forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
+      offsetRange.start.map(new EntryID(_)).foreach { start =>
+        val config = offsetRange.config
+        resetConsumerGroup(conn, config.streamKey, config.groupName, start)
+      }
+    }
+  }
+
+  private def forEachOffsetRangeWithStreamConnection(offsetRanges: Seq[RedisSourceOffsetRange])
+                                                    (op: (Jedis, RedisSourceOffsetRange) => Unit):
+  Unit = {
     offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
         subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
-          val offsetRangeStart = offsetRange.start
-          val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryIdEarliest)
-          val config = offsetRange.config
-          createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
-            resetIfExist = offsetRangeStart.nonEmpty)
+          op(conn, offsetRange)
         }
       }
     }
