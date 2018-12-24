@@ -64,7 +64,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
-    resetConsumerGroups(offsetRanges)
+    resetConsumerGroupsIfHasOffset(offsetRanges)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
@@ -99,7 +99,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
   }
 
-  private def resetConsumerGroups(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
+  private def resetConsumerGroupsIfHasOffset(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
     // create or reset consumer groups
     forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
       offsetRange.start.map(new EntryID(_)).foreach { start =>
