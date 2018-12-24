@@ -94,8 +94,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       val offsetRangeStart = offsetRange.start
       val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       val config = offsetRange.config
-      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
-        resetIfExist = offsetRangeStart.nonEmpty)
+      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start)
     }
   }
 
