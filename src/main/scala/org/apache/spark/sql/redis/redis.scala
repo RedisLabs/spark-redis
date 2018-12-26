@@ -30,4 +30,6 @@ package object redis {
 
   val StreamOptionStreamKeys = "stream.keys"
   val StreamOptionParallelism = "stream.parallelism"
+  val StreamOptionGroupName = "stream.group.name"
+  val StreamOptionConsumerPrefix = "stream.consumer.prefix"
 }
