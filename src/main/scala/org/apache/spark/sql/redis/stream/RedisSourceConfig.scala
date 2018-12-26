@@ -10,9 +10,11 @@ case class RedisSourceConfig(consumerConfigs: Seq[RedisConsumerConfig])
 object RedisSourceConfig {
 
   def fromMap(config: Map[String, String]): RedisSourceConfig = {
-    val streamKey = config.getOrElse(StreamOptionStreamKeys,
+    val streamKeys = config.getOrElse(StreamOptionStreamKeys,
       throw new IllegalArgumentException(s"Please specify '$StreamOptionStreamKeys'"))
-    val consumerConfigs = Seq(RedisConsumerConfig(streamKey, "group55", "consumer-123", 100, 500))
+    val consumerConfigs = streamKeys.split(",").map { streamKey =>
+      RedisConsumerConfig(streamKey, "group55", "consumer-123", 100, 500)
+    }
     RedisSourceConfig(consumerConfigs)
   }
 }
