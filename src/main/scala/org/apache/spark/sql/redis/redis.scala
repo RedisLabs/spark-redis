@@ -28,5 +28,5 @@ package object redis {
   val SqlOptionIteratorGroupingSize = "iterator.grouping.size"
   val SqlOptionIteratorGroupingSizeDefault = 1000
 
-  val StreamOptionStreamKey = "stream.key"
+  val StreamOptionStreamKeys = "stream.keys"
 }

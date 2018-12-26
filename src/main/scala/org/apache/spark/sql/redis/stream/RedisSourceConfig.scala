@@ -1,6 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
-import org.apache.spark.sql.redis.StreamOptionStreamKey
+import org.apache.spark.sql.redis.StreamOptionStreamKeys
 
 /**
   * @author The Viet Nguyen
@@ -10,7 +10,7 @@ case class RedisSourceConfig(consumerConfigs: Seq[RedisConsumerConfig])
 object RedisSourceConfig {
 
   def fromMap(config: Map[String, String]): RedisSourceConfig = {
-    val streamKey = config.getOrElse(StreamOptionStreamKey,
+    val streamKey = config.getOrElse(StreamOptionStreamKeys,
       throw new IllegalArgumentException("Please specify 'stream.key'"))
     val consumerConfigs = Seq(RedisConsumerConfig(streamKey, "group55", "consumer-123", 100, 500))
     RedisSourceConfig(consumerConfigs)

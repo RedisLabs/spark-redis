@@ -7,7 +7,7 @@ import com.redislabs.provider.redis.env.RedisStandaloneEnv
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.redis.StreamOptionStreamKey
+import org.apache.spark.sql.redis.StreamOptionStreamKeys
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.EntryID
@@ -28,7 +28,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     val persons = spark.readStream
       .format("redis")
       .schema(Person.fullSchema)
-      .option(StreamOptionStreamKey, "mystream")
+      .option(StreamOptionStreamKeys, "mystream")
       .load()
     val personCounts = persons.groupBy("salary")
       .count()
@@ -56,7 +56,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       val persons = spark.readStream
         .format("redis")
         .schema(Person.fullSchema)
-        .option(StreamOptionStreamKey, streamKey)
+        .option(StreamOptionStreamKeys, streamKey)
         .load()
       val personCounts = persons.groupBy("salary")
         .count()
