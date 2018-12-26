@@ -20,6 +20,7 @@ import scala.concurrent.duration.DurationLong
   */
 class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandaloneEnv {
 
+  // TODO:
   ignore("create redis stream source") {
     val spark = SparkSession
       .builder
@@ -39,7 +40,8 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     query.awaitTermination()
   }
 
-  test("read stream source") {
+  // TODO:
+  ignore("read stream source") {
     // given:
     // - I insert 10 elements to Redis XStream
     val streamKey = Person.generatePersonStreamKey()
@@ -75,7 +77,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     }
   }
 
-  test("read stream source with un-synchronized schedules") {
+  ignore("read stream source with un-synchronized schedules") {
     // given:
     // - I insert 5 elements to Redis XStream every time with delay of 500 ms
     // when:
