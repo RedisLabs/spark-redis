@@ -46,7 +46,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val combinedOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
       val streamKey = e.streamKey
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        val infoMap = conn.xinfo(XINFO.StreamKey, streamKey)
+        val infoMap = conn.xinfo(XINFO.SubCommandStream, streamKey)
         val offsetId = infoMap(XINFO.LastGeneratedId)
         val streamOffset = streamKey -> RedisConsumerOffset(e.groupName, String.valueOf(offsetId))
         acc.copy(acc.offsets + streamOffset)
