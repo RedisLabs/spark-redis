@@ -29,6 +29,7 @@ package object redis {
   val SqlOptionIteratorGroupingSizeDefault = 1000
 
   val StreamOptionStreamKeys = "stream.keys"
+  val StreamOptionStreamOffsets = "stream.offsets"
   val StreamOptionParallelism = "stream.parallelism"
   val StreamOptionGroupName = "stream.group.name"
   val StreamOptionConsumerPrefix = "stream.consumer.prefix"

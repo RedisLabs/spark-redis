@@ -1,18 +1,20 @@
 package org.apache.spark.sql.redis.stream
 
 import org.apache.spark.sql
-import org.apache.spark.sql.redis.{StreamOptionConsumerPrefix, StreamOptionGroupName, StreamOptionStreamKeys}
+import org.apache.spark.sql.redis.{StreamOptionConsumerPrefix, StreamOptionGroupName, StreamOptionStreamKeys, StreamOptionStreamOffsets}
 
 /**
   * @author The Viet Nguyen
   */
-case class RedisSourceConfig(consumerConfigs: Seq[RedisConsumerConfig])
+case class RedisSourceConfig(consumerConfigs: Seq[RedisConsumerConfig],
+                             start: Option[RedisSourceOffset])
 
 object RedisSourceConfig {
 
   def fromMap(config: Map[String, String]): RedisSourceConfig = {
     val streamKeys = config.getOrElse(StreamOptionStreamKeys,
       throw new IllegalArgumentException(s"Please specify '$StreamOptionStreamKeys'"))
+    val start = config.get(StreamOptionStreamOffsets).map(RedisSourceOffset.fromJson)
     val parallelism = config.get(sql.redis.StreamOptionParallelism).map(_.toInt).getOrElse(1)
     val groupName = config.getOrElse(StreamOptionGroupName, "group55")
     val consumerPrefix = config.getOrElse(StreamOptionConsumerPrefix, "consumer")
@@ -21,7 +23,7 @@ object RedisSourceConfig {
         RedisConsumerConfig(streamKey, s"$groupName", s"$consumerPrefix-$consumerIndex", 100, 500)
       }
     }
-    RedisSourceConfig(consumerConfigs)
+    RedisSourceConfig(consumerConfigs, start)
   }
 }
 
