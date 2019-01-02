@@ -2,6 +2,7 @@ package com.redislabs.provider.redis.util
 
 import java.util.{List => JList}
 
+import com.redislabs.provider.redis.util.ConnectionUtils.XINFO.{SubCommandGroups, SubCommandStream}
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.commands.ProtocolCommand
 import redis.clients.jedis.util.SafeEncoder
@@ -22,10 +23,22 @@ object ConnectionUtils {
   implicit class JedisExt(val jedis: Jedis) extends AnyVal {
 
     //TODO: temporary solution to get latest offset while not supported by Jedis
-    def xinfo(args: String*): Map[String, Any] = {
+    def xinfo(command: String, args: String*): Map[String, Any] = {
       val client = jedis.getClient
-      client.sendCommand(XINFO, args: _*)
-      asList(client.getOne).asScala.grouped(2)
+      val combinedArgs = command +: args
+      client.sendCommand(XINFO, combinedArgs: _*)
+      val response = asList(client.getOne).asScala
+      command match {
+        case SubCommandStream =>
+          asMap(response)
+        case SubCommandGroups =>
+          response.map(m => asList(m)).map(_.asScala).map(asMap)
+            .map(m => String.valueOf(m("name")) -> m).toMap
+      }
+    }
+
+    private def asMap(seq: Seq[Any]): Map[String, Any] = {
+      seq.grouped(2)
         .map { group =>
           val key = asString(group.head)
           val value = group(1) match {
@@ -45,8 +58,11 @@ object ConnectionUtils {
 
   object XINFO extends ProtocolCommand {
 
-    val StreamKey = "STREAM"
+    val SubCommandStream = "STREAM"
+    val SubCommandGroups = "GROUPS"
+
     val LastGeneratedId = "last-generated-id"
+    val LastDeliveredId = "last-delivered-id"
     val LastEntry = "last-entry"
     val EntryId = "_id"
 

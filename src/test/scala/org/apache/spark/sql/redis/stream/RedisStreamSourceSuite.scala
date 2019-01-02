@@ -1,13 +1,10 @@
 package org.apache.spark.sql.redis.stream
 
-import java.util.AbstractMap.SimpleEntry
-import java.util.UUID
-
 import com.redislabs.provider.redis.env.RedisStandaloneEnv
-import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.redis.StreamOptionStreamKey
+import org.apache.spark.sql.redis.{StreamOptionGroupName, StreamOptionStreamKeys}
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.EntryID
@@ -29,7 +26,8 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     val persons = spark.readStream
       .format("redis")
       .schema(Person.fullSchema)
-      .option(StreamOptionStreamKey, "mystream")
+      .option(StreamOptionStreamKeys, "mystream")
+      .option(StreamOptionGroupName, "group55")
       .load()
     val personCounts = persons.groupBy("salary")
       .count()
@@ -58,7 +56,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       val persons = spark.readStream
         .format("redis")
         .schema(Person.fullSchema)
-        .option(StreamOptionStreamKey, streamKey)
+        .option(StreamOptionStreamKeys, streamKey)
         .load()
       val personCounts = persons.groupBy("salary")
         .count()
@@ -69,10 +67,8 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       // then:
       // - It eventually reach the point where there are 10 acknowledged and 0 pending messages
       eventually(timeout(5 seconds)) {
-        val start = new SimpleEntry(streamKey, EntryID.UNRECEIVED_ENTRY)
-        val read = conn.xreadGroup("group55", UUID.randomUUID().toString, 1, 10, true, start)
-        val flattenRead = read.asScala.flatMap(_.getValue.asScala)
-        flattenRead shouldBe empty
+        val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
+        groups("group55").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe "0-10"
       }
     }
   }
