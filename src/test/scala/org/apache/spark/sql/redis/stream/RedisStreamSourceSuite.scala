@@ -38,8 +38,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     query.awaitTermination()
   }
 
-  // TODO:
-  ignore("read stream source") {
+  test("read stream source") {
     // given:
     // - I insert 10 elements to Redis XStream
     val streamKey = Person.generatePersonStreamKey()
@@ -60,7 +59,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
         .load()
       val personCounts = persons.groupBy("salary")
         .count()
-      personCounts.writeStream
+      val query = personCounts.writeStream
         .outputMode("complete")
         .format("console")
         .start()
@@ -70,6 +69,9 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
         val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
         groups("group55").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe "0-10"
       }
+      query.processAllAvailable()
+      query.stop()
+      spark.stop()
     }
   }
 
