@@ -19,7 +19,14 @@ object RedisSourceOffset {
   private implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
   def fromJson(json: String): RedisSourceOffset = {
-    Serialization.read[RedisSourceOffset](json)
+    try {
+      Serialization.read[RedisSourceOffset](json)
+    } catch {
+      case e: Throwable =>
+        val example = RedisSourceOffset(Map("my-stream" -> RedisConsumerOffset("redis-source", "1543674099961-0")))
+        val jsonExample = Serialization.write(example)
+        throw new RuntimeException(s"Unable to parse offset json. Example of valid json: $jsonExample", e)
+    }
   }
 }
 
