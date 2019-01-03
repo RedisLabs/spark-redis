@@ -16,7 +16,7 @@ object RedisSourceConfig {
       throw new IllegalArgumentException(s"Please specify '$StreamOptionStreamKeys'"))
     val start = config.get(StreamOptionStreamOffsets).map(RedisSourceOffset.fromJson)
     val parallelism = config.get(sql.redis.StreamOptionParallelism).map(_.toInt).getOrElse(1)
-    val groupName = config.getOrElse(StreamOptionGroupName, "group55")
+    val groupName = config.getOrElse(StreamOptionGroupName, "spark-source")
     val consumerPrefix = config.getOrElse(StreamOptionConsumerPrefix, "consumer")
     val consumerConfigs = streamKeys.split(",").flatMap { streamKey =>
       (1 to parallelism).map { consumerIndex =>

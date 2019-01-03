@@ -46,7 +46,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       // - It eventually reach the point where there are 10 acknowledged and 0 pending messages
       eventually(timeout(5 seconds)) {
         val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
-        groups("group55").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe "0-10"
+        groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe "0-10"
       }
       query.processAllAvailable()
       query.stop()
