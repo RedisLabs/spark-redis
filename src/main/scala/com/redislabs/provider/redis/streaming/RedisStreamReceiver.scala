@@ -64,7 +64,8 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
         case Latest => EntryID.LAST_ENTRY
         case IdOffset(v1, v2) => new EntryID(v1, v2)
       }
-      StreamUtils.createConsumerGroupIfNotExist(jedis, conf.streamKey, conf.groupName, entryId)
+      StreamUtils.createConsumerGroupIfNotExist(jedis, conf.streamKey, conf.groupName,
+        Some(entryId))
     }
 
     def receiveUnacknowledged(): Unit = {

@@ -11,12 +11,17 @@ object StreamUtils extends Logging {
   val EntryIdEarliest = new EntryID(0, 0)
 
   def createConsumerGroupIfNotExist(conn: Jedis, streamKey: String, groupName: String,
-                                    offset: EntryID): Unit = {
+                                    offset: Option[EntryID]): Unit = {
     try {
-      conn.xgroupCreate(streamKey, groupName, offset, true)
+      val actualOffset = offset.getOrElse(EntryIdEarliest)
+      conn.xgroupCreate(streamKey, groupName, actualOffset, true)
     } catch {
       case e: Exception if StringUtils.contains(e.getMessage, "already exists") =>
         logInfo(s"Consumer group already exists: $groupName")
+        offset.foreach { os =>
+          logInfo(s"Reset consumer group to: $os")
+          resetConsumerGroup(conn, streamKey, groupName, os)
+        }
     }
   }
 
