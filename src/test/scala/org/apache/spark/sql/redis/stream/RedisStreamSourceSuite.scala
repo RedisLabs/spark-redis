@@ -5,12 +5,10 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withC
 import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
-import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.DurationLong
 
 /**
   * @author The Viet Nguyen
@@ -25,7 +23,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       (1 to 5).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-5")
+      readAndCheckLastId(conn, streamKey, "0-5", 5)
     }
   }
 
@@ -36,13 +34,13 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       (1 to 5).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-5")
+      readAndCheckLastId(conn, streamKey, "0-5", 5)
 
       // write 5 more items to stream
       (6 to 10).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-10")
+      readAndCheckLastId(conn, streamKey, "0-10", 5)
     }
   }
 
@@ -55,28 +53,36 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     // - It eventually reach the point where there are 8 acknowledged and 2 pending messages
   }
 
-  def readAndCheckLastId(conn: Jedis, streamKey: String, lastDeliveredId: String): Unit = {
-    val spark1 = SparkSession
+  def readAndCheckLastId(conn: Jedis, streamKey: String, lastDeliveredId: String, expectedRowsNum: Int): Unit = {
+    val spark = SparkSession
       .builder
       .config(conf)
       .getOrCreate()
-    val persons = spark1.readStream
+    val persons = spark.readStream
       .format("redis")
       .schema(Person.fullSchema)
       .option(StreamOptionStreamKeys, streamKey)
       .load()
     val query = persons.writeStream
-      .format("console")
+      .format("memory")
+      .queryName("persons")
       .start()
-    // check items consumed
-    eventually(timeout(5 seconds)) {
-      val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
-      groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
-    }
+
     println(s"query id ${query.id}")
     query.processAllAvailable()
     query.stop()
-    spark1.stop()
+
+    // check items consumed
+    val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
+    groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
+
+    val resultDf = spark.sql("select * from persons").cache()
+    resultDf.show()
+    val result = resultDf.collect()
+    result.length should be(expectedRowsNum)
+    result.map(row => row.getAs[String]("_id")).last should be(lastDeliveredId)
+
+    spark.stop()
   }
 
 }
