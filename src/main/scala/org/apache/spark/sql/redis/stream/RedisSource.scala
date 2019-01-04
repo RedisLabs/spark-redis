@@ -34,13 +34,22 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   def start(): Unit = {
     getOffset.foreach { offset =>
-      val offsetRanges = getOffsetRanges(None, offset, sourceConfig.consumerConfigs)
+      val offsetRanges = getOffsetRanges(sourceConfig.start, offset, sourceConfig.consumerConfigs)
+      // if consumer group doesn't exist - create it starting from the config offset
+      // or Earliest if offset is not specified in config
       createConsumerGroupsIfNotExist(offsetRanges)
+
+      // if consumer group exists - reset offset to the specified in config
+      resetConsumerGroupsIfHasOffset(offsetRanges)
     }
   }
 
   override def schema: StructType = currentSchema
 
+  /**
+    * Returns the maximum available offset for this source.
+    * Returns `None` if this source has never received any data.
+    */
   override def getOffset: Option[Offset] = {
     val initialOffset = RedisSourceOffset(Map())
     val combinedOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
@@ -64,7 +73,11 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     }
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
+
+    // reset consumer group offset to read this batch
     resetConsumerGroupsIfHasOffset(offsetRanges)
+
+    // read data
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
         val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)

@@ -16,7 +16,7 @@ object StreamUtils extends Logging {
       conn.xgroupCreate(streamKey, groupName, offset, true)
     } catch {
       case e: Exception if StringUtils.contains(e.getMessage, "already exists") =>
-        logInfo(s"Consumer group exists: $groupName")
+        logInfo(s"Consumer group already exists: $groupName")
     }
   }
 
