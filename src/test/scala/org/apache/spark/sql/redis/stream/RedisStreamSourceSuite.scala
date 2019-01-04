@@ -4,10 +4,10 @@ import com.redislabs.provider.redis.env.RedisStandaloneEnv
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.redis.{StreamOptionGroupName, StreamOptionStreamKeys}
+import org.apache.spark.sql.redis._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
-import redis.clients.jedis.EntryID
+import redis.clients.jedis.{EntryID, Jedis}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationLong
@@ -22,35 +22,27 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     // - I insert 10 elements to Redis XStream
     val streamKey = Person.generatePersonStreamKey()
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      (1 to 10).foreach { i =>
+      (1 to 5).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      // when:
-      // - I read stream with batch size equal to 5
-      val spark = SparkSession
-        .builder
-        .config(conf)
-        .getOrCreate()
-      val persons = spark.readStream
-        .format("redis")
-        .schema(Person.fullSchema)
-        .option(StreamOptionStreamKeys, streamKey)
-        .load()
-      val personCounts = persons.groupBy("salary")
-        .count()
-      val query = personCounts.writeStream
-        .outputMode("complete")
-        .format("console")
-        .start()
-      // then:
-      // - It eventually reach the point where there are 10 acknowledged and 0 pending messages
-      eventually(timeout(5 seconds)) {
-        val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
-        groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe "0-10"
+      readAndCheckLastId(conn, streamKey, "0-5")
+    }
+  }
+
+  test("it should continue reading from the last offset after query/spark restart") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      // write 5 items to stream
+      (1 to 5).foreach { i =>
+        conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      query.processAllAvailable()
-      query.stop()
-      spark.stop()
+      readAndCheckLastId(conn, streamKey, "0-5")
+
+      // write 5 more items to stream
+      (6 to 10).foreach { i =>
+        conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
+      }
+      readAndCheckLastId(conn, streamKey, "0-10")
     }
   }
 
@@ -62,4 +54,29 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     // then:
     // - It eventually reach the point where there are 8 acknowledged and 2 pending messages
   }
+
+  def readAndCheckLastId(conn: Jedis, streamKey: String, lastDeliveredId: String): Unit = {
+    val spark1 = SparkSession
+      .builder
+      .config(conf)
+      .getOrCreate()
+    val persons = spark1.readStream
+      .format("redis")
+      .schema(Person.fullSchema)
+      .option(StreamOptionStreamKeys, streamKey)
+      .load()
+    val query = persons.writeStream
+      .format("console")
+      .start()
+    // check items consumed
+    eventually(timeout(5 seconds)) {
+      val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
+      groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
+    }
+    println(s"query id ${query.id}")
+    query.processAllAvailable()
+    query.stop()
+    spark1.stop()
+  }
+
 }
