@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis.stream
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
+import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist, resetConsumerGroup}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
@@ -105,9 +105,10 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     // create or reset consumer groups
     forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
       val offsetRangeStart = offsetRange.start
-      val start = offsetRangeStart.map(new EntryID(_))
+      val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryIdEarliest)
       val config = offsetRange.config
-      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start)
+      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start,
+        offsetRangeStart.isDefined)
     }
   }
 
