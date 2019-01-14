@@ -62,6 +62,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     checkLastDeliveredId(stream1Key, "0-5")
     checkLastDeliveredId(stream2Key, "0-10")
     checkCount(spark, 10)
+    spark.stop()
   }
 
   ignore("read stream source with un-synchronized schedules") {
