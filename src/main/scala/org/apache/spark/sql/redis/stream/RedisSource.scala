@@ -122,8 +122,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   private def forEachOffsetRangeWithStreamConnection(offsetRanges: Seq[RedisSourceOffsetRange])
-                                                    (op: (Jedis, RedisSourceOffsetRange) => Unit):
-  Unit = {
+                                                    (op: (Jedis, RedisSourceOffsetRange) => Unit): Unit = {
     offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
         subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>

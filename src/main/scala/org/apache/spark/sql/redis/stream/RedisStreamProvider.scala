@@ -9,14 +9,12 @@ import org.apache.spark.sql.types.{StringType, StructField, StructType}
 /**
   * @author The Viet Nguyen
   */
-class RedisStreamProvider extends DataSourceRegister
-  with StreamSourceProvider with Logging {
+class RedisStreamProvider extends DataSourceRegister with StreamSourceProvider with Logging {
 
   override def shortName(): String = "redis"
 
   override def sourceSchema(sqlContext: SQLContext, schema: Option[StructType],
-                            providerName: String, parameters: Map[String, String]):
-  (String, StructType) = {
+                            providerName: String, parameters: Map[String, String]): (String, StructType) = {
     providerName -> schema.getOrElse {
       StructType(Seq(StructField("_id", StringType)))
     }

@@ -16,8 +16,7 @@ import scala.math.Ordering.Implicits._
   */
 class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
-  def pendingStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[StreamEntry] = {
+  def pendingStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading pending stream entries...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
@@ -37,8 +36,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
     }
   }
 
-  def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange):
-  Iterator[StreamEntry] = {
+  def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading unread stream entries...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
@@ -50,8 +48,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   private def readStreamEntryBatches(conn: Jedis, offsetRange: RedisSourceOffsetRange,
-                                     startEntryOffset: JMap.Entry[String, EntryID]):
-  StreamEntryBatches = {
+                                     startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = {
     val config = offsetRange.config
     val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize,
       config.block, false, startEntryOffset)
@@ -71,8 +68,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                                 (streamGroups: => Iterator[StreamEntryBatches]):
-  Iterator[StreamEntry] = {
+                                 (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
