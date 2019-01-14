@@ -23,7 +23,7 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       (1 to 5).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-5", 5)
+      readAndCheckData(conn, streamKey, "0-5", 5)
     }
   }
 
@@ -34,14 +34,34 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
       (1 to 5).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-5", 5)
+      readAndCheckData(conn, streamKey, "0-5", 5)
 
       // write 5 more items to stream
       (6 to 10).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
-      readAndCheckLastId(conn, streamKey, "0-10", 5)
+      readAndCheckData(conn, streamKey, "0-10", 5)
     }
+  }
+
+  test("read several streams") {
+    val stream1Key = Person.generatePersonStreamKey()
+    val stream2Key = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(stream1Key)) { conn =>
+      (1 to 5).foreach { i =>
+        conn.xadd(stream1Key, new EntryID(0, i), Person.dataMaps.head.asJava)
+      }
+    }
+    withConnection(redisConfig.connectionForKey(stream2Key)) { conn =>
+      (6 to 10).foreach { i =>
+        conn.xadd(stream2Key, new EntryID(0, i), Person.dataMaps.head.asJava)
+      }
+    }
+
+    val spark = readStream(s"$stream1Key,$stream2Key")
+    checkLastDeliveredId(stream1Key, "0-5")
+    checkLastDeliveredId(stream2Key, "0-10")
+    checkCount(spark, 10)
   }
 
   ignore("read stream source with un-synchronized schedules") {
@@ -53,7 +73,14 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     // - It eventually reach the point where there are 8 acknowledged and 2 pending messages
   }
 
-  def readAndCheckLastId(conn: Jedis, streamKey: String, lastDeliveredId: String, expectedRowsNum: Int): Unit = {
+  def readAndCheckData(conn: Jedis, streamKey: String, lastDeliveredId: String, expectedRowsNum: Int): Unit = {
+    val spark = readStream(streamKey)
+    checkLastDeliveredId(streamKey, lastDeliveredId)
+    checkCountAndLastItem(spark, lastDeliveredId, expectedRowsNum)
+    spark.stop()
+  }
+
+  def readStream(streamKey: String): SparkSession = {
     val spark = SparkSession
       .builder
       .config(conf)
@@ -71,18 +98,28 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     println(s"query id ${query.id}")
     query.processAllAvailable()
     query.stop()
+    spark
+  }
 
-    // check items consumed
-    val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
-    groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
+  def checkLastDeliveredId(streamKey: String, lastDeliveredId: String): Unit = {
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
+      groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
+    }
+  }
 
+  def checkCount(spark: SparkSession, rowsNum: Int): Unit = {
+    val resultDf = spark.sql("select * from persons").cache()
+    resultDf.show()
+    resultDf.count() shouldBe rowsNum
+  }
+
+  def checkCountAndLastItem(spark: SparkSession, lastDeliveredId: String, rowsNum: Int): Unit = {
     val resultDf = spark.sql("select * from persons").cache()
     resultDf.show()
     val result = resultDf.collect()
-    result.length should be(expectedRowsNum)
-    result.map(row => row.getAs[String]("_id")).last should be(lastDeliveredId)
-
-    spark.stop()
+    result.length should be(rowsNum)
+    result.map(row => row.getAs[String]("_id")).last shouldBe lastDeliveredId
   }
 
 }
