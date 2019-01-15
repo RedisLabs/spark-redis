@@ -15,7 +15,7 @@ import scala.collection.JavaConverters._
   */
 class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandaloneEnv {
 
-  test("read stream source") {
+  test("read stream source (less than batch size)") {
     // given:
     // - I insert 10 elements to Redis XStream
     val streamKey = Person.generatePersonStreamKey()
@@ -24,6 +24,18 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
       }
       readAndCheckData(conn, streamKey, "0-5", 5)
+    }
+  }
+
+  test("read stream source (more than batch size)") {
+    // given:
+    // - I insert 10 elements to Redis XStream
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      (1 to 546).foreach { i =>
+        conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
+      }
+      readAndCheckData(conn, streamKey, "0-546", 546)
     }
   }
 

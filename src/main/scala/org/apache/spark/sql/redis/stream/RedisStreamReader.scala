@@ -28,7 +28,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
           lastEntries <- response.asScala.lastOption
           lastEntry <- lastEntries.getValue.asScala.lastOption
           lastEntryId = lastEntry.getID
-          startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence + 1)
+          startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence)
           startEntryOffset = new SimpleEntry(config.streamKey, startEntryId)
         } yield readStreamEntryBatches(conn, offsetRange, startEntryOffset)
         responseOption.getOrElse(new util.ArrayList)
@@ -60,6 +60,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
         val entryIds = batch.getValue.asScala.map(_.getID).filter(_ <= end)
         if (entryIds.nonEmpty) {
           conn.xack(batch.getKey, config.groupName, entryIds: _*)
+          // TODO: change to debug level
           logInfo(s"Acknowledged: $entryIds")
         }
       }
