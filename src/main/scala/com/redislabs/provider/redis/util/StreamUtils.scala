@@ -22,6 +22,7 @@ object StreamUtils extends Logging {
 
   def resetConsumerGroup(conn: Jedis, streamKey: String, groupName: String,
                          offset: EntryID): Unit = {
+    logInfo(s"Setting consumer group $groupName id to $offset")
     conn.xgroupSetID(streamKey, groupName, offset)
   }
 }

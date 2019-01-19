@@ -74,7 +74,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val localSchema = currentSchema
     val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
 
-    // reset consumer group offset to read this batch
+    // if 'start' is set, reset consumer group offset to read this batch
     resetConsumerGroupsIfHasOffset(offsetRanges)
 
     // read data

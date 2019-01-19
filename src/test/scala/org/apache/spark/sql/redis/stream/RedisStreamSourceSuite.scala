@@ -7,8 +7,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.{EntryID, Jedis}
+import org.scalatest.concurrent.Eventually._
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.DurationLong
 
 /**
   * @author The Viet Nguyen
@@ -92,14 +94,43 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     }
   }
 
-  ignore("read stream source with un-synchronized schedules") {
-    // given:
-    // - I insert 5 elements to Redis XStream every time with delay of 500 ms
-    // when:
-    // - I read stream with batch size equal to 4 and delay equal to 400 ms
-    // then:
-    // - It eventually reach the point where there are 8 acknowledged and 2 pending messages
-  }
+    test("read stream source with concurrent write") {
+      val streamKey = Person.generatePersonStreamKey()
+      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+        val autoEntryId = new EntryID() {
+          override def toString: String = "*"
+        }
+        // write first to create stream key
+        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+
+        val spark = SparkSession
+          .builder
+          .config(conf)
+          .getOrCreate()
+        val persons = spark.readStream
+          .format("redis")
+          .schema(Person.fullSchema)
+          .option(StreamOptionStreamKeys, streamKey)
+          .load()
+        val query = persons.writeStream
+          .format("memory")
+          .queryName("persons")
+          .start()
+
+        (1 to 130).foreach { i =>
+          println("adding item to stream")
+          conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+          Thread.sleep(10)
+        }
+        eventually(timeout(5 seconds)) {
+          val resultDf = spark.sql("select * from persons")
+          resultDf.count() shouldBe 131
+        }
+
+        spark.stop()
+      }
+    }
+
 
   def readAndCheckData(conn: Jedis, streamKey: String, lastDeliveredId: String, expectedRowsNum: Int): Unit = {
     val spark = readStream(streamKey)

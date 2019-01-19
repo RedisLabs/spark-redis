@@ -16,12 +16,13 @@ import scala.math.Ordering.Implicits._
   */
 class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
-  def pendingStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
-    logInfo("Reading pending stream entries...")
+
+  def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
+    logInfo("Reading stream entries with given offset...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
       val initialStart = offsetRange.start.map(id => new EntryID(id))
-        .getOrElse(new EntryID(0, 0))
+        .getOrElse(throw new RuntimeException("Offset start is not set"))
       val initialEntry = new SimpleEntry(config.streamKey, initialStart)
       Iterator.iterate(readStreamEntryBatches(conn, offsetRange, initialEntry)) { response =>
         val responseOption = for {

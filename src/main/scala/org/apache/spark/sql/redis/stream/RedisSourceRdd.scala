@@ -23,8 +23,14 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val consumerConfig = offsetRange.config
     val streamKey = consumerConfig.streamKey
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      streamReader.pendingStreamEntries(conn, offsetRange) ++
+      if (offsetRange.start.isDefined) {
+        // offset is defined, read by offset
+        streamReader.streamEntriesByOffset(conn, offsetRange)
+      } else {
+        // offset is no defined, happens for the first batch or after spark restart
+        // read starting from where the point the consumer group ended
         streamReader.unreadStreamEntries(conn, offsetRange)
+      }
     }
   }
 
