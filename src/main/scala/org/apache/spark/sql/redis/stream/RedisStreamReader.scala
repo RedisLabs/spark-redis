@@ -68,7 +68,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                                 (streamGroups: Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
+                                 (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
