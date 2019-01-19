@@ -38,6 +38,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
   def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     logInfo("Reading unread stream entries...")
+    logDebug("Connection hashcode " + conn.hashCode())
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
       val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
