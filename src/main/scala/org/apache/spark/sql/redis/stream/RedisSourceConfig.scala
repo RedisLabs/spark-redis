@@ -1,7 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import org.apache.spark.sql
-import org.apache.spark.sql.redis.{StreamOptionConsumerPrefix, StreamOptionGroupName, StreamOptionStreamKeys, StreamOptionStreamOffsets}
+import org.apache.spark.sql.redis._
 
 /**
   * @author The Viet Nguyen
@@ -18,9 +18,11 @@ object RedisSourceConfig {
     val parallelism = config.get(sql.redis.StreamOptionParallelism).map(_.toInt).getOrElse(1)
     val groupName = config.getOrElse(StreamOptionGroupName, "spark-source")
     val consumerPrefix = config.getOrElse(StreamOptionConsumerPrefix, "consumer")
+    val batchSize = config.get(StreamOptionReadBatchSize).map(_.toInt).getOrElse(StreamOptionReadBatchSizeDefault)
+    val block = config.get(StreamOptionReadBlock).map(_.toInt).getOrElse(StreamOptionReadBlockDefault)
     val consumerConfigs = streamKeys.split(",").flatMap { streamKey =>
       (1 to parallelism).map { consumerIndex =>
-        RedisConsumerConfig(streamKey, s"$groupName", s"$consumerPrefix-$consumerIndex", 100, 500)
+        RedisConsumerConfig(streamKey, s"$groupName", s"$consumerPrefix-$consumerIndex", batchSize, block)
       }
     }
     RedisSourceConfig(consumerConfigs, start)

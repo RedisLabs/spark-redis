@@ -30,6 +30,10 @@ package object redis {
 
   val StreamOptionStreamKeys = "stream.keys"
   val StreamOptionStreamOffsets = "stream.offsets"
+  val StreamOptionReadBatchSize = "stream.read.batch.size"
+  val StreamOptionReadBatchSizeDefault = 100
+  val StreamOptionReadBlock = "stream.read.block"
+  val StreamOptionReadBlockDefault = 500
   val StreamOptionParallelism = "stream.parallelism"
   val StreamOptionGroupName = "stream.group.name"
   val StreamOptionConsumerPrefix = "stream.consumer.prefix"
