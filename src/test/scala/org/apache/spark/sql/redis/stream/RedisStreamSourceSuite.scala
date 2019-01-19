@@ -1,13 +1,13 @@
 package org.apache.spark.sql.redis.stream
 
-import com.redislabs.provider.redis.env.RedisStandaloneEnv
+import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.Person
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
+import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.{EntryID, Jedis}
-import org.scalatest.concurrent.Eventually._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationLong
@@ -15,7 +15,7 @@ import scala.concurrent.duration.DurationLong
 /**
   * @author The Viet Nguyen
   */
-class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandaloneEnv {
+trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("read stream source (less than batch size)") {
     // given:
