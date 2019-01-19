@@ -21,8 +21,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
     logInfo("Reading stream entries with given offset...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
-      val initialStart = offsetRange.start.map(id => new EntryID(id))
-        .getOrElse(throw new RuntimeException("Offset start is not set"))
+      val initialStart = offsetRange.start.map(id => new EntryID(id)).getOrElse(throw new RuntimeException("Offset start is not set"))
       val initialEntry = new SimpleEntry(config.streamKey, initialStart)
       Iterator.iterate(readStreamEntryBatches(conn, offsetRange, initialEntry)) { response =>
         val responseOption = for {
@@ -69,7 +68,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                                 (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
+                                 (streamGroups: Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
