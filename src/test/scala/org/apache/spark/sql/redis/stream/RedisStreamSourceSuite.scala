@@ -77,6 +77,21 @@ class RedisStreamSourceSuite extends FunSuite with Matchers with RedisStandalone
     spark.stop()
   }
 
+  test("read stream source (generated entry ids)") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      val autoEntryId = new EntryID() {
+        override def toString: String = "*"
+      }
+      (1 to 1000).foreach { i =>
+        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+      }
+      val spark = readStream(s"$streamKey")
+      checkCount(spark, 1000)
+      spark.stop()
+    }
+  }
+
   ignore("read stream source with un-synchronized schedules") {
     // given:
     // - I insert 5 elements to Redis XStream every time with delay of 500 ms
