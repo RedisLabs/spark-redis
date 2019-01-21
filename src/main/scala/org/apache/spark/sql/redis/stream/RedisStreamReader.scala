@@ -17,7 +17,7 @@ import scala.math.Ordering.Implicits._
 class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
   def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
-    logInfo("Reading stream entries with given offset...")
+    logInfo(s"Reading stream entries with given offset [${offsetRange.config.streamKey} ${offsetRange.start}]...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
       val initialStart = offsetRange.start.map(id => new EntryID(id)).getOrElse(throw new RuntimeException("Offset start is not set"))
@@ -36,7 +36,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
-    logInfo(s"Reading unread stream entries... ${conn.hashCode()} ${offsetRange.config.streamKey}")
+    logInfo(s"Reading unread stream entries [${offsetRange.config.streamKey}]... ")
     val res = filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
       val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
@@ -44,17 +44,15 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
         readStreamEntryBatches(conn, offsetRange, startEntryOffset)
       }
     }
-    logInfo(s"Unread finished ${conn.hashCode()} ${offsetRange.config.streamKey}")
     res
   }
 
   private def readStreamEntryBatches(conn: Jedis, offsetRange: RedisSourceOffsetRange,
                                      startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = {
     val config = offsetRange.config
-    logDebug(s"Before xreadgroup ${conn.hashCode()} ${offsetRange.config.streamKey}")
     val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize,
       config.block, false, startEntryOffset)
-    logDebug(s"Got entries (${conn.hashCode()} ${offsetRange.config.streamKey}): $response")
+    logDebug(s"Got entries: $response")
     if (autoAck) {
       val end = new EntryID(offsetRange.end)
       val responseScala = response.asScala
@@ -62,7 +60,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
         val entryIds = batch.getValue.asScala.map(_.getID).filter(_ <= end)
         if (entryIds.nonEmpty) {
           conn.xack(batch.getKey, config.groupName, entryIds: _*)
-          logDebug(s"Acknowledged(${conn.hashCode()} ${offsetRange.config.streamKey}): $entryIds")
+          logDebug(s"Acknowledged: $entryIds")
         }
       }
     }

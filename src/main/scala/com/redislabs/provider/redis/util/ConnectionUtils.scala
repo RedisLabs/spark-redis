@@ -15,11 +15,11 @@ import scala.collection.JavaConverters._
 object ConnectionUtils {
 
   def withConnection[A](conn: Jedis)(body: Jedis => A): A = {
-    val res = body(conn)
-    println("closing connection " + conn.hashCode())
-    conn.close()
-    println("connection closed" + conn.hashCode())
-    res
+    try {
+      body(conn)
+    } finally {
+      conn.close()
+    }
   }
 
   implicit class JedisExt(val jedis: Jedis) extends AnyVal {
