@@ -15,24 +15,17 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
                      offsetRanges: Seq[RedisSourceOffsetRange], autoAck: Boolean = true)
   extends RDD[StreamEntry](sc, Nil) {
 
-  private val streamReader = new RedisStreamReader()
-
   override def compute(split: Partition, context: TaskContext): Iterator[StreamEntry] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]
     val offsetRange = partition.offsetRange
-    val consumerConfig = offsetRange.config
-    val streamKey = consumerConfig.streamKey
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      // note, we cannot easily use Iterators with jedis connection pool because there might be concurrency issues.
-      // So we read a materialized List and convert to Iterator below
-      if (offsetRange.start.isDefined) {
-        // offset is defined, read by offset
-        streamReader.streamEntriesByOffset(conn, offsetRange).iterator
-      } else {
-        // offset is no defined, happens for the first batch or after spark restart
-        // read starting from where the point the consumer group ended
-        streamReader.unreadStreamEntries(conn, offsetRange).iterator
-      }
+    val streamReader = new RedisStreamReader(redisConfig)
+    if (offsetRange.start.isDefined) {
+      // offset is defined, read by offset
+      streamReader.streamEntriesByOffset(offsetRange)
+    } else {
+      // offset is not defined, happens for the first batch or after spark restart
+      // read starting from where the point the consumer group ended
+      streamReader.unreadStreamEntries(offsetRange)
     }
   }
 

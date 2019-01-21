@@ -4,6 +4,8 @@ import java.util
 import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
 
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.Logging
 import org.apache.spark.sql.redis.stream.RedisSourceTypes.{StreamEntry, StreamEntryBatch, StreamEntryBatches}
 import redis.clients.jedis.{EntryID, Jedis}
@@ -12,61 +14,61 @@ import scala.collection.JavaConverters._
 import scala.math.Ordering.Implicits._
 
 /**
-  * TODO: iterator
-  *
   * @author The Viet Nguyen
   */
-class RedisStreamReader extends Logging with Serializable {
+class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializable {
 
-  def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
+  def streamEntriesByOffset(offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     val config = offsetRange.config
 
     logInfo(s"Reading stream entries with given offset " +
       s"[${config.streamKey}, ${config.groupName}, ${config.consumerName} ${offsetRange.start}]...")
 
-    filterStreamEntries(conn, offsetRange) {
+    filterStreamEntries(offsetRange) {
       val initialStart = offsetRange.start.map(id => new EntryID(id)).getOrElse(throw new RuntimeException("Offset start is not set"))
       val initialEntry = new SimpleEntry(config.streamKey, initialStart)
-      Iterator.iterate(readStreamEntryBatches(conn, offsetRange, initialEntry)) { response =>
+      Iterator.iterate(readStreamEntryBatches(offsetRange, initialEntry)) { response =>
         val responseOption = for {
           lastEntries <- response.asScala.lastOption
           lastEntry <- lastEntries.getValue.asScala.lastOption
           lastEntryId = lastEntry.getID
           startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence)
           startEntryOffset = new SimpleEntry(config.streamKey, startEntryId)
-        } yield readStreamEntryBatches(conn, offsetRange, startEntryOffset)
+        } yield readStreamEntryBatches(offsetRange, startEntryOffset)
         responseOption.getOrElse(new util.ArrayList)
       }
     }
   }
 
-  def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
+  def unreadStreamEntries(offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
     val config = offsetRange.config
 
     logInfo(s"Reading unread stream entries " +
       s"[${config.streamKey}, ${config.groupName}, ${config.consumerName}]... ")
 
-    val res = filterStreamEntries(conn, offsetRange) {
+    val res = filterStreamEntries(offsetRange) {
       val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
       Iterator.continually {
-        readStreamEntryBatches(conn, offsetRange, startEntryOffset)
+        readStreamEntryBatches(offsetRange, startEntryOffset)
       }
     }
     res
   }
 
-  private def readStreamEntryBatches(conn: Jedis, offsetRange: RedisSourceOffsetRange,
+  private def readStreamEntryBatches(offsetRange: RedisSourceOffsetRange,
                                      startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = {
     val config = offsetRange.config
-    // we don't need acknowledgement, if spark processing fails, it will request the same batch again
-    val noAck = true
-    val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block, noAck, startEntryOffset)
-    logDebug(s"Got entries: $response")
-    response
+    withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
+      // we don't need acknowledgement, if spark processing fails, it will request the same batch again
+      val noAck = true
+      val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block, noAck, startEntryOffset)
+      logDebug(s"Got entries: $response")
+      response
+    }
   }
 
-  private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                                 (streamGroups: => Iterator[StreamEntryBatches]): List[StreamEntry] = {
+  private def filterStreamEntries(offsetRange: RedisSourceOffsetRange)
+                                 (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
@@ -81,9 +83,6 @@ class RedisStreamReader extends Logging with Serializable {
       .takeWhile { case (entryId, _) =>
         entryId <= end
       }
-      // convert to List to avoid an issue of concurrently using the same redis connection bound to
-      // different RDD partitions (iterators)
-      .toList
   }
 
   private def flattenStreamEntries(entry: StreamEntryBatch): Iterator[StreamEntry] = {

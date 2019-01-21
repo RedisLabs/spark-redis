@@ -34,6 +34,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   /**
+    * TODO: refactor
+    *
     * Called once on the source startup. Creates consumer groups an resets their offsets if needed.
     */
   def start(): Unit = {
