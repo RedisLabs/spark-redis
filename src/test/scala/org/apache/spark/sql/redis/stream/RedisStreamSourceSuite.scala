@@ -17,6 +17,10 @@ import scala.concurrent.duration.DurationLong
   */
 trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
+  val AutoEntryId: EntryID = new EntryID() {
+    override def toString: String = "*"
+  }
+
   test("read stream source (less than batch size)") {
     // given:
     // - I insert 10 elements to Redis XStream
@@ -82,11 +86,9 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
   test("read stream source (generated entry ids)") {
     val streamKey = Person.generatePersonStreamKey()
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      val autoEntryId = new EntryID() {
-        override def toString: String = "*"
-      }
+
       (1 to 1000).foreach { i =>
-        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+        conn.xadd(streamKey, AutoEntryId, Person.dataMaps.head.asJava)
       }
       val spark = readStream(s"$streamKey")
       checkCount(spark, 1000)
@@ -97,11 +99,8 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
   test("read stream source with concurrent write") {
     val streamKey = Person.generatePersonStreamKey()
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      val autoEntryId = new EntryID() {
-        override def toString: String = "*"
-      }
       // write first to create stream key
-      conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+      conn.xadd(streamKey, AutoEntryId, Person.dataMaps.head.asJava)
 
       val spark = SparkSession
         .builder
@@ -119,7 +118,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
       (1 to 130).foreach { i =>
         println("adding item to stream")
-        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+        conn.xadd(streamKey, AutoEntryId, Person.dataMaps.head.asJava)
         Thread.sleep(10)
       }
       eventually(timeout(5 seconds)) {
@@ -143,6 +142,27 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
       val spark = readStream(s"$streamKey", Map(StreamOptionParallelism -> "3"))
       checkCount(spark, 1000)
       spark.stop()
+    }
+  }
+
+  test("read with offset option") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      (1 to 320).foreach { i =>
+        conn.xadd(streamKey, new EntryID(i, 0), Person.dataMaps.head.asJava)
+      }
+
+      // first, read from the beginning
+      readAndCheckData(conn, streamKey, "320-0", 320)
+
+      // now start new spark instance and read from offset
+      val offsetJson =
+        s"""
+           |{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"100-0"}}}
+        """.stripMargin
+      val spark2 = readStream(s"$streamKey", Map("stream.offsets" -> offsetJson))
+      checkCountAndLastItem(spark2, "320-0", 220)
+      spark2.stop()
     }
   }
 
