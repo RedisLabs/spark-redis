@@ -34,30 +34,22 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   /**
-    * TODO: refactor
-    *
-    * Called once on the source startup. Creates consumer groups an resets their offsets if needed.
+    * Called once on the source startup. Creates consumer groups and resets their offsets if needed.
     */
   def start(): Unit = {
-    // read streams offset to be used for consumer group creation
-    val initialOffset = RedisSourceOffset(Map())
-    val sourceOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
-      val streamKey = e.streamKey
+    sourceConfig.consumerConfigs.foreach { consumerConfig =>
+      val offsetsByStreamKey = sourceConfig.start.map(_.offsets).getOrElse(Map())
+      val streamKey = consumerConfig.streamKey
+      val groupName = consumerConfig.groupName
+      val configOffsetOption = offsetsByStreamKey.get(streamKey).map(_.offset).map(new EntryID(_))
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        // try to read last stream id, if doesn't exist, use 0-0
-        val offset = Try(streamLastId(conn, streamKey)).getOrElse("0-0")
-        val streamOffset = streamKey -> RedisConsumerOffset(e.groupName, offset)
-        acc.copy(acc.offsets + streamOffset)
+        createConsumerGroupIfNotExist(conn, streamKey, groupName, configOffsetOption.getOrElse(EntryID.LAST_ENTRY))
+        // if config offset is defined, reset to its value
+        configOffsetOption.foreach { offset =>
+          resetConsumerGroup(conn, streamKey, groupName, offset)
+        }
       }
     }
-
-    val offsetRanges = getOffsetRanges(sourceConfig.start, sourceOffset, sourceConfig.consumerConfigs)
-    // if consumer group doesn't exist - create it starting from the config offset
-    // or Latest if offset is not specified in config
-    createConsumerGroupsIfNotExist(offsetRanges)
-
-    // if consumer group exists - reset offset to the specified in config
-    resetConsumerGroupsIfHasOffset(offsetRanges)
   }
 
   override def schema: StructType = currentSchema
@@ -124,16 +116,6 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   }
 
   override def stop(): Unit = {
-  }
-
-  private def createConsumerGroupsIfNotExist(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
-    forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
-      val offsetRangeStart = offsetRange.start
-      // create consumer group starting from the last entry
-      val start = offsetRangeStart.map(new EntryID(_)).getOrElse(EntryID.LAST_ENTRY)
-      val config = offsetRange.config
-      createConsumerGroupIfNotExist(conn, config.streamKey, config.groupName, start)
-    }
   }
 
   private def resetConsumerGroupsIfHasOffset(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
