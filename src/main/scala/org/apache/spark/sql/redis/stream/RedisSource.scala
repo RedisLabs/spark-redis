@@ -4,7 +4,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
-import com.redislabs.provider.redis.util.{Logging, ParseUtils}
+import com.redislabs.provider.redis.util.{ConnectionUtils, Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource._
@@ -25,7 +25,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val sc = sqlContext.sparkContext
 
-  private val redisConfig = RedisConfig.fromSparkConf(sc.getConf)
+  implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf)
 
   private val sourceConfig = RedisSourceConfig.fromMap(parameters)
 
@@ -42,7 +42,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       val streamKey = consumerConfig.streamKey
       val groupName = consumerConfig.groupName
       val configOffsetOption = offsetsByStreamKey.get(streamKey).map(_.offset).map(new EntryID(_))
-      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      withConnection(streamKey) { conn =>
         createConsumerGroupIfNotExist(conn, streamKey, groupName, configOffsetOption.getOrElse(EntryID.LAST_ENTRY))
         // if config offset is defined, reset to its value
         configOffsetOption.foreach { offset =>
@@ -62,7 +62,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val initialOffset = RedisSourceOffset(Map())
     val sourceOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
       val streamKey = e.streamKey
-      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      withConnection(streamKey) { conn =>
         Try {
           // try to read last stream id, it will fail if doesn't exist
           val offsetId = streamLastId(conn, streamKey)
@@ -130,13 +130,14 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   private def forEachOffsetRangeWithStreamConnection(offsetRanges: Seq[RedisSourceOffsetRange])
                                                     (op: (Jedis, RedisSourceOffsetRange) => Unit): Unit = {
     offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
-      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      withConnection(streamKey) { conn =>
         subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
           op(conn, offsetRange)
         }
       }
     }
   }
+
 }
 
 object RedisSource {

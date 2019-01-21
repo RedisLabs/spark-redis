@@ -2,6 +2,7 @@ package com.redislabs.provider.redis.util
 
 import java.util.{List => JList}
 
+import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.XINFO.{SubCommandGroups, SubCommandStream}
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.commands.ProtocolCommand
@@ -19,6 +20,12 @@ object ConnectionUtils {
       body(conn)
     } finally {
       conn.close()
+    }
+  }
+
+  def withConnection[A](streamKey: String)(body: Jedis => A)(implicit redisConfig: RedisConfig): A = {
+    withConnection(redisConfig.connectionForKey(streamKey)){
+      body
     }
   }
 

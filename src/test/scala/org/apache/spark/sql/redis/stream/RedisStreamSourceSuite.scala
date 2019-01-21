@@ -1,5 +1,6 @@
 package org.apache.spark.sql.redis.stream
 
+import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.Person
@@ -22,9 +23,12 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     override def toString: String = "*"
   }
 
+  // implicit for withConnection()
+  implicit lazy val implicitRedisConf: RedisConfig = redisConfig
+
   test("read stream source (less than batch size)") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       readStream(streamKey) { spark =>
         (1 to 5).foreach { i =>
           conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
@@ -37,7 +41,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("read stream source (more than batch size)") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       readStream(streamKey) { spark =>
         (1 to 546).foreach { i =>
           conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
@@ -50,7 +54,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("it reads from the last item by default") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       // write to stream first
       (1 to 10).foreach { i =>
         conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
@@ -65,7 +69,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("read with offset option") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       (1 to 320).foreach { i =>
         conn.xadd(streamKey, new EntryID(i, 0), Person.dataMaps.head.asJava)
       }
@@ -81,7 +85,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("it should continue reading from the last offset after query/spark restart") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       readStream(streamKey) { spark =>
         (1 to 5).foreach { i =>
           conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
@@ -104,7 +108,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("it should read with offset after spark restart") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       readStream(streamKey) { spark =>
         (1 to 130).foreach { i =>
           conn.xadd(streamKey, new EntryID(i, 0), Person.dataMaps.head.asJava)
@@ -126,7 +130,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     val stream2Key = Person.generatePersonStreamKey()
 
     readStream(s"$stream1Key,$stream2Key") { spark =>
-      withConnection(redisConfig.connectionForKey(stream1Key)) { conn =>
+      withConnection(stream1Key) { conn =>
         (1 to 5).foreach { i =>
           conn.xadd(stream1Key, new EntryID(0, i), Person.dataMaps.head.asJava)
         }
@@ -146,7 +150,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("read stream source (generated entry ids)") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       readStream(streamKey) { spark =>
         (1 to 1000).foreach { i =>
           conn.xadd(streamKey, AutoEntryId, Person.dataMaps.head.asJava)
@@ -158,7 +162,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   test("read with parallelism = 3") {
     val streamKey = Person.generatePersonStreamKey()
-    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+    withConnection(streamKey) { conn =>
       val options = Map(StreamOptionParallelism -> "3")
       readStream(streamKey, options) { spark =>
         (1 to 978).foreach { i =>
