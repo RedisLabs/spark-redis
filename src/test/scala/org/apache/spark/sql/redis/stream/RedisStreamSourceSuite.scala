@@ -162,7 +162,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
       val options = Map(StreamOptionParallelism -> "3")
       readStream(streamKey, options) { spark =>
         (1 to 978).foreach { i =>
-          conn.xadd(streamKey, AutoEntryId, Person.dataMaps.head.asJava)
+          conn.xadd(streamKey, new EntryID(i, 0), Person.dataMaps.head.asJava)
         }
         checkCount(spark, 978)
       }
