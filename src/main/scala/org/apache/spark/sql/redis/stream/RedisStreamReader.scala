@@ -12,9 +12,11 @@ import scala.collection.JavaConverters._
 import scala.math.Ordering.Implicits._
 
 /**
+  * TODO: iterator
+  *
   * @author The Viet Nguyen
   */
-class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
+class RedisStreamReader extends Logging with Serializable {
 
   def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
     val config = offsetRange.config
@@ -56,20 +58,10 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   private def readStreamEntryBatches(conn: Jedis, offsetRange: RedisSourceOffsetRange,
                                      startEntryOffset: JMap.Entry[String, EntryID]): StreamEntryBatches = {
     val config = offsetRange.config
-    val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize,
-      config.block, false, startEntryOffset)
+    // we don't need acknowledgement, if spark processing fails, it will request the same batch again
+    val noAck = true
+    val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block, noAck, startEntryOffset)
     logDebug(s"Got entries: $response")
-    if (autoAck) {
-      val end = new EntryID(offsetRange.end)
-      val responseScala = response.asScala
-      responseScala.foreach { batch =>
-        val entryIds = batch.getValue.asScala.map(_.getID).filter(_ <= end)
-        if (entryIds.nonEmpty) {
-          conn.xack(batch.getKey, config.groupName, entryIds: _*)
-          logDebug(s"Acknowledged: $entryIds")
-        }
-      }
-    }
     response
   }
 

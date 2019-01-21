@@ -15,7 +15,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
                      offsetRanges: Seq[RedisSourceOffsetRange], autoAck: Boolean = true)
   extends RDD[StreamEntry](sc, Nil) {
 
-  private val streamReader = new RedisStreamReader(autoAck)
+  private val streamReader = new RedisStreamReader()
 
   override def compute(split: Partition, context: TaskContext): Iterator[StreamEntry] = {
     val partition = split.asInstanceOf[RedisSourceRddPartition]
