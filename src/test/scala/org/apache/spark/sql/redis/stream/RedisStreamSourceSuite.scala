@@ -171,6 +171,8 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
   def readStream(streamKey: String, extraOptions: Map[String, String] = Map())(body: SparkSession => Unit): Unit = {
     val (spark, query) = readStream2(streamKey, extraOptions)
+    // give some time for spark query to start
+    Thread.sleep(50)
     try {
       body(spark)
     } finally {
