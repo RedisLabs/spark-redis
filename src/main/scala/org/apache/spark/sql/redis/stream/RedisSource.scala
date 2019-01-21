@@ -42,15 +42,9 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     val sourceOffset = sourceConfig.consumerConfigs.foldLeft(initialOffset) { case (acc, e) =>
       val streamKey = e.streamKey
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        val streamOffset = Try {
-          // try to read last stream id, it will fail if doesn't exist
-          val offsetId = streamLastId(conn, streamKey)
-          streamKey -> RedisConsumerOffset(e.groupName, offsetId)
-        } getOrElse {
-          // stream key doesn't exist, offset will be 0-0
-          // later creation of consumer group will also create an empty stream key
-          streamKey -> RedisConsumerOffset(e.groupName, "0-0")
-        }
+        // try to read last stream id, if doesn't exist, use 0-0
+        val offset = Try(streamLastId(conn, streamKey)).getOrElse("0-0")
+        val streamOffset = streamKey -> RedisConsumerOffset(e.groupName, offset)
         acc.copy(acc.offsets + streamOffset)
       }
     }
