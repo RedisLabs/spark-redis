@@ -156,10 +156,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
       readAndCheckData(conn, streamKey, "320-0", 320)
 
       // now start new spark instance and read from offset
-      val offsetJson =
-        s"""
-           |{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"100-0"}}}
-        """.stripMargin
+      val offsetJson =s"""{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"100-0"}}}"""
       val spark2 = readStream(s"$streamKey", Map("stream.offsets" -> offsetJson))
       checkCountAndLastItem(spark2, "320-0", 220)
       spark2.stop()
