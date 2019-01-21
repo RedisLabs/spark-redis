@@ -16,8 +16,7 @@ import scala.math.Ordering.Implicits._
   */
 class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
-
-  def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
+  def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
     logInfo("Reading stream entries with given offset...")
     filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
@@ -36,7 +35,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
     }
   }
 
-  def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): Iterator[StreamEntry] = {
+  def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
     logInfo(s"Reading unread stream entries... ${conn.hashCode()} ${offsetRange.config.streamKey}")
     val res = filterStreamEntries(conn, offsetRange) {
       val config = offsetRange.config
@@ -71,7 +70,7 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   private def filterStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange)
-                                 (streamGroups: => Iterator[StreamEntryBatches]): Iterator[StreamEntry] = {
+                                 (streamGroups: => Iterator[StreamEntryBatches]): List[StreamEntry] = {
     val end = new EntryID(offsetRange.end)
     streamGroups
       .takeWhile { response =>
@@ -86,6 +85,9 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
       .takeWhile { case (entryId, _) =>
         entryId <= end
       }
+      // convert to List to avoid an issue of concurrently using the same redis connection bound to
+      // different RDD partitions (iterators)
+      .toList
   }
 
   private def flattenStreamEntries(entry: StreamEntryBatch): Iterator[StreamEntry] = {
