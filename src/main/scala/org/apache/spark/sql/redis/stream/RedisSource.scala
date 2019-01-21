@@ -135,24 +135,18 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
 object RedisSource {
 
-  def getConfigMap(configs: Seq[RedisConsumerConfig]): Map[String, RedisConsumerConfig] =
-    configs
-      .map { config =>
-        config.streamKey -> config
-      }
-      .toMap
-
   def getOffsetRanges(start: Option[Offset], end: Offset,
                       consumerConfigs: Seq[RedisConsumerConfig]): Seq[RedisSourceOffsetRange] = {
+
     val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets).getOrElse(Map())
     val offsetEnds = end.asInstanceOf[RedisSourceOffset]
-    val configs = getConfigMap(consumerConfigs)
-    offsetEnds.offsets
-      .map { case (streamKey, offsetEnd) =>
-        val offsetStart = offsetStarts.get(streamKey).map(_.offset)
-        RedisSourceOffsetRange(offsetStart, offsetEnd.offset, configs(streamKey))
-      }
-      .toSeq
+    val configsByStreamKey = consumerConfigs.groupBy(_.streamKey)
+
+    offsetEnds.offsets.flatMap { case (streamKey, offsetEnd) =>
+      val offsetStart = offsetStarts.get(streamKey).map(_.offset)
+      val configs = configsByStreamKey(streamKey)
+      configs.map { c => RedisSourceOffsetRange(offsetStart, offsetEnd.offset, c) }
+    }.toSeq
   }
 
   case class Entity(_id: String)

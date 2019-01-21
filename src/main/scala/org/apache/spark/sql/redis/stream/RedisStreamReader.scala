@@ -17,9 +17,12 @@ import scala.math.Ordering.Implicits._
 class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
 
   def streamEntriesByOffset(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
-    logInfo(s"Reading stream entries with given offset [${offsetRange.config.streamKey} ${offsetRange.start}]...")
+    val config = offsetRange.config
+
+    logInfo(s"Reading stream entries with given offset " +
+      s"[${config.streamKey}, ${config.groupName}, ${config.consumerName} ${offsetRange.start}]...")
+
     filterStreamEntries(conn, offsetRange) {
-      val config = offsetRange.config
       val initialStart = offsetRange.start.map(id => new EntryID(id)).getOrElse(throw new RuntimeException("Offset start is not set"))
       val initialEntry = new SimpleEntry(config.streamKey, initialStart)
       Iterator.iterate(readStreamEntryBatches(conn, offsetRange, initialEntry)) { response =>
@@ -36,9 +39,12 @@ class RedisStreamReader(autoAck: Boolean) extends Logging with Serializable {
   }
 
   def unreadStreamEntries(conn: Jedis, offsetRange: RedisSourceOffsetRange): List[StreamEntry] = {
-    logInfo(s"Reading unread stream entries [${offsetRange.config.streamKey}]... ")
+    val config = offsetRange.config
+
+    logInfo(s"Reading unread stream entries " +
+      s"[${config.streamKey}, ${config.groupName}, ${config.consumerName}]... ")
+
     val res = filterStreamEntries(conn, offsetRange) {
-      val config = offsetRange.config
       val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
       Iterator.continually {
         readStreamEntryBatches(conn, offsetRange, startEntryOffset)

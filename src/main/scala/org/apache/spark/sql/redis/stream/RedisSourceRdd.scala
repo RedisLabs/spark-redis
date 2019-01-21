@@ -36,9 +36,10 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     }
   }
 
-  override protected def getPartitions: Array[Partition] =
+  override protected def getPartitions: Array[Partition] = {
     offsetRanges.zipWithIndex.map { case (e, i) => RedisSourceRddPartition(i, e) }
       .toArray
+  }
 }
 
 case class RedisSourceRddPartition(index: Int, offsetRange: RedisSourceOffsetRange)

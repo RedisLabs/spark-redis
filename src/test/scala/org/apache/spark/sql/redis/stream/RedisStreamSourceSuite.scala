@@ -94,61 +94,85 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     }
   }
 
-    test("read stream source with concurrent write") {
-      val streamKey = Person.generatePersonStreamKey()
-      withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        val autoEntryId = new EntryID() {
-          override def toString: String = "*"
-        }
-        // write first to create stream key
-        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
-
-        val spark = SparkSession
-          .builder
-          .config(conf)
-          .getOrCreate()
-        val persons = spark.readStream
-          .format("redis")
-          .schema(Person.fullSchema)
-          .option(StreamOptionStreamKeys, streamKey)
-          .load()
-        val query = persons.writeStream
-          .format("memory")
-          .queryName("persons")
-          .start()
-
-        (1 to 130).foreach { i =>
-          println("adding item to stream")
-          conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
-          Thread.sleep(10)
-        }
-        eventually(timeout(5 seconds)) {
-          val resultDf = spark.sql("select * from persons")
-          resultDf.count() shouldBe 131
-        }
-
-        spark.stop()
+  test("read stream source with concurrent write") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      val autoEntryId = new EntryID() {
+        override def toString: String = "*"
       }
+      // write first to create stream key
+      conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+
+      val spark = SparkSession
+        .builder
+        .config(conf)
+        .getOrCreate()
+      val persons = spark.readStream
+        .format("redis")
+        .schema(Person.fullSchema)
+        .option(StreamOptionStreamKeys, streamKey)
+        .load()
+      val query = persons.writeStream
+        .format("memory")
+        .queryName("persons")
+        .start()
+
+      (1 to 130).foreach { i =>
+        println("adding item to stream")
+        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+        Thread.sleep(10)
+      }
+      eventually(timeout(5 seconds)) {
+        val resultDf = spark.sql("select * from persons")
+        resultDf.count() shouldBe 131
+      }
+
+      spark.stop()
     }
+  }
+
+  test("read with parallelism = 3") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
+      val autoEntryId = new EntryID() {
+        override def toString: String = "*"
+      }
+      (1 to 1000).foreach { i =>
+        conn.xadd(streamKey, autoEntryId, Person.dataMaps.head.asJava)
+      }
+      val spark = readStream(s"$streamKey", Map(StreamOptionParallelism -> "3"))
+      checkCount(spark, 1000)
+      spark.stop()
+    }
+  }
 
 
-  def readAndCheckData(conn: Jedis, streamKey: String, lastDeliveredId: String, expectedRowsNum: Int): Unit = {
-    val spark = readStream(streamKey)
+  def readAndCheckData(conn: Jedis,
+                       streamKey: String,
+                       lastDeliveredId: String,
+                       expectedRowsNum: Int,
+                       extraOptions: Map[String, String] = Map()): Unit = {
+    val spark = readStream(streamKey, extraOptions)
     checkLastDeliveredId(streamKey, lastDeliveredId)
     checkCountAndLastItem(spark, lastDeliveredId, expectedRowsNum)
     spark.stop()
   }
 
-  def readStream(streamKey: String): SparkSession = {
+  def readStream(streamKey: String, extraOptions: Map[String, String] = Map()): SparkSession = {
     val spark = SparkSession
       .builder
       .config(conf)
       .getOrCreate()
-    val persons = spark.readStream
+
+    val readerBase = spark.readStream
       .format("redis")
       .schema(Person.fullSchema)
       .option(StreamOptionStreamKeys, streamKey)
-      .load()
+
+    // apply extra reader options
+    val reader = extraOptions.foldLeft(readerBase) { case (r, (k, v)) => r.option(k, v) }
+
+    val persons = reader.load()
     val query = persons.writeStream
       .format("memory")
       .queryName("persons")
