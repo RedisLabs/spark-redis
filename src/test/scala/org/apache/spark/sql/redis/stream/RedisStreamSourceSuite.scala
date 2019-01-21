@@ -83,6 +83,28 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     }
   }
 
+  test("read with offset option 0-0") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(streamKey) { conn =>
+
+      // read first time
+      readStream(streamKey) { spark =>
+        (1 to 749).foreach { i =>
+          conn.xadd(streamKey, new EntryID(i, 0), Person.dataMaps.head.asJava)
+        }
+        checkCountAndLastItem(spark, "749-0", 749)
+      }
+
+      // re-read from the beginning
+      val offsetJson = s"""{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"0-0"}}}"""
+      val options = Map("stream.offsets" -> offsetJson)
+
+      readStream(streamKey, options) { spark =>
+        checkCountAndLastItem(spark, "749-0", 749)
+      }
+    }
+  }
+
   test("it should continue reading from the last offset after query/spark restart") {
     val streamKey = Person.generatePersonStreamKey()
     withConnection(streamKey) { conn =>

@@ -52,11 +52,14 @@ Each consumer will be mapped to a Spark partition. There is no ordering guarante
 
 ### Stream Offset
 
-By default it pulls messages starting from the latest message. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
+By default it pulls messages starting from the latest message in the stream. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
 In the following example we set offset id to be `100-0`.
 
 ```scala
-  .option("stream.offsets", """{"offsets":{"censors":{"groupName":"redis-source","offset":"100-0"}}}""")
+val offsets = """{"offsets":{"censors":{"groupName":"redis-source","offset":"100-0"}}}"""
+
+...
+  .option("stream.offsets", offsets)
 ```
 
 If you want to process stream from the beginning, set offset id to `0-0`. 
