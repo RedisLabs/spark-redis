@@ -1,6 +1,6 @@
 ### Structured Streaming
 
-Spark-Redis supports [Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html) from [Redis Stream](https://redis.io/topics/streams-intro) data structures:
+Spark-Redis supports [Redis Stream](https://redis.io/topics/streams-intro) data structure as a source for [Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html):
 
 The following example reads data from a Redis Stream `censors` that has two fields `censor-id` and `temperature`: 
 
