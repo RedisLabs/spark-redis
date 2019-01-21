@@ -2,7 +2,7 @@
 
 Spark-Redis supports [Redis Stream](https://redis.io/topics/streams-intro) data structure as a source for [Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html):
 
-The following example reads data from a Redis Stream `censors` that has two fields `censor-id` and `temperature`: 
+The following example reads data from a Redis Stream `sensors` that has two fields `sensor-id` and `temperature`: 
 
 ```scala
 val spark = SparkSession
@@ -12,17 +12,17 @@ val spark = SparkSession
       .config("spark.redis.port", "6379")
       .getOrCreate()
 
-val censors = spark
+val sensors = spark
       .readStream
       .format("redis")                          // read from Redis
-      .option("stream.keys", "censors")         // stream key
+      .option("stream.keys", "sensors")         // stream key
       .schema(StructType(Array(                 // stream fields 
-        StructField("censor-id", StringType),
+        StructField("sensor-id", StringType),
         StructField("temperature", FloatType)
       )))
       .load()
 
-val query = censors
+val query = sensors
   .writeStream
   .format("console")
   .start()
@@ -31,38 +31,41 @@ query.awaitTermination()
 
 ```
 
-You can write the following items to the stream to test how it works:
+You can write the following items to the stream to test it:
 
 ```
-xadd censors * censor-id 1 temperature 28.1
-xadd censors * censor-id 2 temperature 30.5
-xadd censors * censor-id 1 temperature 28.3
+xadd sensors * sensor-id 1 temperature 28.1
+xadd sensors * sensor-id 2 temperature 30.5
+xadd sensors * sensor-id 1 temperature 28.3
 ```
+
+### Stream Offset
+
+By default it pulls messages starting from the latest message in the stream. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
+In the following example we set offset id to be `1548083485360-0`. The group name `redis-source` is a default consumer group that spark-redis automatically creates to read stream.
+
+```scala
+val offsets = """{"offsets":{"sensors":{"groupName":"redis-source","offset":"1548083485360-0"}}}"""
+
+...
+
+  .option("stream.offsets", offsets)
+```
+
+If you want to process stream from the beginning, set offset id to `0-0`. 
 
 ### Level of Parallelism
 
 By default spark-redis creates a consumer group with a single consumer. There are two options how you can increase the level of parallelism.
 
 The first approach is to create stream from multiple Redis keys. You can specify multiple keys separated by comma, e.g. 
-`.option("stream.keys", "censors-eu,censors-us")`. In this case data from each key will be mapped to a Spark partition.
+`.option("stream.keys", "sensors-eu,sensors-us")`. In this case data from each key will be mapped to a Spark partition.
 Please note, the items ordering will be preserved only within a particular Redis key (Spark partition), there is no ordering guarantees for items in different keys.
 
 With the second approach you can read data from a single Redis key with multiple consumers in parallel, e.g. `option("stream.parallelism", 4)`.
 Each consumer will be mapped to a Spark partition. There is no ordering guarantees in this case.
 
-### Stream Offset
 
-By default it pulls messages starting from the latest message in the stream. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
-In the following example we set offset id to be `100-0`.
-
-```scala
-val offsets = """{"offsets":{"censors":{"groupName":"redis-source","offset":"100-0"}}}"""
-
-...
-  .option("stream.offsets", offsets)
-```
-
-If you want to process stream from the beginning, set offset id to `0-0`. 
 
 ### Other configuration
 
