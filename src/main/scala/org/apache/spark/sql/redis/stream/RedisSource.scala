@@ -161,6 +161,4 @@ object RedisSource {
     String.valueOf(infoMap(XINFO.LastGeneratedId))
   }
 
-  case class Entity(_id: String)
-
 }
