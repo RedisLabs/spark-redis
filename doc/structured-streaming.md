@@ -54,6 +54,38 @@ val offsets = """{"offsets":{"sensors":{"groupName":"redis-source","offset":"154
 
 If you want to process stream from the beginning, set offset id to `0-0`. 
 
+### Entry id column
+
+You can access stream entry id by adding a column `_id` to the stream schema:
+
+```
+val sensors = spark
+      .readStream
+      .format("redis")                          
+      .option("stream.keys", "sensors")         
+      .schema(StructType(Array(                 
+        StructField("_id", StringType),         // entry id
+        StructField("sensor-id", StringType),
+        StructField("temperature", FloatType)
+      )))
+      .load()
+```
+
+The stream schema:
+
+
+```
++---------------+---------+-----------+
+|            _id|sensor-id|temperature|
++---------------+---------+-----------+
+|1548083485360-0|        1|       28.1|
+|1548083486248-0|        2|       30.5|
+|1548083486944-0|        1|       28.3|
++---------------+---------+-----------+
+
+```
+
+
 ### Level of Parallelism
 
 By default spark-redis creates a consumer group with a single consumer. There are two options how you can increase the level of parallelism.
