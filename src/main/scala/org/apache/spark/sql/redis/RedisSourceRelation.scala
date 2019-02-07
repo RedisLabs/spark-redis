@@ -2,10 +2,10 @@ package org.apache.spark.sql.redis
 
 import java.util.UUID
 
-import com.redislabs.provider.redis.rdd.Keys
+import com.redislabs.provider.redis.rdd.Keys._
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
+import com.redislabs.provider.redis.util.{Logging, StopWatch}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
@@ -25,7 +25,6 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   extends BaseRelation
     with InsertableRelation
     with PrunedFilteredScan
-    with Keys
     with Serializable
     with Logging {
 
@@ -189,7 +188,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     * @return true if data exists in redis
     */
   def isEmpty: Boolean = {
-    sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
+    val stopWatch = new StopWatch()
+
+    val isEmpty = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
+
+    logInfo(f"Time taken to check if keys exist for pattern $dataKeyPattern: ${stopWatch.getTimeSec()}%.3f sec")
+
+    isEmpty
   }
 
   /**

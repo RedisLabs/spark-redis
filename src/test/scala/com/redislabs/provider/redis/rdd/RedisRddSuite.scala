@@ -8,7 +8,7 @@ import scala.io.Source.fromInputStream
 /**
   * @author The Viet Nguyen
   */
-trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
+trait RedisRddSuite extends SparkRedisSuite with Matchers {
 
   implicit val redisConfig: RedisConfig
 

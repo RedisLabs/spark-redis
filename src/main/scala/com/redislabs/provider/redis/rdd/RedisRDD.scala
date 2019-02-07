@@ -3,6 +3,7 @@ package com.redislabs.provider.redis.rdd
 import java.util
 
 import com.redislabs.provider.redis.partitioner._
+import com.redislabs.provider.redis.util.{Logging, StopWatch}
 import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
@@ -17,7 +18,9 @@ import scala.reflect.{ClassTag, classTag}
 class RedisKVRDD(prev: RDD[String],
                  val rddType: String,
                  implicit val readWriteConfig: ReadWriteConfig)
-  extends RDD[(String, String)](prev) with Keys {
+  extends RDD[(String, String)](prev) {
+
+  import Keys._
 
   override def getPartitions: Array[Partition] = prev.partitions
 
@@ -61,7 +64,9 @@ class RedisKVRDD(prev: RDD[String],
 
 class RedisListRDD(prev: RDD[String],
                    val rddType: String,
-                   implicit val readWriteConfig: ReadWriteConfig) extends RDD[String](prev) with Keys {
+                   implicit val readWriteConfig: ReadWriteConfig) extends RDD[String](prev) {
+
+  import Keys._
 
   override def getPartitions: Array[Partition] = prev.partitions
 
@@ -109,7 +114,9 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                                 zsetContext: ZSetContext,
                                 rddType: Class[T],
                                 implicit val readWriteConfig: ReadWriteConfig)
-  extends RDD[T](prev) with Keys {
+  extends RDD[T](prev) {
+
+  import Keys._
 
   override def getPartitions: Array[Partition] = prev.partitions
 
@@ -178,7 +185,9 @@ class RedisKeysRDD(sc: SparkContext,
                    val keyPattern: String = "*",
                    val partitionNum: Int = 3,
                    val keys: Array[String] = null)
-  extends RDD[String](sc, Seq.empty) with Keys {
+  extends RDD[String](sc, Seq.empty) {
+
+  import Keys._
 
   override protected def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(split.asInstanceOf[RedisPartition].redisConfig.initialAddr)
@@ -369,7 +378,8 @@ class RedisKeysRDD(sc: SparkContext,
 }
 
 
-trait Keys {
+object Keys extends Logging {
+
   /**
     * @param key
     * @return true if the key is a RedisRegex
@@ -403,6 +413,8 @@ trait Keys {
     * @return keys of params pattern in jedis
     */
   private def scanKeys(jedis: Jedis, params: ScanParams): util.List[String] = {
+    val stopWatch = new StopWatch()
+
     val keys = new util.ArrayList[String]
     var cursor = "0"
     do {
@@ -410,6 +422,8 @@ trait Keys {
       keys.addAll(scan.getResult)
       cursor = scan.getCursor
     } while (cursor != "0")
+
+    logInfo(f"Time taken to scan ${keys.size()} keys: ${stopWatch.getTimeSec()}%.3f sec")
     keys
   }
 
@@ -428,7 +442,8 @@ trait Keys {
     val endpoints = nodes.map(_.endpoint).distinct
 
     if (isRedisRegex(keyPattern)) {
-      endpoints.iterator.map { endpoint =>
+      val stopWatch = new StopWatch()
+      endpoints.iterator.flatMap { endpoint =>
         val keys = new util.HashSet[String]()
         val conn = endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
@@ -437,8 +452,10 @@ trait Keys {
           slot >= sPos && slot <= ePos
         })
         conn.close()
-        keys.iterator()
-      }.flatten
+        val iterator = keys.iterator()
+        logInfo(f"Time taken to getKeys (including scan): ${stopWatch.getTimeSec()}%.3f sec")
+        iterator
+      }
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)
       if (slot >= sPos && slot <= ePos) Iterator(keyPattern) else Iterator()
@@ -482,8 +499,3 @@ trait Keys {
     keys.zip(types).filter(x => x._2 == t).map(x => x._1)
   }
 }
-
-/**
-  * Key utilities to avoid serialization issues.
-  */
-object Keys extends Keys

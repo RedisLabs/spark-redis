@@ -1,12 +1,11 @@
 package com.redislabs.provider.redis.rdd
 
 import com.redislabs.provider.redis.ReadWriteConfig
+import com.redislabs.provider.redis.rdd.Keys._
 import org.scalatest.Matchers
 import redis.clients.jedis.util.JedisClusterCRC16
 
-import scala.collection.JavaConverters._
-
-trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
+trait RedisKeysSuite extends RedisRddSuite with Matchers {
 
   implicit val readWriteConfig: ReadWriteConfig = ReadWriteConfig.Default
 
