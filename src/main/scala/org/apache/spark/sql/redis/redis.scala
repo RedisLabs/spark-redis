@@ -21,6 +21,7 @@ package object redis {
   val SqlOptionInferSchema = "infer.schema"
   val SqlOptionKeyColumn = "key.column"
   val SqlOptionTTL = "ttl"
+  val SqlOptionLogInfoVerbose = "log.info.verbose"
 
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
   val SqlOptionScanCount = "scan.count"

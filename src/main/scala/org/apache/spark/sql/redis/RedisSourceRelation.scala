@@ -8,6 +8,7 @@ import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.util.{Logging, StopWatch}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
+import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
@@ -75,6 +76,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistence = RedisPersistence(persistenceModel)
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+  private val logInfoVerbose = parameters.get(SqlOptionLogInfoVerbose).exists(_.toBoolean)
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -118,6 +120,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     currentSchema = saveSchema(schema)
     if (overwrite) {
       // truncate the table
+      val stopWatch = new StopWatch()
       sc.fromRedisKeyPattern(dataKeyPattern).foreachPartition { partition =>
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
           val conn = node.connect()
@@ -127,12 +130,14 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           conn.close()
         }
       }
+      logInfo(f"Time taken to delete dataframe (SaveMode.Overwrite): ${stopWatch.getTimeSec()}%.3f sec")
     }
 
     // write data
     data.foreachPartition { partition =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
+        val stopWatch = new StopWatch()
         // the following can be optimized to not create a map
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
@@ -143,6 +148,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
             persistence.save(pipeline, key, encodedRow, ttl)
           }
           conn.close()
+        }
+        if (logInfoVerbose) {
+          val partId = TaskContext.getPartitionId()
+          logInfo(f"Time taken to write ${batch.size} rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
         }
       }
     }
@@ -173,10 +182,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       keysRdd.mapPartitions { partition =>
         // grouped iterator to only allocate memory for a portion of rows
         partition.grouped(iteratorGroupingSize).flatMap { batch =>
-          groupKeysByNode(redisConfig.hosts, batch.iterator)
+          val stopWatch = new StopWatch()
+          val rows = groupKeysByNode(redisConfig.hosts, batch.iterator)
             .flatMap { case (node, keys) =>
               scanRows(node, keys, keyType, requiredSchema, requiredColumns)
             }
+          if (logInfoVerbose) {
+            val partId = TaskContext.getPartitionId()
+            logInfo(f"Time taken to read ${batch.size} rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
+          }
+          rows
         }
       }
     }
@@ -189,11 +204,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     */
   def isEmpty: Boolean = {
     val stopWatch = new StopWatch()
-
     val isEmpty = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions).isEmpty()
-
     logInfo(f"Time taken to check if keys exist for pattern $dataKeyPattern: ${stopWatch.getTimeSec()}%.3f sec")
-
     isEmpty
   }
 

@@ -453,7 +453,10 @@ object Keys extends Logging {
         })
         conn.close()
         val iterator = keys.iterator()
-        logInfo(f"Time taken to getKeys (including scan): ${stopWatch.getTimeSec()}%.3f sec")
+        logInfo{
+          val endpointMasked = endpoint.maskPassword()
+          f"Time taken to getKeys (including scan) [$sPos - $ePos] $endpointMasked: ${stopWatch.getTimeSec()}%.3f sec"
+        }
         iterator
       }
     } else {
