@@ -10,7 +10,7 @@ import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataType
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
 import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
@@ -77,6 +77,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
   private val logInfoVerbose = parameters.get(SqlOptionLogInfoVerbose).exists(_.toBoolean)
+  private val blockSize = parameters.get(SqlOptionBlockSize).map(_.toInt).getOrElse(SqlOptionBlockSizeDefault)
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -135,24 +136,55 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
     // write data
     data.foreachPartition { partition =>
-      // grouped iterator to only allocate memory for a portion of rows
-      partition.grouped(iteratorGroupingSize).foreach { batch =>
-        val stopWatch = new StopWatch()
-        // the following can be optimized to not create a map
-        val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
-        groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-          val conn = node.connect()
-          foreachWithPipeline(conn, keys) { (pipeline, key) =>
-            val row = rowsWithKey(key)
-            val encodedRow = persistence.encodeRow(keyName, row)
-            persistence.save(pipeline, key, encodedRow, ttl)
-          }
-          conn.close()
+      persistenceModel match {
+        case SqlOptionModelHash => writeRows(partition)
+        case SqlOptionModelBinary => writeRows(partition)
+        case SqlOptionModelBlock => writeBlocks(partition, schema)
+      }
+    }
+
+  }
+
+  private def writeBlocks(partition: Iterator[Row], schema: StructType): Unit = {
+    val fieldNames = schema.fields.map(_.name)
+    partition.grouped(blockSize).foreach { rows =>
+      val stopWatch = new StopWatch()
+      val block = rows.map { row =>
+        fieldNames.map(f => row.getAs[Any](f))
+      }.toArray // convert Seq to Array since we need a Serializable
+
+      val serializedBlock = SerializationUtils.serialize(block)
+
+      val blockKey = dataKey(tableName())
+      // TODO: pipeline?
+      val conn = redisConfig.connectionForKey(blockKey)
+      conn.set(blockKey.getBytes, serializedBlock)
+      conn.close()
+      if (logInfoVerbose) {
+        val partId = TaskContext.getPartitionId()
+        logInfo(f"Time taken to write 1 block with $blockSize rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
+      }
+    }
+  }
+
+  private def writeRows(partition: Iterator[Row]): Unit = {
+    // grouped iterator to only allocate memory for a portion of rows
+    partition.grouped(iteratorGroupingSize).foreach { batch =>
+      val stopWatch = new StopWatch()
+      // the following can be optimized to not create a map
+      val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
+      groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
+        val conn = node.connect()
+        foreachWithPipeline(conn, keys) { (pipeline, key) =>
+          val row = rowsWithKey(key)
+          val encodedRow = persistence.encodeRow(keyName, row)
+          persistence.save(pipeline, key, encodedRow, ttl)
         }
-        if (logInfoVerbose) {
-          val partId = TaskContext.getPartitionId()
-          logInfo(f"Time taken to write ${batch.size} rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
-        }
+        conn.close()
+      }
+      if (logInfoVerbose) {
+        val partId = TaskContext.getPartitionId()
+        logInfo(f"Time taken to write ${batch.size} rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
       }
     }
   }
@@ -160,7 +192,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")
     val keysRdd = sc.fromRedisKeyPattern(dataKeyPattern, partitionNum = numPartitions)
-    if (requiredColumns.isEmpty) {
+    // requiredColumns is empty for .count() operation.
+    // for persistence model where there is no grouping - no need to read actual values
+    if (requiredColumns.isEmpty &&
+      (persistenceModel == SqlOptionModelHash || persistenceModel == SqlOptionModelBinary)) {
       keysRdd.map { _ =>
         new GenericRow(Array[Any]())
       }
@@ -183,13 +218,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         // grouped iterator to only allocate memory for a portion of rows
         partition.grouped(iteratorGroupingSize).flatMap { batch =>
           val stopWatch = new StopWatch()
-          val rows = groupKeysByNode(redisConfig.hosts, batch.iterator)
+          val rows = groupKeysByNode(redisConfig.hosts, batch)
             .flatMap { case (node, keys) =>
               scanRows(node, keys, keyType, requiredSchema, requiredColumns)
             }
           if (logInfoVerbose) {
             val partId = TaskContext.getPartitionId()
-            logInfo(f"Time taken to read ${batch.size} rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
+            logInfo(f"Time taken to read ${batch.size} values/blocks in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
           }
           rows
         }
@@ -288,7 +323,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   /**
     * read rows from redis
     */
-  private def scanRows(node: RedisNode, keys: Seq[String], keyType: String, schema: StructType,
+  private def scanRows(node: RedisNode, keys: Seq[String], keyType: String, requiredSchema: StructType,
                        requiredColumns: Seq[String]): Seq[Row] = {
     withConnection(node.connect()) { conn =>
       val filteredKeys =
@@ -300,15 +335,48 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         } else {
           keys
         }
-      val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
-        persistence.load(pipeline, key, requiredColumns)
+
+      def readRows() = {
+        val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
+          persistence.load(pipeline, key, requiredColumns)
+        }
+        filteredKeys.zip(pipelineValues).map { case (key, value) =>
+          val keyMap = keyName -> tableKey(keysPrefixPattern, key)
+          persistence.decodeRow(keyMap, value, requiredSchema, requiredColumns)
+        }
       }
-      filteredKeys.zip(pipelineValues).map { case (key, value) =>
-        val keyMap = keyName -> tableKey(keysPrefixPattern, key)
-        persistence.decodeRow(keyMap, value, schema, requiredColumns)
+
+      // TODO: optimize .count() operation
+      def readBlocks(): Seq[Row] = {
+        // TODO:
+
+        def project(arr: Array[Any], persistedSchema: StructType, requiredSchema: StructType): Array[Any] = {
+          val values = persistedSchema.fields.zip(arr).toMap
+          requiredSchema.fields.map(f => values(f))
+        }
+
+        val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
+          pipeline.get(key.getBytes)
+        }
+        val persistedSchema = schema
+        pipelineValues.flatMap { v =>
+          val block = SerializationUtils.deserialize[Array[Array[Any]]](v.asInstanceOf[Array[Byte]])
+          block.map { arr =>
+            val requiredArr = project(arr, persistedSchema, requiredSchema)
+            new GenericRowWithSchema(requiredArr, requiredSchema)
+          }
+        }
+      }
+
+      persistenceModel match {
+        case SqlOptionModelHash => readRows()
+        case SqlOptionModelBinary => readRows()
+        case SqlOptionModelBlock => readBlocks()
       }
     }
   }
+
+
 }
 
 object RedisSourceRelation {

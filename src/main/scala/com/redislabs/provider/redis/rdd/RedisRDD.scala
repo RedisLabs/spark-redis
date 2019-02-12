@@ -488,6 +488,11 @@ object Keys extends Logging {
       map(x => (x._1, x._2.map(_._2))).iterator
   }
 
+  def groupKeysByNode(nodes: Array[RedisNode], keys: Seq[String]): Map[RedisNode, Seq[String]] = {
+    keys.map(key => (getMasterNode(nodes, key), key)).groupBy(_._1).
+      map(x => (x._1, x._2.map(_._2)))
+  }
+
   /**
     * @param conn
     * @param keys

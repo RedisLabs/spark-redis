@@ -18,6 +18,7 @@ package object redis {
   val SqlOptionModel = "model"
   val SqlOptionModelBinary = "binary"
   val SqlOptionModelHash = "hash"
+  val SqlOptionModelBlock = "block"
   val SqlOptionInferSchema = "infer.schema"
   val SqlOptionKeyColumn = "key.column"
   val SqlOptionTTL = "ttl"
@@ -28,4 +29,7 @@ package object redis {
 
   val SqlOptionIteratorGroupingSize = "iterator.grouping.size"
   val SqlOptionIteratorGroupingSizeDefault = 1000
+
+  val SqlOptionBlockSize = "model.block.size"
+  val SqlOptionBlockSizeDefault = 1000
 }
