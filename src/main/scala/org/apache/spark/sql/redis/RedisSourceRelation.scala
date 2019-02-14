@@ -5,12 +5,12 @@ import java.util.UUID
 import com.redislabs.provider.redis.rdd.Keys._
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.util.{Logging, StopWatch}
+import com.redislabs.provider.redis.util.{KryoUtils, Logging, StopWatch, StopWatchAdv}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.{GenericRow, GenericRowWithSchema}
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
@@ -146,6 +146,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   private def writeBlocks(partition: Iterator[Row], schema: StructType): Unit = {
+    val kryo = KryoUtils.Pool.borrow()
     val fieldNames = schema.fields.map(_.name)
     partition.grouped(blockSize).foreach { rows =>
       val stopWatch = new StopWatch()
@@ -153,7 +154,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         fieldNames.map(f => row.getAs[Any](f))
       }.toArray // convert Seq to Array since we need a Serializable
 
-      val serializedBlock = SerializationUtils.serialize(block)
+      //      val serializedBlock = SerializationUtils.serialize(block)
+      val serializedBlock = KryoUtils.serialize(block, kryo)
 
       val blockKey = dataKey(tableName())
       // TODO: pipeline?
@@ -165,6 +167,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         logInfo(f"Time taken to write 1 block with $blockSize rows in partition $partId: ${stopWatch.getTimeSec()}%.3f sec")
       }
     }
+    KryoUtils.Pool.release(kryo)
   }
 
   private def writeRows(partition: Iterator[Row]): Unit = {
@@ -348,24 +351,36 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
       // TODO: optimize .count() operation
       def readBlocks(): Seq[Row] = {
+        val kryo = KryoUtils.Pool.borrow()
         // TODO:
-
         def project(arr: Array[Any], persistedSchema: StructType, requiredSchema: StructType): Array[Any] = {
           val values = persistedSchema.fields.zip(arr).toMap
           requiredSchema.fields.map(f => values(f))
         }
-
+        val sw1 = new StopWatch()
         val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
           pipeline.get(key.getBytes)
         }
+        logInfo(f"Time taken to read bytes from Redis: ${sw1.getTimeSec()}%.3f sec")
+        val sw2 = new StopWatch()
         val persistedSchema = schema
-        pipelineValues.flatMap { v =>
-          val block = SerializationUtils.deserialize[Array[Array[Any]]](v.asInstanceOf[Array[Byte]])
+        val swKryo = new StopWatchAdv
+        val res = pipelineValues.flatMap { v =>
+          val serializedBlock = v.asInstanceOf[Array[Byte]]
+          // val block = SerializationUtils.deserialize[Array[Array[Any]]](serializedBlock)
+          swKryo.start()
+          val block: Array[Array[Any]] = KryoUtils.deserializeTwoDimArray(serializedBlock, kryo)
+          swKryo.stop()
+
           block.map { arr =>
             val requiredArr = project(arr, persistedSchema, requiredSchema)
-            new GenericRowWithSchema(requiredArr, requiredSchema)
+            new GenericRow(requiredArr)
           }
         }
+        logInfo(f"Time taken to deserialize blocks to objects (Kryo time): ${swKryo.getTimeSec()}%.3f sec")
+        logInfo(f"Time taken to deserialize and convert to Row: ${sw2.getTimeSec()}%.3f sec")
+        KryoUtils.Pool.release(kryo)
+        res
       }
 
       persistenceModel match {

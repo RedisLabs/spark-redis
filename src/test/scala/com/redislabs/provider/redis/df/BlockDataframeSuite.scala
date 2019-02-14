@@ -13,6 +13,7 @@ import scala.util.Random
 
 /**
   * TODO: refactor duplicates code
+  * TODO: test kryo, all types
   */
 trait BlockDataframeSuite extends RedisDataframeSuite with Matchers {
 
