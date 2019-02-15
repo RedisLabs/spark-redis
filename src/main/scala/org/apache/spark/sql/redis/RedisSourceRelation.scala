@@ -157,13 +157,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         new GenericRow(Array[Any]())
       }
     } else {
-      val filteredSchema = {
-        val requiredColumnsSet = Set(requiredColumns: _*)
-        val filteredFields = schema.fields
-          .filter { f =>
-            requiredColumnsSet.contains(f.name)
-          }
-        StructType(filteredFields)
+      // filter schema columns, it should be in the same order as given 'requiredColumns'
+      val requiredSchema = {
+        val fieldsMap = schema.fields.map(f => (f.name, f)).toMap
+        val requiredFields = requiredColumns.map { c =>
+          fieldsMap(c)
+        }
+        StructType(requiredFields)
       }
       val keyType =
         if (persistenceModel == SqlOptionModelBinary) {
@@ -173,12 +173,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         }
       keysRdd.mapPartitions { partition =>
         // grouped iterator to only allocate memory for a portion of rows
-        partition.grouped(iteratorGroupingSize).map { batch =>
+        partition.grouped(iteratorGroupingSize).flatMap { batch =>
           groupKeysByNode(redisConfig.hosts, batch.iterator)
             .flatMap { case (node, keys) =>
-              scanRows(node, keys, keyType, filteredSchema, requiredColumns)
+              scanRows(node, keys, keyType, requiredSchema, requiredColumns)
             }
-        }.flatten
+        }
       }
     }
   }
