@@ -14,7 +14,7 @@ $ ./bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
 By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
 
 ```bash
-$ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
+$ bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
 ```
 
 
