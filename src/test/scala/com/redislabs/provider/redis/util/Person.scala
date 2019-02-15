@@ -37,4 +37,6 @@ object Person {
 
   def generatePersonTableName(): String = generateTableName(TableNamePrefix)
 
+  def generatePersonStreamKey(): String = generatePersonTableName()
+
 }
