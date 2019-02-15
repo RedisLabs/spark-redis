@@ -34,6 +34,7 @@ This library is work in progress so the API may change before the official relea
   - [RDD](doc/rdd.md)
   - [Dataframe](doc/dataframe.md)
   - [Streaming](doc/streaming.md)
+  - [Structured Streaming](doc/structured-streaming.md)
   - [Cluster](doc/cluster.md)
   - [Java](doc/java.md)
   - [Python](doc/python.md)

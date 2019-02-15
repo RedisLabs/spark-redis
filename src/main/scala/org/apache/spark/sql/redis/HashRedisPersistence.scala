@@ -1,8 +1,8 @@
 package org.apache.spark.sql.redis
 
-import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
 import java.util.{List => JList}
 
+import com.redislabs.provider.redis.util.ParseUtils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
@@ -49,36 +49,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
     val scalaValue = value.asInstanceOf[JList[String]].asScala
     val values = requiredColumns.zip(scalaValue)
     val results = values :+ keyMap
-    val fieldsValue = parseFields(results.toMap, schema)
+    val fieldsValue = ParseUtils.parseFields(results.toMap, schema)
     new GenericRowWithSchema(fieldsValue, schema)
   }
-
-  private def parseFields(value: Map[String, String], schema: StructType): Array[Any] =
-    schema.fields.map { field =>
-      val fieldName = field.name
-      val fieldValue = value(fieldName)
-      parseValue(field.dataType, fieldValue)
-    }
-
-  private def parseValue(dataType: DataType, fieldValueStr: String): Any = {
-    if (fieldValueStr == null) {
-      null
-    } else {
-      parseNotNullValue(dataType, fieldValueStr)
-    }
-  }
-
-  private def parseNotNullValue(dataType: DataType, fieldValueStr: String): Any =
-    dataType match {
-      case ByteType => JByte.parseByte(fieldValueStr)
-      case IntegerType => Integer.parseInt(fieldValueStr)
-      case LongType => JLong.parseLong(fieldValueStr)
-      case FloatType => JFloat.parseFloat(fieldValueStr)
-      case DoubleType => JDouble.parseDouble(fieldValueStr)
-      case BooleanType => JBoolean.parseBoolean(fieldValueStr)
-      case ShortType => JShort.parseShort(fieldValueStr)
-      case DateType => java.sql.Date.valueOf(fieldValueStr)
-      case TimestampType => java.sql.Timestamp.valueOf(fieldValueStr)
-      case _ => fieldValueStr
-    }
 }
