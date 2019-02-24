@@ -5,14 +5,14 @@ import redis.clients.jedis.exceptions.JedisConnectionException
 
 import java.util.concurrent.ConcurrentHashMap
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 
 object ConnectionPool {
   @transient private lazy val pools: ConcurrentHashMap[RedisEndpoint, JedisPool] =
     new ConcurrentHashMap[RedisEndpoint, JedisPool]()
   def connect(re: RedisEndpoint): Jedis = {
-    val pool = pools.getOrElseUpdate(re,
+    val pool = pools.asScala.getOrElseUpdate(re,
       {
         val poolConfig: JedisPoolConfig = new JedisPoolConfig();
         poolConfig.setMaxTotal(250)
