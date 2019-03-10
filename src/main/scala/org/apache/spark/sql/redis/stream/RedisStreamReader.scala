@@ -26,15 +26,14 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
 
     filterStreamEntries(offsetRange) {
       val initialStart = offsetRange.start.map(id => new EntryID(id)).getOrElse(throw new RuntimeException("Offset start is not set"))
-      val initialEntry = new SimpleEntry(config.streamKey, initialStart)
+      val initialEntry = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
       Iterator.iterate(readStreamEntryBatches(offsetRange, initialEntry)) { response =>
         val responseOption = for {
           lastEntries <- response.asScala.lastOption
           lastEntry <- lastEntries.getValue.asScala.lastOption
           lastEntryId = lastEntry.getID
           startEntryId = new EntryID(lastEntryId.getTime, lastEntryId.getSequence)
-          startEntryOffset = new SimpleEntry(config.streamKey, startEntryId)
-        } yield readStreamEntryBatches(offsetRange, startEntryOffset)
+        } yield readStreamEntryBatches(offsetRange, initialEntry)
         responseOption.getOrElse(new util.ArrayList)
       }
     }
