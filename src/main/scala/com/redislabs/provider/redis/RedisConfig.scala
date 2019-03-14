@@ -11,7 +11,7 @@ import scala.collection.JavaConversions._
 
 /**
   * RedisEndpoint represents a redis connection endpoint info: host, port, auth password
-  * db number, and timeout
+  * db number, timeout and ssl mode
   *
   * @param host  the redis host or ip
   * @param port  the redis port
@@ -28,7 +28,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   extends Serializable {
 
   /**
-    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth and spark.redis.db
+    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth, spark.redis.db and spark.redis.ssl
     *
     * @param conf spark context config
     */
@@ -46,7 +46,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   /**
     * Constructor with Jedis URI
     *
-    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]
+    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
     */
   def this(uri: URI) {
     this(uri.getHost, uri.getPort, JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri),
@@ -56,7 +56,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   /**
     * Constructor with Jedis URI from String
     *
-    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]
+    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
     */
   def this(uri: String) {
     this(URI.create(uri))
