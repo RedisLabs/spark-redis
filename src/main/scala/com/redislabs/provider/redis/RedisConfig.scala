@@ -17,12 +17,14 @@ import scala.collection.JavaConversions._
   * @param port  the redis port
   * @param auth  the authentication password
   * @param dbNum database number (should be avoided in general)
+  * @param ssl true to enable SSL connection. Defaults to false
   */
 case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
                          port: Int = Protocol.DEFAULT_PORT,
                          auth: String = null,
                          dbNum: Int = Protocol.DEFAULT_DATABASE,
-                         timeout: Int = Protocol.DEFAULT_TIMEOUT)
+                         timeout: Int = Protocol.DEFAULT_TIMEOUT,
+                         ssl: Boolean = false)
   extends Serializable {
 
   /**
@@ -37,7 +39,8 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
       conf.get("spark.redis.auth", null),
       conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
-      conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT)
+      conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT),
+      conf.getBoolean("spark.redis.ssl", false)
     )
   }
 
@@ -47,7 +50,8 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]
     */
   def this(uri: URI) {
-    this(uri.getHost, uri.getPort, JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri))
+    this(uri.getHost, uri.getPort, JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri),
+      Protocol.DEFAULT_TIMEOUT, uri.getScheme == RedisSslScheme)
   }
 
   /**
