@@ -145,8 +145,8 @@ object RedisSource {
   def getOffsetRanges(start: Option[Offset], end: Offset,
                       consumerConfigs: Seq[RedisConsumerConfig]): Seq[RedisSourceOffsetRange] = {
 
-    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets).getOrElse(Map())
-    val offsetEnds = end.asInstanceOf[RedisSourceOffset]
+    val offsetStarts = start.map(RedisSourceOffset.fromOffset).map(_.offsets).getOrElse(Map())
+    val offsetEnds = RedisSourceOffset.fromOffset(end)
     val configsByStreamKey = consumerConfigs.groupBy(_.streamKey)
 
     offsetEnds.offsets.flatMap { case (streamKey, offsetEnd) =>
