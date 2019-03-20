@@ -1,5 +1,9 @@
+[![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
+[![GitHub issues](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis)
+[![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis)
+<!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
 # Spark-Redis
 A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/)
