@@ -19,14 +19,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val partition = split.asInstanceOf[RedisSourceRddPartition]
     val offsetRange = partition.offsetRange
     val streamReader = new RedisStreamReader(redisConfig)
-    if (offsetRange.start.isDefined) {
-      // offset is defined, read by offset
-      streamReader.streamEntriesByOffset(offsetRange)
-    } else {
-      // offset is not defined, happens for the first batch or after spark restart
-      // read starting from where the point the consumer group ended
-      streamReader.unreadStreamEntries(offsetRange)
-    }
+    streamReader.unreadStreamEntries(offsetRange)
   }
 
   override protected def getPartitions: Array[Partition] = {
