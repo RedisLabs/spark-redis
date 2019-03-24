@@ -1,7 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.util.JsonUtils
-import org.apache.spark.sql.execution.streaming.Offset
+import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.json4s.jackson.Serialization
 import org.json4s.{Formats, NoTypeHints}
 
@@ -17,6 +17,18 @@ case class RedisSourceOffset(offsets: Map[String, RedisConsumerOffset]) extends 
 object RedisSourceOffset {
 
   private implicit val formats: Formats = Serialization.formats(NoTypeHints)
+
+  def fromOffset(offset: Offset): RedisSourceOffset = {
+    offset match {
+      case o: RedisSourceOffset => o
+      case so: SerializedOffset => fromJson(so.json)
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Invalid conversion from offset of ${offset.getClass} to RedisSourceOffset")
+    }
+
+    fromJson(offset.json())
+  }
 
   def fromJson(json: String): RedisSourceOffset = {
     try {

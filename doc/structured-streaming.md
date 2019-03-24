@@ -101,7 +101,7 @@ Each consumer will be mapped to a Spark partition. There is no ordering guarante
 
 ### Other configuration
 
-The spark-redis automatically creates a consumer group with name `spark-source` if it doesn't exist. You can customize the consumer group name with
+Spark-redis automatically creates a consumer group with name `spark-source` if it doesn't exist. You can customize the consumer group name with
 `.option("stream.group.name", "my-group")`. Also you can customize the name of consumers in consumer group with `.option("stream.consumer.prefix", "my-consumer")`.
 
    
@@ -112,3 +112,8 @@ The default values are 100 items and 500 ms.
   .option("stream.read.batch.size", 200)
   .option("stream.read.block", 1000)
 ```
+
+### Fault Tolerance Semantics
+
+Spark-redis provides a replayable source, so while enabling [checkpointing](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#recovering-from-failures-with-checkpointing) and using 
+idempotent sinks, one can ensure end-to-end exactly-once semantics under any failure. If checkpointing is not enabled, it can lose messages. 
