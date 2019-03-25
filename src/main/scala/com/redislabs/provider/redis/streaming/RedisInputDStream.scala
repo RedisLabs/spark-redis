@@ -12,6 +12,9 @@ import redis.clients.jedis._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.control.NonFatal
 
+/**
+  * Receives messages from Redis List
+  */
 class RedisInputDStream[T: ClassTag](_ssc: StreamingContext,
                                      keys: Array[String],
                                      storageLevel: StorageLevel,
