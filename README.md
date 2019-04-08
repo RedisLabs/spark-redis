@@ -21,8 +21,9 @@ The master branch contains the recent development for the next release.
 
 | Spark-Redis | Spark         | Redis            | Supported Scala Versions | 
 | ----------- | ------------- | ---------------- | ------------------------ |
-| 2.3         | 2.3           | >=2.9.0          | 2.11                     | 
-| 1.4         | 1.4           |                  | 2.10                     | 
+| 2.4         | 2.4.x         | >=2.9.0          | 2.11                     | 
+| 2.3         | 2.3.x         | >=2.9.0          | 2.11                     | 
+| 1.4         | 1.4.x         |                  | 2.10                     | 
 
 
 ## Known limitations
