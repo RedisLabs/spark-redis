@@ -18,11 +18,11 @@ class RedisSourceConfigSuite extends FunSuite with Matchers {
           |{
           |  "offsets":{
           |    "mystream1": {
-          |      "groupName": $group,
+          |      "groupName": "$group",
           |      "offset": "0-10"
           |    },
           |    "mystream2": {
-          |       "groupName": $group,
+          |       "groupName": "$group",
           |       "offset": "0-7"
           |    }
           |  }
