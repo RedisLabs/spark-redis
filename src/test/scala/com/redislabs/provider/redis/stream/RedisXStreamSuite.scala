@@ -12,6 +12,7 @@ import redis.clients.jedis.EntryID
 
 import scala.collection.JavaConversions._
 
+// scalastyle:off multiple.string.literals
 trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
 
   // timeout for eventually function
@@ -110,8 +111,8 @@ trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
     val stream1Key = TestUtils.generateRandomKey()
     val stream2Key = TestUtils.generateRandomKey()
 
-    println("stream1Key " + stream1Key)
-    println("stream2Key " + stream2Key)
+    logInfo("stream1Key " + stream1Key)
+    logInfo("stream2Key " + stream2Key)
 
     // the data can be written to the stream earlier than we start receiver, so set offset to Earliest
     val stream = ssc.createRedisXStream(Seq(
