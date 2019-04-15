@@ -141,7 +141,7 @@ spark.sql(
 
 ### Time to live
 
-If you want to expire your data after certain time, you can specify its time to live in `seconds`. Redis will use 
+If you want to expire your data after a certain period of time, you can specify its time to live in `seconds`. Redis will use 
 [Expire](https://redis.io/commands/expire) command to cleanup data. 
 
 For example, to expire data after 30 seconds:
