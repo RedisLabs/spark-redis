@@ -5,10 +5,9 @@ Spark-Redis supports streaming data from Stream and List data structures:
   - [Redis Stream](#redis-stream)
   - [Redis List](#redis-list)
 
-
 ## Redis Stream
 
-To stream data from [Redis Stream](https://redis.io/topics/streams-intro) use `createRedisXStream` method:
+To stream data from [Redis Stream](https://redis.io/topics/streams-intro) use `createRedisXStream` method (added in Spark-Redis 2.3.1):
 
 ```scala
 import com.redislabs.provider.redis._
@@ -44,7 +43,7 @@ ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", offset = Earli
 ConsumerConfig("my-stream", "my-consumer-group", "my-consumer-1", IdOffset(42, 0))   // start from '42-0'
 ```
 
-Please note, spark-redis will attempt to create a consumer group with the specified offset, but if the consumer group already exists, 
+Please note, Spark-Redis will attempt to create a consumer group with the specified offset, but if the consumer group already exists, 
 it will use the existing offset. It means, for example, if you decide to re-process all the messages from the beginning, 
 just changing the offset to `Earliest` may not be enough. You may need to either manually delete the consumer 
 group with `XGROUP DESTROY` or modify the offset with `XGROUP SETID`.
@@ -73,8 +72,8 @@ ssc.createRedisXStream(Seq(
 ```
 
 In this example we created an input DStream that corresponds to a single receiver running in a Spark executor. The receiver will create two threads pulling 
-data from the streams in parallel. However if the data receiving becomes a bottleneck, you may want to start multiple receivers in different executors (worker machines).
-This can be achieved by creating multiple input DStreams and `union` them together. You can read more about about it [here](https://spark.apache.org/docs/latest/streaming-programming-guide.html#level-of-parallelism-in-data-receiving).
+data from the streams in parallel. However if receiving data becomes a bottleneck, you may want to start multiple receivers in different executors (worker machines).
+This can be achieved by creating multiple input DStreams and using `union` to join them together. You can read more about about it [here](https://spark.apache.org/docs/latest/streaming-programming-guide.html#level-of-parallelism-in-data-receiving).
 
 For example, the following will create two receivers pulling the data from `my-stream` and balancing the load:  
 
@@ -90,7 +89,7 @@ stream.print()
 
 ### Configuration
 
-If the cluster resources is not large enough to process data as fast as it is being received, the receiving rate can be limited:
+If the cluster is not large enough to process data as fast as it is being received, the receiving rate can be limited:
 
 ```scala
 ConsumerConfig("stream", "group", "c-1", rateLimitPerConsumer = Some(100)) // 100 items per second
@@ -107,7 +106,7 @@ ConsumerConfig("stream", "group", "c-1", batchSize = 50, block = 200)
 
 ## Redis List
 
-The stream can be also created from Redis' List, the data is fetched with the `blpop` command. Users are required to provide an array which stores all the List names they are interested in. The [storageLevel](http://spark.apache.org/docs/latest/streaming-programming-guide.html#data-serialization) is `MEMORY_AND_DISK_SER_2` by default, you can change it on your demand.
+The stream can be also created from Redis' List, the data is fetched with the `blpop` command. Users are required to provide an array which stores all the List names they are interested in. The [storageLevel](http://spark.apache.org/docs/latest/streaming-programming-guide.html#data-serialization) parameter is `MEMORY_AND_DISK_SER_2` by default.
 
 The method `createRedisStream` will create a `(listName, value)` stream, but if you don't care about which list feeds the value, you can use `createRedisStreamWithoutListname` to get the only `value` stream.
 

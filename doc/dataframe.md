@@ -5,12 +5,12 @@
   - [DataFrame Options](#dataframe-options)
   - [Known limitations](#known-limitations)
 
-
 ## Writing
 
 ### Write command
 
 In order to persist a DataFrame to Redis, specify `org.apache.spark.sql.redis` format and Redis table name with `option("table", tableName)`.
+
 The table name is used to organize Redis keys in a namespace. 
 
 ```scala
@@ -36,7 +36,7 @@ object DataFrameExample {
       .config("spark.redis.port", "6379")
       .getOrCreate()
 
-    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45)
     val df = spark.createDataFrame(personSeq)
 
     df.write
@@ -65,17 +65,17 @@ Each row of DataFrame is written as a [Redis Hash](https://redislabs.com/ebook/p
 4) "45"
 ```
 
-Spark-redis also writes serialized DataFrame schema:
+Spark-Redis also writes serialized DataFrame schema:
 ```bash
 127.0.0.1:6379> keys _spark:person:schema
 1) "_spark:person:schema"
 ``` 
 
-It is used by spark-redis internally when reading DataFrame back to Spark memory.
+It is used by Spark-Redis internally when reading DataFrame back to Spark memory.
 
 ### Specifying Redis key
 
-By default spark-redis generates UUID identifier for each row to ensure
+By default Spark-Redis generates UUID identifier for each row to ensure
 their uniqueness. However, you can also provide your own column as a key. This is controlled with `key.column` option:
 
 ```scala
@@ -115,7 +115,7 @@ val df = spark.read
 
 ### Save Modes
 
-Spark-redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
+Spark-Redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
 `Overwrite`, `ErrorIfExists` and `Ignore`.
 
 Please note, when key collision happens and `SaveMode.Append` is set, the former row is replaced with a new one. 
@@ -144,7 +144,7 @@ spark.sql(
 If you want to expire your data after certain time, you can specify its time to live in `seconds`. Redis will use 
 [Expire](https://redis.io/commands/expire) command to cleanup data. 
 
-For example, expire data after 30 seconds:
+For example, to expire data after 30 seconds:
 
 ```scala
 df.write
@@ -154,17 +154,16 @@ df.write
   .save()
 ```
 
-
 ### Persistence model
 
-By default DataFrames are persisted as Redis Hashes. It allows to write data with Spark and query from non-Spark environment.
+By default DataFrames are persisted as Redis Hashes. It allows for data to be written with Spark and queried from a non-Spark environment.
 It also enables projection query optimization when only a small subset of columns are selected. On the other hand, there is currently 
-a limitation with Hash model - it doesn't support nested DataFrame schema. One option to overcome it is making your DataFrame schema flat.
-If it is not possible due to some constraints, you may consider using Binary persistence model.
+a limitation with the Hash model - it doesn't support nested DataFrame schemas. One option to overcome this is to your DataFrame schema flat.
+If it is not possible due to some constraints, you may consider using the Binary persistence model.
 
 With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis (the default Java Serialization is used).
-This implies that storage model is private to spark-redis library and data cannot be easily queried from non-Spark environments. Another drawback 
-of Binary model is a larger memory footprint.   
+This implies that storage model is private to Spark-Redis library and data cannot be easily queried from non-Spark environments. Another drawback 
+of the Binary model is a larger memory footprint.   
 
 To enable Binary model use `option("model", "binary")`, e.g.
 
@@ -177,18 +176,17 @@ df.write
   .save()
 ```
 
-Note: You should read DataFrame with the same model as it was written.
+Note: You should read the DataFrame with the same model as it was written.
 
 ## Reading
 
-There are two options how you can read a DataFrame:
- - read a DataFrame that was previously saved by spark-redis. The same DataFrame schema is loaded as it was saved.   
+There are two options for reading a DataFrame:
+ - read a DataFrame that was previously saved by Spark-Redis. The same DataFrame schema is loaded as it was saved.   
  - read pure Redis Hashes providing keys pattern. The DataFrame schema should be explicitly provided or can be inferred from a random row.
-
 
 ### Reading previously saved DataFrame
 
-To read a previously saved DataFrame, specify the table name that was used for saving. Example:
+To read a previously saved DataFrame, specify the table name that was used for saving. For example:
 
 ```scala
 object DataFrameExample {
@@ -204,7 +202,7 @@ object DataFrameExample {
           .config("spark.redis.port", "6379")
           .getOrCreate()
 
-    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45)
     val df = spark.createDataFrame(personSeq)
 
     df.write
@@ -237,9 +235,9 @@ root
 +-----+---+
 ```
 
-If they `key.column` option was used for writing, then it should be also used for reading table back. See [Specifying Redis key](#specifying-redis-key) for details.
+If the `key.column` option was used for writing, then it should be also used for reading table back. See [Specifying Redis Key](#specifying-redis-key) for details.
 
-To read with a Spark SQL:
+To read via Spark SQL:
 
 ```scala
 spark.sql(
@@ -251,7 +249,7 @@ val loadedDf = spark.sql(s"SELECT * FROM person")
 
 ### Reading Redis Hashes
 
-To read Redis Hashes you have to provide keys pattern with `.option("keys.pattern", keysPattern)` option. The DataFrame schema should be explicitly specified or can be inferred from a random row.
+To read Redis Hashes you have to provide a keys pattern with `.option("keys.pattern", keysPattern)` option. The DataFrame schema should be explicitly specified or can be inferred from a random row.
 
 ```bash
 hset person:1 name John age 30
@@ -307,8 +305,8 @@ Spark-Redis tries to extract the key based on the key pattern:
     +-----+---+------------+
     ```
 
-Another option is to let spark-redis automatically infer schema based on a random row. In this case all columns will have `String` type. 
-Also we don't specify `key.column` option in this example, so the column `_id` will be created. 
+Another option is to let Spark-Redis automatically infer the schema based on a random row. In this case all columns will have `String` type. 
+Also we don't specify the `key.column` option in this example, so the column `_id` will be created. 
 Example:
 
 ```scala
@@ -334,10 +332,10 @@ root
 
 | Name                   | Description                                                                               | Type                  | Default |
 | -----------------------| ------------------------------------------------------------------------------------------| --------------------- | ------- |
-| model                  | defines Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
+| model                  | defines the Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
 | filter.keys.by.type    | make sure the underlying data structures match persistence model                          | `Boolean`             | `false` |
-| partitions.number      | number of partitions (applies only when reading dataframe)                                | `Int`                 | `3`     |
-| key.column             | when writing - specifies unique column used as a Redis key, by default a key is auto-generated. <br/> When reading - specifies column name to store hash key | `String`              | -       |
+| partitions.number      | number of partitions (applies only when reading DataFrame)                                | `Int`                 | `3`     |
+| key.column             | when writing - specifies unique column used as a Redis key, by default a key is auto-generated <br/> when reading - specifies column name to store hash key | `String`              | -       |
 | ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
 | infer.schema           | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |

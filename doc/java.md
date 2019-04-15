@@ -1,8 +1,7 @@
 # Using the library in Java
 
-The library is written in Scala and the API is primarily intended to be used with Scala. But you can also use the library in 
+The library is written in Scala and the API is primarily intended to be used with Scala. But you can also use the library with 
 Java because of the Scala/Java interoperability. 
-
 
 ## RDD
 
@@ -96,8 +95,8 @@ The following example demonstrates how to create a stream from Redis list `myLis
 SparkConf sparkConf = new SparkConf()
             .setAppName("MyApp")
             .setMaster("local[*]")
-            .set("redis.host", "localhost")
-            .set("redis.port", "6379");
+            .set("spark.redis.host", "localhost")
+            .set("spark.redis.port", "6379");
 
 JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(1));
 
