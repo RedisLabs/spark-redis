@@ -36,7 +36,7 @@ object DataFrameExample {
       .config("spark.redis.port", "6379")
       .getOrCreate()
 
-    val personSeq = Seq(Person("John", 30), Person("Peter", 45)
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
 
     df.write
@@ -158,7 +158,7 @@ df.write
 
 By default DataFrames are persisted as Redis Hashes. It allows for data to be written with Spark and queried from a non-Spark environment.
 It also enables projection query optimization when only a small subset of columns are selected. On the other hand, there is currently 
-a limitation with the Hash model - it doesn't support nested DataFrame schemas. One option to overcome this is to your DataFrame schema flat.
+a limitation with the Hash model - it doesn't support nested DataFrame schemas. One option to overcome this is to make your DataFrame schema flat.
 If it is not possible due to some constraints, you may consider using the Binary persistence model.
 
 With the Binary persistence model the DataFrame row is serialized into a byte array and stored as a string in Redis (the default Java Serialization is used).

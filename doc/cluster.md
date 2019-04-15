@@ -16,4 +16,4 @@ def twoEndpointExample ( sc: SparkContext) = {
   }
 }
 ```
-If you want to use multiple Redis clusters/instances, an implicit RedisConfig can be used in a code block to specify the target cluster/instance in that block.
+If you want to use multiple Redis clusters/instances, an implicit RedisConfig can be used in a code block to specify the target cluster/instance.
