@@ -6,13 +6,13 @@
 <!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
 # Spark-Redis
-A library for reading and writing data from and to [Redis](http://redis.io) with [Apache Spark](http://spark.apache.org/)
+A library for reading and writing data in [Redis](http://redis.io) using [Apache Spark](http://spark.apache.org/).
 
-Spark-Redis provides access to all of Redis' data structures - String, Hash, List, Set and Sorted Set - from Spark as RDDs. It also supports reading/writing Dataframes and Spark SQL syntax.
+Spark-Redis provides access to all of Redis' data structures - String, Hash, List, Set and Sorted Set - from Spark as RDDs. It also supports reading and writing with DataFrames and Spark SQL syntax.
 
 The library can be used both with Redis stand-alone as well as clustered databases. When used with Redis cluster, Spark-Redis is aware of its partitioning scheme and adjusts in response to resharding and node failure events.
 
-Spark-Redis also provides Spark-Streaming support.
+Spark-Redis also supports Spark Streaming (DStreams) and Structured Streaming.
 
 ## Version compatibility and branching
 
@@ -30,7 +30,7 @@ The master branch contains the recent development for the next release.
 * Java, Python and R API bindings are not provided at this time
 
 ## Additional considerations
-This library is work in progress so the API may change before the official release.
+This library is a work in progress so the API may change before the official release.
 
 ## Documentation
 
@@ -46,13 +46,15 @@ This library is work in progress so the API may change before the official relea
 
 ## Contributing
 
-You're encouraged to contribute to the open source Spark-Redis project. There are two ways you can do so.
+You're encouraged to contribute to the Spark-Redis project. 
 
-### Issues
+There are two ways you can do so:
 
-If you encounter an issue while using the Spark-Redis library, please report it at the project's [issues tracker](https://github.com/RedisLabs/spark-redis/issues).
+### Submit Issues
 
-### Pull request
+If you encounter an issue while using the library, please report it via the project's [issues tracker](https://github.com/RedisLabs/spark-redis/issues).
+
+### Author Pull Requests
 
 Code contributions to the Spark-Redis project can be made using [pull requests](https://github.com/RedisLabs/spark-redis/pulls). To submit a pull request:
 

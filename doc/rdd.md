@@ -16,10 +16,9 @@ val keysRDD = sc.fromRedisKeys(Array("foo", "bar"), 5)
 
 The above example populates the keys RDD by retrieving the key names from Redis that match the given pattern (`foo*`) or the keys can be listed by an Array. Furthermore, it overrides the default setting of 3 partitions in the RDD with a new value of 5 - each partition consists of a set of Redis cluster hashslots contain the matched key names.
 
-
 ### Reading data
 
-Each of Redis' data types can be read to an RDD. The following snippet demonstrates reading Redis Strings.
+Each of Redis' data types can be read into an RDD. The following snippet demonstrates reading from Redis Strings.
 
 #### Strings
 
@@ -29,7 +28,7 @@ val stringRDD = sc.fromRedisKV("keyPattern*")
 val stringRDD = sc.fromRedisKV(Array("foo", "bar"))
 ```
 
-Once run, `stringRDD: RDD[(String, String)]` will contain the string values of all keys whose names are provided by keyPattern or Array[String].
+Once run, `stringRDD: RDD[(String, String)]` will contain the string values of all keys whose names are provided by keyPattern or `Array[String]`.
 
 #### Hashes
 ```scala
@@ -37,14 +36,14 @@ val hashRDD = sc.fromRedisHash("keyPattern*")
 val hashRDD = sc.fromRedisHash(Array("foo", "bar"))
 ```
 
-This will populate `hashRDD: RDD[(String, String)]` with the fields and values of the Redis Hashes, the hashes' names are provided by keyPattern or Array[String]
+This will populate `hashRDD: RDD[(String, String)]` with the fields and values of the Redis Hashes, the hashes' names are provided by keyPattern or `Array[String]`.
 
 #### Lists
 ```scala
 val listRDD = sc.fromRedisList("keyPattern*")
 val listRDD = sc.fromRedisList(Array("foo", "bar"))
 ```
-The contents (members) of the Redis Lists in whose names are provided by keyPattern or Array[String] will be stored in `listRDD: RDD[String]`
+The contents (members) of the Redis Lists in whose names are provided by keyPattern or `Array[String]` will be stored in `listRDD: RDD[String]`.
 
 #### Sets
 ```scala
@@ -60,14 +59,14 @@ val zsetRDD = sc.fromRedisZSetWithScore("keyPattern*")
 val zsetRDD = sc.fromRedisZSetWithScore(Array("foo", "bar"))
 ```
 
-Using `fromRedisZSetWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and their scores, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZSetWithScore` will store in `zsetRDD: RDD[(String, Double)]` an RDD that consists of members and their scores, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ```scala
 val zsetRDD = sc.fromRedisZSet("keyPattern*")
 val zsetRDD = sc.fromRedisZSet(Array("foo", "bar"))
 ```
 
-Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ```scala
 val startPos: Int = _
@@ -76,7 +75,7 @@ val zsetRDD = sc.fromRedisZRangeWithScore("keyPattern*", startPos, endPos)
 val zsetRDD = sc.fromRedisZRangeWithScore(Array("foo", "bar"), startPos, endPos)
 ```
 
-Using `fromRedisZRangeWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZRangeWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ```scala
 val startPos: Int = _
@@ -85,7 +84,7 @@ val zsetRDD = sc.fromRedisZRange("keyPattern*", startPos, endPos)
 val zsetRDD = sc.fromRedisZRange(Array("foo", "bar"), startPos, endPos)
 ```
 
-Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set, from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' ranges are within [startPos, endPos] of its own Sorted Set from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ```scala
 val min: Double = _
@@ -94,7 +93,7 @@ val zsetRDD = sc.fromRedisZRangeByScoreWithScore("keyPattern*", min, max)
 val zsetRDD = sc.fromRedisZRangeByScoreWithScore(Array("foo", "bar"), min, max)
 ```
 
-Using `fromRedisZRangeByScoreWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' scores are within [min, max], from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZRangeByScoreWithScore` will store in `zsetRDD: RDD[(String, Double)]`, an RDD that consists of members and the members' scores are within [min, max] from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ```scala
 val min: Double = _
@@ -103,16 +102,15 @@ val zsetRDD = sc.fromRedisZRangeByScore("keyPattern*", min, max)
 val zsetRDD = sc.fromRedisZRangeByScore(Array("foo", "bar"), min, max)
 ```
 
-Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' scores are within [min, max], from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
+Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' scores are within [min, max] from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
 ### Writing data
-To write data from Spark to Redis, you'll need to prepare the appropriate RDD depending on the data type you want to use for storing the data in it.
+To write data to Redis from Spark, you'll need to prepare the appropriate RDD depending on the type of data you want to write.
 
 #### Strings
 For String values, your RDD should consist of the key-value pairs that are to be written. Assuming that the strings RDD is called `stringRDD`, use the following snippet for writing it to Redis:
 
 ```scala
-...
 sc.toRedisKV(stringRDD)
 ```
 
@@ -120,7 +118,6 @@ sc.toRedisKV(stringRDD)
 To store a Redis Hash, the RDD should consist of its field-value pairs. If the RDD is called `hashRDD`, the following should be used for storing it in the key name specified by `hashName`:
 
 ```scala
-...
 sc.toRedisHASH(hashRDD, hashName)
 ```
 
@@ -128,26 +125,22 @@ sc.toRedisHASH(hashRDD, hashName)
 Use the following to store an RDD in a Redis List:
 
 ```scala
-...
 sc.toRedisLIST(listRDD, listName)
 ```
 
 Use the following to store an RDD in a fixed-size Redis List:
 
 ```scala
-...
 sc.toRedisFixedLIST(listRDD, listName, listSize)
 ```
 
 The `listRDD` is an RDD that contains all of the list's string elements in order, and `listName` is the list's key name.
-`listSize` is an integer which specifies the size of the redis list; it is optional, and will default to an unlimited size.
-
+`listSize` is an integer which specifies the size of the Redis list; it is optional, and will default to an unlimited size.
 
 #### Sets
 For storing data in a Redis Set, use `toRedisSET` as follows:
 
 ```scala
-...
 sc.toRedisSET(setRDD, setName)
 ```
 
@@ -155,7 +148,6 @@ Where `setRDD` is an RDD with the set's string elements and `setName` is the nam
 
 #### Sorted Sets
 ```scala
-...
 sc.toRedisZSET(zsetRDD, zsetName)
 ```
 
@@ -170,7 +162,7 @@ val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
 val rdd = sc.fromRedisKeyPattern(keyPattern)(readWriteConfig = readWriteConf) 
 ```
 
-or with implicit parameter:
+or with an implicit parameter:
 
 ```scala
 implicit val readWriteConf = ReadWriteConfig(scanCount = 1000, maxPipelineSize = 1000)
