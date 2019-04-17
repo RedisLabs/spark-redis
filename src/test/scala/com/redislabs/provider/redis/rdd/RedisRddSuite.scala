@@ -40,11 +40,15 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
       conn.flushAll
       conn.close()
     })
+    val hllRDD = sc.parallelize(
+      Seq( ("apple","gala"),("apple","red-delicious"),("pear","barlett"),("peach","freestone"))
+    )
     sc.toRedisKV(wcnts)
     sc.toRedisZSET(wcnts, zSetKey)
     sc.toRedisHASH(wcnts, hashKey)
     sc.toRedisLIST(wds, listKey)
     sc.toRedisSET(wds, setKey)
+    sc.toRedisHLL(hllRDD)
   }
 
   test("RedisKVRDD") {
@@ -109,12 +113,26 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     setContents should be(ws)
   }
 
+  test("RedisHLLRDD") {
+    val redisSetRDD = sc.fromRedisHLL( "apple")
+    redisSetRDD.count() should be (1)
+    redisSetRDD.take(1)(0)._2 should be (2)
+
+    val redisSetRDDp = sc.fromRedisHLL("p*")
+    redisSetRDDp.count() should be (2)
+    redisSetRDDp.take(1)(0)._2 should be (1)
+
+    val all = sc.fromRedisHLL("*")
+    all.count() should be (3)
+  }
+
   test("Expire") {
     val expireTime = 1
     val prefix = s"#expire in $expireTime#:"
     val wcnts = sc.parallelize(contentWords).map((_, 1)).
       reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
     val wds = sc.parallelize(contentWords)
+
     sc.toRedisKV(wcnts, expireTime)
     sc.toRedisZSET(wcnts, prefix + zSetKey, expireTime)
     sc.toRedisHASH(wcnts, prefix + hashKey, expireTime)

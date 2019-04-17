@@ -98,6 +98,33 @@ class RedisListRDD(prev: RDD[String],
   }
 }
 
+class RedisPFCountRDD(prev: RDD[String])(implicit val readWriteConfig: ReadWriteConfig)
+  extends RDD[(String,Long)](prev) with Keys {
+  override def getPartitions: Array[Partition] = prev.partitions
+  override def compute(split: Partition, context: TaskContext): Iterator[(String,Long)] = {
+    val partition: RedisPartition = split.asInstanceOf[RedisPartition]
+    val sPos = partition.slots._1
+    val ePos = partition.slots._2
+    val nodes = partition.redisConfig.getNodesBySlots(sPos, ePos)
+    val keys = firstParent[String].iterator(split, context)
+    getPFCOUNT(nodes,keys)
+  }
+  def getPFCOUNT(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String,Long)] = {
+    groupKeysByNode(nodes, keys).flatMap { x => {
+        val conn = x._1.endpoint.connect()
+        val stringKeys = filterKeysByType(conn, x._2, "string")
+        val pipeline = conn.pipelined
+        // scala gives compilation error for string and varargs, if we use pfcount(<string>)
+        stringKeys.map( key => pipeline.pfcount(Seq(key): _*))
+        val res = stringKeys.zip(pipeline.syncAndReturnAll()).iterator.filter { _._2.isInstanceOf[Long] }
+          .asInstanceOf[Iterator[(String,Long)]]
+        conn.close()
+        res
+      }
+    }
+  }
+}
+
 case class ZSetContext(startPos: Long,
                        endPos: Long,
                        min: Double,
@@ -297,6 +324,14 @@ class RedisKeysRDD(sc: SparkContext,
     */
   def getHash(): RDD[(String, String)] = {
     new RedisKVRDD(this, "hash", readWriteConfig)
+  }
+
+  /**
+    * filter the 'hash' type keys and get all the elements of them
+    * @return RedisHashRDD[(String, String)]
+    */
+  def getPFCount(): RDD[(String, Long)] = {
+    new RedisPFCountRDD(this)
   }
 
   /**
