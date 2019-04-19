@@ -21,6 +21,9 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   val listKey: String = "all:words:list"
   val setKey: String = "all:words:set"
 
+  val wcntsPrefix: String = "wcnts"
+  val hllPrefix: String = "hll"
+
   override def beforeAll() {
     super.beforeAll()
     val wcnts = sc.parallelize(contentWords)
@@ -31,7 +34,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
         _ + _
       }
       .map { x =>
-        (x._1, x._2.toString)
+        (s"$wcntsPrefix-${x._1}", x._2.toString)
       }
     val wds = sc.parallelize(contentWords)
     // Flush all the hosts
@@ -41,7 +44,12 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
       conn.close()
     })
     val hllRDD = sc.parallelize(
-      Seq( ("apple","gala"),("apple","red-delicious"),("pear","barlett"),("peach","freestone"))
+      Seq(
+        (s"$hllPrefix-apple","gala"),
+        (s"$hllPrefix-apple","red-delicious"),
+        (s"$hllPrefix-pear","barlett"),
+        (s"$hllPrefix-peach","freestone")
+      )
     )
     sc.toRedisKV(wcnts)
     sc.toRedisZSET(wcnts, zSetKey)
@@ -52,7 +60,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   }
 
   test("RedisKVRDD") {
-    val redisKVRDD = sc.fromRedisKV("*")
+    val redisKVRDD = sc.fromRedisKV(s"$wcntsPrefix-*")
     val kvContents = redisKVRDD.sortByKey().collect
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
@@ -114,15 +122,15 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   }
 
   test("RedisHLLRDD") {
-    val redisSetRDD = sc.fromRedisHLL( "apple")
+    val redisSetRDD = sc.fromRedisHLL( s"$hllPrefix-apple")
     redisSetRDD.count() should be (1)
     redisSetRDD.take(1)(0)._2 should be (2)
 
-    val redisSetRDDp = sc.fromRedisHLL("p*")
+    val redisSetRDDp = sc.fromRedisHLL(s"$hllPrefix-p*")
     redisSetRDDp.count() should be (2)
     redisSetRDDp.take(1)(0)._2 should be (1)
 
-    val all = sc.fromRedisHLL("*")
+    val all = sc.fromRedisHLL(s"$hllPrefix-*")
     all.count() should be (3)
   }
 
