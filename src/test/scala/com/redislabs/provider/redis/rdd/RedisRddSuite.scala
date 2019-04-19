@@ -12,7 +12,7 @@ object RedisRddSuite {
   val zSetKey: String = "all:words:cnt:sortedset"
   val hashKey: String = "all:words:cnt:hash"
   val listKey: String = "all:words:list"
-  val setKey: String = "all:words:set"RedisConfigSuite.scala
+  val setKey: String = "all:words:set"
 
   val wcntsPrefix: String = "wcnts"
   val hllPrefix: String = "hll"
