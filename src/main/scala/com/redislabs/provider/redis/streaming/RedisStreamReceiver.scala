@@ -11,7 +11,7 @@ import org.apache.spark.streaming.receiver.Receiver
 import org.spark_project.guava.util.concurrent.RateLimiter
 import redis.clients.jedis.{EntryID, Jedis, StreamEntry}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
   * Receives messages from Redis Stream
@@ -81,12 +81,12 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           false,
           unackId)
 
-        val unackMessagesMap = response.map(e => (e.getKey, e.getValue)).toMap
+        val unackMessagesMap = response.asScala.map(e => (e.getKey, e.getValue)).toMap
         val entries = unackMessagesMap(conf.streamKey)
         if (entries.isEmpty) {
           continue = false
         }
-        storeAndAck(conf.streamKey, entries)
+        storeAndAck(conf.streamKey, entries.asScala)
       }
     }
 
@@ -103,9 +103,9 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
           false,
           newMessId)
 
-        for (streamMessages <- response) {
+        for (streamMessages <- response.asScala) {
           val key = streamMessages.getKey
-          val entries = streamMessages.getValue
+          val entries = streamMessages.getValue.asScala
           storeAndAck(key, entries)
         }
       }
@@ -128,7 +128,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
     def entriesToItems(key: String, entries: Seq[StreamEntry]): Seq[StreamItem] = {
       entries.map { e =>
         val itemId = ItemId(e.getID.getTime, e.getID.getSequence)
-        StreamItem(key, itemId, e.getFields.toMap)
+        StreamItem(key, itemId, e.getFields.asScala.toMap)
       }
     }
   }

@@ -6,7 +6,7 @@ import org.apache.spark.SparkConf
 import redis.clients.jedis.util.{JedisClusterCRC16, JedisURIHelper, SafeEncoder}
 import redis.clients.jedis.{Jedis, Protocol}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 
 /**
@@ -254,7 +254,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     */
   private def getClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val conn = initialHost.connect()
-    val res = conn.clusterSlots().flatMap {
+    val res = conn.clusterSlots().asScala.flatMap {
       slotInfoObj => {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
         val sPos = slotInfo.get(0).toString.toInt
@@ -269,7 +269,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
          * filter master.
          */
         (0 until (slotInfo.size - 2)).map(i => {
-          val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
+          val node = slotInfo.asScala(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
           val host = SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]])
           val port = node.get(1).toString.toInt
           RedisNode(RedisEndpoint(host, port, initialHost.auth, initialHost.dbNum,

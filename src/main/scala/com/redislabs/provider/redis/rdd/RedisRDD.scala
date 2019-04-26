@@ -10,7 +10,7 @@ import org.apache.spark.rdd.RDD
 import redis.clients.jedis.{Jedis, ScanParams}
 import redis.clients.jedis.util.JedisClusterCRC16
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.{ClassTag, classTag}
 
 
@@ -52,7 +52,7 @@ class RedisKVRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
       val hashKeys = filterKeysByType(conn, nodeKeys, "hash")
-      val res = hashKeys.flatMap(conn.hgetAll).iterator
+      val res = hashKeys.flatMap(conn.hgetAll(_).asScala).iterator
       conn.close()
       res
     }
@@ -81,7 +81,7 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
       val setKeys = filterKeysByType(conn, nodeKeys, "set")
-      val res = setKeys.flatMap(conn.smembers).iterator
+      val res = setKeys.flatMap(conn.smembers(_).asScala).iterator
       conn.close()
       res
     }
@@ -91,7 +91,7 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
       val listKeys = filterKeysByType(conn, nodeKeys, "list")
-      val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
+      val res = listKeys.flatMap(conn.lrange(_, 0, -1).asScala).iterator
       conn.close()
       res
     }
@@ -136,10 +136,10 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       val zsetKeys = filterKeysByType(conn, nodeKeys, "zset")
       val res = {
         if (classTag[T] == classTag[(String, Double)]) {
-          zsetKeys.flatMap(k => conn.zrangeWithScores(k, startPos, endPos)).
+          zsetKeys.flatMap(k => conn.zrangeWithScores(k, startPos, endPos).asScala).
             map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
-          zsetKeys.flatMap(k => conn.zrange(k, startPos, endPos)).iterator
+          zsetKeys.flatMap(k => conn.zrange(k, startPos, endPos).asScala).iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
@@ -158,10 +158,10 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       val zsetKeys = filterKeysByType(conn, nodeKeys, "zset")
       val res = {
         if (classTag[T] == classTag[(String, Double)]) {
-          zsetKeys.flatMap(k => conn.zrangeByScoreWithScores(k, startScore, endScore)).
+          zsetKeys.flatMap(k => conn.zrangeByScoreWithScores(k, startScore, endScore).asScala).
             map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
-          zsetKeys.flatMap(k => conn.zrangeByScore(k, startScore, endScore)).iterator
+          zsetKeys.flatMap(k => conn.zrangeByScore(k, startScore, endScore).asScala).iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
@@ -428,17 +428,17 @@ trait Keys {
     val endpoints = nodes.map(_.endpoint).distinct
 
     if (isRedisRegex(keyPattern)) {
-      endpoints.iterator.map { endpoint =>
+      endpoints.iterator.flatMap { endpoint =>
         val keys = new util.HashSet[String]()
         val conn = endpoint.connect()
         val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        keys.addAll(scanKeys(conn, params).filter { key =>
+        keys.addAll(scanKeys(conn, params).asScala.filter { key =>
           val slot = JedisClusterCRC16.getSlot(key)
           slot >= sPos && slot <= ePos
-        })
+        }.asJava)
         conn.close()
-        keys.iterator()
-      }.flatten
+        keys.iterator().asScala
+      }
     } else {
       val slot = JedisClusterCRC16.getSlot(keyPattern)
       if (slot >= sPos && slot <= ePos) Iterator(keyPattern) else Iterator()
