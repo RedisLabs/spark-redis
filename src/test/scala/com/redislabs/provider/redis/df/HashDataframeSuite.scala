@@ -19,6 +19,7 @@ import scala.util.Random
 /**
   * @author The Viet Nguyen
   */
+// scalastyle:off multiple.string.literals
 trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
 
   import TestSqlImplicits._
@@ -106,12 +107,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
-      .schema(StructType(Array(
-        StructField("name", StringType),
-        StructField("age", IntegerType),
-        StructField("address", StringType),
-        StructField("salary", DoubleType)
-      )))
+      .schema(Person.schema)
       .load()
       .cache()
     loadedDf.show()

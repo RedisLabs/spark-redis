@@ -1,9 +1,12 @@
 package org.apache.spark.sql.redis.stream
 
+import java.io.File
+import java.util.UUID
+
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.{Logging, Person}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.streaming.StreamingQuery
@@ -17,7 +20,7 @@ import scala.concurrent.duration.DurationLong
 /**
   * @author The Viet Nguyen
   */
-trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
+trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Logging {
 
   val AutoEntryId: EntryID = new EntryID() {
     override def toString: String = "*"
@@ -96,7 +99,8 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
       }
 
       // re-read from the beginning
-      val offsetJson = s"""{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"0-0"}}}"""
+      val offsetJson =
+        s"""{"offsets":{"$streamKey":{"groupName":"redis-source","offset":"0-0"}}}"""
       val options = Map("stream.offsets" -> offsetJson)
 
       readStream(streamKey, options) { spark =>
@@ -195,8 +199,34 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     }
   }
 
-  def readStream(streamKey: String, extraOptions: Map[String, String] = Map())(body: SparkSession => Unit): Unit = {
-    val (spark, query) = readStream2(streamKey, extraOptions)
+  test("can start stream with checkpointing") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(streamKey) { conn =>
+      val checkPointLocation = s"${new File(".").getAbsolutePath}/checkpoint-test/${UUID.randomUUID()}"
+      val writeOptions = Map("checkpointLocation" -> checkPointLocation)
+      readStream(streamKey, extraWriteOptions = writeOptions) { spark =>
+        (1 to 5).foreach { i =>
+          conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
+        }
+      }
+
+      // write 5 more items to stream
+      (6 to 10).foreach { i =>
+        conn.xadd(streamKey, new EntryID(0, i), Person.dataMaps.head.asJava)
+      }
+
+      // restart stream
+      readStream(streamKey, extraWriteOptions = writeOptions, writeFormat = "console") { spark =>
+      }
+    }
+  }
+
+  def readStream(streamKey: String,
+                 extraReadOptions: Map[String, String] = Map(),
+                 extraWriteOptions: Map[String, String] = Map(),
+                 writeFormat: String = "memory")(body: SparkSession => Unit): Unit = {
+
+    val (spark, query) = readStream2(streamKey, extraReadOptions, extraWriteOptions, writeFormat)
     // give some time for spark query to start
     Thread.sleep(50)
     try {
@@ -207,7 +237,10 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
     }
   }
 
-  def readStream2(streamKey: String, extraOptions: Map[String, String] = Map()): (SparkSession, StreamingQuery) = {
+  def readStream2(streamKey: String,
+                  extraReadOptions: Map[String, String],
+                  extraWriteOptions: Map[String, String],
+                  writeFormat: String): (SparkSession, StreamingQuery) = {
     val spark = SparkSession
       .builder
       .config(conf)
@@ -219,15 +252,19 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
       .option(StreamOptionStreamKeys, streamKey)
 
     // apply extra reader options
-    val reader = extraOptions.foldLeft(readerBase) { case (r, (k, v)) => r.option(k, v) }
+    val reader = extraReadOptions.foldLeft(readerBase) { case (r, (k, v)) => r.option(k, v) }
 
     val persons = reader.load()
-    val query = persons.writeStream
-      .format("memory")
+    val queryBase = persons.writeStream
+      .format(writeFormat)
       .queryName("persons")
-      .start()
 
-    println(s"query id ${query.id}")
+    // apply extra writer options
+    val queryWithOptions = extraWriteOptions.foldLeft(queryBase) { case (r, (k, v)) => r.option(k, v) }
+
+    val query = queryWithOptions.start()
+
+    logInfo(s"query id ${query.id}")
     (spark, query)
   }
 

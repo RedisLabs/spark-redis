@@ -1,6 +1,9 @@
 package com.redislabs.provider.redis.util
 
-import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
+import java.lang.{
+  Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong,
+  Short => JShort
+}
 
 import org.apache.spark.sql.types._
 
@@ -24,6 +27,7 @@ object ParseUtils {
     }
   }
 
+  // scalastyle:off cyclomatic.complexity
   private def parseNotNullValue(dataType: DataType, fieldValueStr: String): Any =
     dataType match {
       case ByteType => JByte.parseByte(fieldValueStr)

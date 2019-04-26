@@ -18,7 +18,8 @@ trait RedisBenchmarks extends Logging {
     val result = block // call-by-name
     val t1 = System.nanoTime()
     new PrintWriter(new FileWriter(s"$benchmarkReportDir/results.txt", true)) {
-      println(s"$tag, ${JDuration.ofNanos(t1 - t0)}")
+      // scalastyle:off
+      this.println(s"$tag, ${JDuration.ofNanos(t1 - t0)}")
       close()
     }
     result
