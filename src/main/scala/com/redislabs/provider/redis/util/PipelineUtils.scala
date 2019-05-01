@@ -13,8 +13,8 @@ object PipelineUtils {
   /**
     * Executes a pipeline function for each item in the sequence, returns the server response.
     *
-    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize while iterating
-    * over the items.
+    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize
+    * while iterating over the items.
     *
     * @param conn            jedis connection
     * @param readWriteConfig read/write config
@@ -51,8 +51,8 @@ object PipelineUtils {
   /**
     * Executes a pipeline function for each item in the sequence. No response is returned.
     *
-    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize while iterating
-    * over the items.
+    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize
+    * while iterating over the items.
     *
     * @param conn            jedis connection
     * @param readWriteConfig read/write config
@@ -80,11 +80,12 @@ object PipelineUtils {
   }
 
   /**
-    * Executes a pipeline function for each item in the sequence. Doesn't sync and return the last pipeline after all operations are executed.
-    * Allows to execute more operations with the returned pipeline. The client is responsible of syncing the returned pipeline.
+    * Executes a pipeline function for each item in the sequence. Doesn't sync and return the last pipeline after
+    * all operations are executed. Allows to execute more operations with the returned pipeline.
+    * The client is responsible of syncing the returned pipeline.
     *
-    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize while iterating
-    * over the items.
+    * Ensures that a new pipeline is created if the number of operations exceeds the given maxPipelineSize
+    * while iterating over the items.
     *
     * @param conn            jedis connection
     * @param readWriteConfig read/write config

@@ -22,7 +22,9 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
     val config = offsetRange.config
 
     logInfo(s"Reading entries " +
-      s"[${config.streamKey}, ${config.groupName}, ${config.consumerName}, start=${offsetRange.start} end=${offsetRange.end}]... ")
+      s"[${config.streamKey}, ${config.groupName}, ${config.consumerName}, start=${offsetRange.start} " +
+      s"end=${offsetRange.end}]... "
+    )
 
     val res = filterStreamEntries(offsetRange) {
       val startEntryOffset = new SimpleEntry(config.streamKey, EntryID.UNRECEIVED_ENTRY)
@@ -39,7 +41,12 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
     withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
       // we don't need acknowledgement, if spark processing fails, it will request the same batch again
       val noAck = true
-      val response = conn.xreadGroup(config.groupName, config.consumerName, config.batchSize, config.block, noAck, startEntryOffset)
+      val response = conn.xreadGroup(config.groupName,
+        config.consumerName,
+        config.batchSize,
+        config.block,
+        noAck,
+        startEntryOffset)
       logDebug(s"Got entries: $response")
       response
     }

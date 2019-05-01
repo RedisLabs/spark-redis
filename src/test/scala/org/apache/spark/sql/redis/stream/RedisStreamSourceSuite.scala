@@ -6,7 +6,7 @@ import java.util.UUID
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.{Logging, Person}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.streaming.StreamingQuery
@@ -20,7 +20,7 @@ import scala.concurrent.duration.DurationLong
 /**
   * @author The Viet Nguyen
   */
-trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
+trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Logging {
 
   val AutoEntryId: EntryID = new EntryID() {
     override def toString: String = "*"
@@ -264,7 +264,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env {
 
     val query = queryWithOptions.start()
 
-    println(s"query id ${query.id}")
+    logInfo(s"query id ${query.id}")
     (spark, query)
   }
 
