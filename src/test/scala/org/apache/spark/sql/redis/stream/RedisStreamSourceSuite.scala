@@ -232,10 +232,8 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     try {
       body(spark)
     } finally {
-      println("=== STOPPING SPARK ... ====")
       query.stop()
       spark.stop()
-      println("=== STOPPED SPARK ====")
     }
   }
 
@@ -243,7 +241,6 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
                   extraReadOptions: Map[String, String],
                   extraWriteOptions: Map[String, String],
                   writeFormat: String): (SparkSession, StreamingQuery) = {
-    println("=== CREATING SPARK ====")
     val spark = SparkSession
       .builder
       .config(conf)
