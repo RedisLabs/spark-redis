@@ -284,7 +284,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging 
       .option(SqlOptionModel, SqlOptionModelBinary)
       .save()
     saveMap(tableName, extraKey, Person.dataMaps.head)
-    intercept[SparkException] {
+    interceptSparkErr[SparkException] {
       spark.read.format(RedisFormat)
         .schema(Person.fullSchema)
         .option(SqlOptionTableName, tableName)

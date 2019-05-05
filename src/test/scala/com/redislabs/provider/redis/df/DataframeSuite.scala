@@ -148,7 +148,7 @@ trait DataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .save()
     // the modified information should not be persisted
-    intercept[IllegalStateException] {
+    interceptSparkErr[IllegalStateException] {
       spark.createDataFrame(data.map(p => p.copy(age = p.age + 1)))
         .write.format(RedisFormat)
         .option(SqlOptionTableName, tableName)
