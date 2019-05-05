@@ -6,7 +6,7 @@ import java.util.UUID
 import com.redislabs.provider.redis.toRedisContext
 import com.redislabs.provider.redis.util.Person.{data, _}
 import com.redislabs.provider.redis.util.TestUtils._
-import com.redislabs.provider.redis.util.{EntityId, Person}
+import com.redislabs.provider.redis.util.{EntityId, Logging, Person}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
@@ -20,7 +20,7 @@ import scala.util.Random
   * @author The Viet Nguyen
   */
 // scalastyle:off multiple.string.literals
-trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
+trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging {
 
   import TestSqlImplicits._
 
