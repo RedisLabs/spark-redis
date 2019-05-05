@@ -1,11 +1,11 @@
 # Python
 
-The python support is currently limited to DataFrames only. Please, refer to scala [DataFrame documentation](dataframe.md) 
+Python support is currently limited to DataFrames only. Please, refer to Scala [DataFrame documentation](dataframe.md) 
 for the complete list of features.
 
 Here is an example:
 
-1. Run `pyspark` providing the spark-redis jar file 
+1. Run `pyspark` providing the Spark-Redis JAR file:
 
 ```bash
 $ ./bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar
@@ -17,8 +17,7 @@ By default it connects to `localhost:6379` without any password, you can change 
 $ bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
 ```
 
-
-2. Read DataFrame from json, write/read from Redis:
+2. Read DataFrame from JSON, write/read from Redis:
 ```python
 df = spark.read.json("examples/src/main/resources/people.json")
 df.write.format("org.apache.spark.sql.redis").option("table", "people").option("key.column", "name").save()

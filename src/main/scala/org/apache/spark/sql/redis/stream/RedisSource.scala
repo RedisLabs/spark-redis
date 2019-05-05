@@ -11,7 +11,7 @@ import org.apache.spark.sql.redis.stream.RedisSource._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
-import redis.clients.jedis.{EntryID, Jedis}
+import redis.clients.jedis.{StreamEntryID, Jedis}
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -41,9 +41,9 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       val offsetsByStreamKey = sourceConfig.start.map(_.offsets).getOrElse(Map())
       val streamKey = consumerConfig.streamKey
       val groupName = consumerConfig.groupName
-      val configOffsetOption = offsetsByStreamKey.get(streamKey).map(_.offset).map(new EntryID(_))
+      val configOffsetOption = offsetsByStreamKey.get(streamKey).map(_.offset).map(new StreamEntryID(_))
       withConnection(streamKey) { conn =>
-        createConsumerGroupIfNotExist(conn, streamKey, groupName, configOffsetOption.getOrElse(EntryID.LAST_ENTRY))
+        createConsumerGroupIfNotExist(conn, streamKey, groupName, configOffsetOption.getOrElse(StreamEntryID.LAST_ENTRY))
         // if config offset is defined, reset to its value
         configOffsetOption.foreach { offset =>
           resetConsumerGroup(conn, streamKey, groupName, offset)
@@ -120,7 +120,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private def resetConsumerGroupsIfHasOffset(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
     forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
-      offsetRange.start.map(new EntryID(_)).foreach { start =>
+      offsetRange.start.map(new StreamEntryID(_)).foreach { start =>
         val config = offsetRange.config
         resetConsumerGroup(conn, config.streamKey, config.groupName, start)
       }
@@ -145,8 +145,8 @@ object RedisSource {
   def getOffsetRanges(start: Option[Offset], end: Offset,
                       consumerConfigs: Seq[RedisConsumerConfig]): Seq[RedisSourceOffsetRange] = {
 
-    val offsetStarts = start.map(_.asInstanceOf[RedisSourceOffset]).map(_.offsets).getOrElse(Map())
-    val offsetEnds = end.asInstanceOf[RedisSourceOffset]
+    val offsetStarts = start.map(RedisSourceOffset.fromOffset).map(_.offsets).getOrElse(Map())
+    val offsetEnds = RedisSourceOffset.fromOffset(end)
     val configsByStreamKey = consumerConfigs.groupBy(_.streamKey)
 
     offsetEnds.offsets.flatMap { case (streamKey, offsetEnd) =>
