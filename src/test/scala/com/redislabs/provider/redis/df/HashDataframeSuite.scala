@@ -1,22 +1,26 @@
 package com.redislabs.provider.redis.df
 
 import java.sql.{Date, Timestamp}
+import java.util.UUID
 
 import com.redislabs.provider.redis.toRedisContext
 import com.redislabs.provider.redis.util.Person.{data, _}
 import com.redislabs.provider.redis.util.TestUtils._
-import com.redislabs.provider.redis.util.{EntityId, Person}
+import com.redislabs.provider.redis.util.{EntityId, Logging, Person}
 import org.apache.spark.SparkException
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
 import org.apache.spark.sql.redis._
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{StructField, _}
 import org.scalatest.Matchers
+
+import scala.util.Random
 
 /**
   * @author The Viet Nguyen
   */
-trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
+// scalastyle:off multiple.string.literals
+trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging {
 
   import TestSqlImplicits._
 
@@ -103,12 +107,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
     saveMap(tableName)
     val loadedDf = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, tableName + ":*")
-      .schema(StructType(Array(
-        StructField("name", StringType),
-        StructField("age", IntegerType),
-        StructField("address", StringType),
-        StructField("salary", DoubleType)
-      )))
+      .schema(Person.schema)
       .load()
       .cache()
     loadedDf.show()
@@ -293,6 +292,37 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers {
         .load()
         .collect()
     }
+  }
+
+  /**
+    * A test case for https://github.com/RedisLabs/spark-redis/issues/132
+    */
+  test("RedisSourceRelation.buildScan columns ordering") {
+    val schema = {
+      StructType(Array(
+        StructField("id", StringType),
+        StructField("int", IntegerType),
+        StructField("float", FloatType),
+        StructField("double", DoubleType),
+        StructField("str", StringType)))
+    }
+
+    val rowsNum = 8
+    val rdd = spark.sparkContext.parallelize(1 to rowsNum, 2).map { _ =>
+      def genStr = UUID.randomUUID().toString
+      def genInt = Random.nextInt()
+      def genDouble = Random.nextDouble()
+      def genFloat = Random.nextFloat()
+      Row.fromSeq(Seq(genStr, genInt, genFloat, genDouble, genStr))
+    }
+
+    val df = spark.createDataFrame(rdd, schema)
+    val tableName = generateTableName("cols-ordering")
+    df.write.format(RedisFormat).option(SqlOptionTableName, tableName).save()
+    val loadedDf = spark.read.format(RedisFormat).option(SqlOptionTableName, tableName).load()
+    loadedDf.schema shouldBe schema
+    loadedDf.collect().length shouldBe rowsNum
+    loadedDf.show()
   }
 
   def saveMap(tableName: String): Unit = {

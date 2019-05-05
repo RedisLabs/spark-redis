@@ -6,7 +6,10 @@ import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
+import com.redislabs.provider.redis.{
+  ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString,
+  RedisEndpoint, RedisNode, toRedisContext
+}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -157,13 +160,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         new GenericRow(Array[Any]())
       }
     } else {
-      val filteredSchema = {
-        val requiredColumnsSet = Set(requiredColumns: _*)
-        val filteredFields = schema.fields
-          .filter { f =>
-            requiredColumnsSet.contains(f.name)
-          }
-        StructType(filteredFields)
+      // filter schema columns, it should be in the same order as given 'requiredColumns'
+      val requiredSchema = {
+        val fieldsMap = schema.fields.map(f => (f.name, f)).toMap
+        val requiredFields = requiredColumns.map { c =>
+          fieldsMap(c)
+        }
+        StructType(requiredFields)
       }
       val keyType =
         if (persistenceModel == SqlOptionModelBinary) {
@@ -173,12 +176,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         }
       keysRdd.mapPartitions { partition =>
         // grouped iterator to only allocate memory for a portion of rows
-        partition.grouped(iteratorGroupingSize).map { batch =>
+        partition.grouped(iteratorGroupingSize).flatMap { batch =>
           groupKeysByNode(redisConfig.hosts, batch.iterator)
             .flatMap { case (node, keys) =>
-              scanRows(node, keys, keyType, filteredSchema, requiredColumns)
+              scanRows(node, keys, keyType, requiredSchema, requiredColumns)
             }
-        }.flatten
+        }
       }
     }
   }
@@ -261,7 +264,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val schemaBytes = conn.get(key.getBytes)
     if (schemaBytes == null) {
       throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
-        s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() or use 'infer.schema' option. ")
+        s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() " +
+        s"or use 'infer.schema' option. ")
     }
     val schema = SerializationUtils.deserialize[StructType](schemaBytes)
     conn.close()

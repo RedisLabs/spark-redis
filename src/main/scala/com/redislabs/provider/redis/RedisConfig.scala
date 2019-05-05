@@ -26,7 +26,8 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   extends Serializable {
 
   /**
-    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth and spark.redis.db
+    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth and
+    * spark.redis.db
     *
     * @param conf spark context config
     */

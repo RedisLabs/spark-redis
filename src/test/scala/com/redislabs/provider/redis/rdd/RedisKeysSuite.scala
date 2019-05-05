@@ -10,7 +10,7 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
 
   implicit val readWriteConfig: ReadWriteConfig = ReadWriteConfig.Default
 
-  test("getKeys - cluster") {
+  test("getKeys") {
     val returnedKeys = getKeys(redisConfig.hosts, 0, 1024, "*")
       .toArray.sorted
 
@@ -26,7 +26,7 @@ trait RedisKeysSuite extends RedisRddSuite with Keys with Matchers {
     returnedKeys should be(targetKeys)
   }
 
-  test("groupKeysByNode - cluster") {
+  test("groupKeysByNode") {
     val allkeys = getKeys(redisConfig.hosts, 0, 16383, "*")
     val nodeKeysPairs = groupKeysByNode(redisConfig.hosts, allkeys)
     val returnedCnt = nodeKeysPairs.map { x =>
