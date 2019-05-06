@@ -7,13 +7,13 @@ The `Makefile` expects that Redis binaries (`redis-server` and`redis-cli`) are i
 
 To build Spark-Redis and run tests, run:
 
-```shell
+```
 make package
 ```
 
 To run tests:
 
-```shell
+```
 make test
 ```
 
@@ -22,6 +22,6 @@ instances, run `make stop`.
 
 To build Spark-Redis skipping tests, run:
 
-```shell
+```
 mvn clean package -DskipTests
 ```
