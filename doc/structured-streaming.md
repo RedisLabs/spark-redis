@@ -39,6 +39,53 @@ xadd sensors * sensor-id 2 temperature 30.5
 xadd sensors * sensor-id 1 temperature 28.3
 ```
 
+### Output to Redis
+
+There is no Redis Sink available, but you can leverage [`foreachBatch`](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#foreachbatch) and [DataFrame](dataframe.md) write command to output 
+stream into Redis. Please note, `foreachBatch` is only available starting from Spark 2.4.0.
+
+```scala
+val query = sensors
+  .writeStream
+  .outputMode("update")
+  .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
+    batchDF
+      .write
+      .format("org.apache.spark.sql.redis")
+      .option("table", "output")
+      .mode(SaveMode.Append)
+      .save()
+  }
+  .start()
+
+query.awaitTermination()
+``` 
+
+After writing the following to the Redis Stream:
+```
+xadd sensors * sensor-id 1 temperature 28.1
+xadd sensors * sensor-id 2 temperature 30.5
+xadd sensors * sensor-id 1 temperature 28.3
+```
+
+there will be the output `keys output:*`:
+```
+1) "output:b1682af092b9467cb13cfdcf7fcc9835"
+2) "output:04c80769320f4edeadcce8381a6f834d"
+3) "output:4f04070a2fd548fdbea441b694c8673b"
+```
+
+`hgetall output:b1682af092b9467cb13cfdcf7fcc9835`:
+
+```
+1) "sensor-id"
+2) "2"
+3) "temperature"
+4) "30.5"
+```
+
+Please refer to [DataFrame docs](dataframe.md) for different options(such as specifying key name) available for writing .
+
 ### Stream Offset
 
 By default it pulls messages starting from the latest message in the stream. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
