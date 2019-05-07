@@ -91,7 +91,7 @@ df.write
 ### Create Stream
 
 ```scala
-import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.streaming._
 
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStream(Array("foo", "bar"),
