@@ -7,7 +7,7 @@
     <dependency>
       <groupId>com.redislabs</groupId>
       <artifactId>spark-redis</artifactId>
-      <version>2.3.1</version>
+      <version>2.4.0</version>
     </dependency>
   </dependencies>
 ```
