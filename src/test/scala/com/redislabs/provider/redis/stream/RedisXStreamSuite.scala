@@ -3,7 +3,8 @@ package com.redislabs.provider.redis.stream
 import com.redislabs.provider.redis.streaming.{ConsumerConfig, Earliest}
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.TestUtils
-import com.redislabs.provider.redis.{SparkStreamingRedisSuite, _}
+import com.redislabs.provider.redis.SparkStreamingRedisSuite
+import com.redislabs.provider.redis.streaming._
 import org.apache.spark.storage.StorageLevel
 import org.scalatest.Matchers
 import org.scalatest.concurrent.Eventually._
