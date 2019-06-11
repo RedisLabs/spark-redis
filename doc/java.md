@@ -29,6 +29,9 @@ redisContext.toRedisKV(rdd.rdd(), ttl, redisConfig, readWriteConfig);
 
 ``` 
 
+> **NOTE**: Prior to Spark-Redis 2.3.1 the configuration parameters are not prefixed with `spark.`, i.e. use `redis.host` instead of `spark.redis.host`.
+
+
 ## Datasets and DataFrames
 
 The Dataset/DataFrame API is the same in Java and Scala. Please, refer to [DataFrame page](dataframe.md) for details. Here is an
