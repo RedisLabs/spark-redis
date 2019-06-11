@@ -2,6 +2,8 @@ The supported configuration parameters are:
 
 ## Spark Context configuration parameters
 
+> **NOTE**: Prior to Spark-Redis 2.3.1 the configuration parameters are not prefixed with `spark.`, i.e. use `redis.host` instead of `spark.redis.host`.
+
 * `spark.redis.host` - host or IP of the initial node we connect to. The connector will read the cluster
 topology from the initial node, so there is no need to provide the rest of the cluster nodes.
 * `spark.redis.port` - the inital node's TCP redis port.

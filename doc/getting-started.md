@@ -33,6 +33,7 @@ By default it connects to `localhost:6379` without any password, you can change 
 $ bin/spark-shell --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
 ```
 
+> **NOTE**: Prior to Spark-Redis 2.3.1 the configuration parameters are not prefixed with `spark.`, i.e. use `redis.host` instead of `spark.redis.host`.
 
 ### Configuring connection to Redis in a self-contained application
 
@@ -54,6 +55,8 @@ val sc = new SparkContext(new SparkConf()
       .set("spark.redis.auth", "passwd")
   )
 ```
+
+> **NOTE**: Prior to Spark-Redis 2.3.1 the configuration parameters are not prefixed with `spark.`, i.e. use `redis.host` instead of `spark.redis.host`.
 
 The SparkSession can be configured in a similar manner:
 
