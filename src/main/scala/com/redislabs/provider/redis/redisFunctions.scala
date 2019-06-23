@@ -1,13 +1,9 @@
 package com.redislabs.provider.redis
 
-import com.redislabs.provider.redis.streaming.{ConsumerConfig, RedisInputDStream, RedisStreamReceiver, StreamItem}
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import com.redislabs.provider.redis.rdd._
 import com.redislabs.provider.redis.util.PipelineUtils._
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.dstream.InputDStream
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -15,6 +11,8 @@ import org.apache.spark.streaming.dstream.InputDStream
   * @param sc a spark context
   */
 class RedisContext(@transient val sc: SparkContext) extends Serializable {
+
+  val IncorrectKeysOrKeyPatternMsg = "KeysOrKeyPattern should be String or Array[String]"
 
   import com.redislabs.provider.redis.RedisContext._
 
@@ -60,7 +58,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getKV()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getKV()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -78,7 +76,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getList()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getList()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -96,7 +94,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getSet()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getSet()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -114,7 +112,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getHash()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getHash()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -132,7 +130,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSet()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSet()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -150,7 +148,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSetWithScore()
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSetWithScore()
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -172,7 +170,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSetByRange(start, end)
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSetByRange(start, end)
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -194,7 +192,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSetByRangeWithScore(start, end)
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSetByRangeWithScore(start, end)
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -216,7 +214,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSetByScore(min, max)
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSetByScore(min, max)
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -238,7 +236,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
     keysOrKeyPattern match {
       case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum).getZSetByScoreWithScore(min, max)
       case keys: Array[String] => fromRedisKeys(keys, partitionNum).getZSetByScoreWithScore(min, max)
-      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+      case _ => throw new scala.Exception(IncorrectKeysOrKeyPatternMsg)
     }
   }
 
@@ -348,7 +346,8 @@ object RedisContext extends Serializable {
     *            save all the k/vs to hashName(list type) to the target host
     * @param ttl time to live
     */
-  def setHash(hashName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+  def setHash(hashName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val conn = redisConfig.connectionForKey(hashName)
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
@@ -365,7 +364,8 @@ object RedisContext extends Serializable {
     *            save all the k/vs to zsetName(zset type) to the target host
     * @param ttl time to live
     */
-  def setZset(zsetName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+  def setZset(zsetName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val conn = redisConfig.connectionForKey(zsetName)
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
@@ -382,7 +382,8 @@ object RedisContext extends Serializable {
     *            save all the values to setName(set type) to the target host
     * @param ttl time to live
     */
-  def setSet(setName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+  def setSet(setName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig,
+             readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val conn = redisConfig.connectionForKey(setName)
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
@@ -399,7 +400,11 @@ object RedisContext extends Serializable {
     *            save all the values to listName(list type) to the target host
     * @param ttl time to live
     */
-  def setList(listName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+  def setList(listName: String,
+              arr: Iterator[String],
+              ttl: Int,
+              redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val conn = redisConfig.connectionForKey(listName)
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
@@ -416,7 +421,11 @@ object RedisContext extends Serializable {
     * @param arr values which should be saved in the target host
     *            save all the values to listName(list type) to the target host
     */
-  def setFixedList(key: String, listSize: Int, arr: Iterator[String], redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+  def setFixedList(key: String,
+                   listSize: Int,
+                   arr: Iterator[String],
+                   redisConfig: RedisConfig,
+                   readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val conn = redisConfig.connectionForKey(key)
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
@@ -430,46 +439,9 @@ object RedisContext extends Serializable {
   }
 }
 
-/**
-  * RedisStreamingContext extends StreamingContext's functionality with Redis
-  *
-  * @param ssc a spark StreamingContext
-  */
-class RedisStreamingContext(@transient val ssc: StreamingContext) extends Serializable {
-  /**
-    * @param keys         an Array[String] which consists all the Lists we want to listen to
-    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
-    * @return a stream of (listname, value)
-    */
-  def createRedisStream(keys: Array[String],
-                        storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
-                       (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)) = {
-    new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[(String, String)])
-  }
-
-  /**
-    * @param keys         an Array[String] which consists all the Lists we want to listen to
-    * @param storageLevel the receiver' storage tragedy of received data, default as MEMORY_AND_DISK_2
-    * @return a stream of (value)
-    */
-  def createRedisStreamWithoutListname(keys: Array[String],
-                                       storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
-                                      (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)) = {
-    new RedisInputDStream(ssc, keys, storageLevel, redisConfig, classOf[String])
-  }
-
-  def createRedisXStream(consumersConfig: Seq[ConsumerConfig],
-                         storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_2)
-                        (implicit redisConfig: RedisConfig = RedisConfig.fromSparkConf(ssc.sparkContext.getConf)): InputDStream[StreamItem] = {
-    val readWriteConfig = ReadWriteConfig.fromSparkConf(ssc.sparkContext.getConf)
-    val receiver = new RedisStreamReceiver(consumersConfig, redisConfig, readWriteConfig, storageLevel)
-    ssc.receiverStream(receiver)
-  }
-}
-
 trait RedisFunctions {
+
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
 
-  implicit def toRedisStreamingContext(ssc: StreamingContext): RedisStreamingContext = new RedisStreamingContext(ssc)
 }
 

@@ -7,7 +7,7 @@
     <dependency>
       <groupId>com.redislabs</groupId>
       <artifactId>spark-redis</artifactId>
-      <version>2.3.1</version>
+      <version>2.4.0</version>
     </dependency>
   </dependencies>
 ```
@@ -91,7 +91,7 @@ df.write
 ### Create Stream
 
 ```scala
-import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.streaming._
 
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStream(Array("foo", "bar"),

@@ -210,7 +210,7 @@ class RedisKeysRDD(sc: SparkContext,
       hosts.map(x => (x.endpoint.host, x.endpoint.port, x.startSlot, x.endSlot))
     } else if (hosts.size < partitionNum) {
       val presExtCnt = partitionNum / hosts.size
-      val lastExtCnt = if (presExtCnt * hosts.size < partitionNum) (presExtCnt + 1) else presExtCnt
+      val lastExtCnt = if (presExtCnt * hosts.size < partitionNum) (presExtCnt + partitionNum % hosts.size) else presExtCnt
       hosts.zipWithIndex.flatMap {
         case (host, idx) => {
           split(host, if (idx == hosts.size - 1) lastExtCnt else presExtCnt)
