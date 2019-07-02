@@ -37,7 +37,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionModel, SqlOptionModelBinary)
       .option(SqlOptionTableName, tableName)
       .save()
-    intercept[SparkException] {
+    interceptSparkErr[SparkException] {
       spark.read.format(RedisFormat)
         .option(SqlOptionTableName, tableName)
         .load()
@@ -51,7 +51,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
     df.write.format(RedisFormat)
       .option(SqlOptionTableName, tableName)
       .save()
-    intercept[SparkException] {
+    interceptSparkErr[SparkException] {
       spark.read.format(RedisFormat)
         .option(SqlOptionModel, SqlOptionModelBinary)
         .option(SqlOptionTableName, tableName)
@@ -93,7 +93,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionModel, SqlOptionModelHash)
       .save()
     saveMap(tableName, RedisSourceRelation.uuid(), Person.dataMaps.head)
-    intercept[SparkException] {
+    interceptSparkErr[SparkException] {
       spark.read.format(RedisFormat)
         .option(SqlOptionTableName, tableName)
         .option(SqlOptionModel, SqlOptionModelHash)

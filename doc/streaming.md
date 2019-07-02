@@ -10,7 +10,7 @@ Spark-Redis supports streaming data from Stream and List data structures:
 To stream data from [Redis Stream](https://redis.io/topics/streams-intro) use `createRedisXStream` method (added in Spark-Redis 2.3.1):
 
 ```scala
-import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.streaming._
 import com.redislabs.provider.redis.streaming.{ConsumerConfig, StreamItem}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.dstream.InputDStream
@@ -115,7 +115,7 @@ Use the following to get a `(listName, value)` stream from `foo` and `bar` list
 ```scala
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.storage.StorageLevel
-import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.streaming._
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStream(Array("foo", "bar"), storageLevel = StorageLevel.MEMORY_AND_DISK_2)
 redisStream.print()
@@ -128,7 +128,7 @@ Use the following to get a `value` stream from `foo` and `bar` list
 ```scala
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.storage.StorageLevel
-import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.streaming._
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStreamWithoutListname(Array("foo", "bar"), storageLevel = StorageLevel.MEMORY_AND_DISK_2)
 redisStream.print()

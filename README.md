@@ -44,6 +44,7 @@ This library is a work in progress so the API may change before the official rel
   - [Java](doc/java.md)
   - [Python](doc/python.md)
   - [Configuration](doc/configuration.md)
+  - [Dev environment](doc/dev.md)
 
 ## Contributing
 
