@@ -35,7 +35,7 @@ This library is a work in progress so the API may change before the official rel
 
 ## Documentation
 
-Please make sure you use documentation from the correct branch ([2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4), [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3), etc). 
+Please make sure you use documentation from the correct branch ([2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4#documentation), [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3#documentation), etc). 
 
   - [Getting Started](doc/getting-started.md)
   - [RDD](doc/rdd.md)
