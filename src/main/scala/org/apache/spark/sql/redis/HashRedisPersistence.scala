@@ -23,7 +23,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
     }
   }
 
-  override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit = {
+  override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): AnyRef = {
     pipeline.hmget(key, requiredColumns: _*)
   }
 

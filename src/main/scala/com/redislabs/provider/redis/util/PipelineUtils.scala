@@ -3,7 +3,7 @@ package com.redislabs.provider.redis.util
 import java.util.{List => JList}
 
 import com.redislabs.provider.redis.ReadWriteConfig
-import redis.clients.jedis.{Jedis, Pipeline}
+import redis.clients.jedis.{Jedis, Pipeline, Response}
 
 import scala.collection.JavaConverters._
 import scala.collection.{TraversableOnce, mutable}
@@ -22,9 +22,9 @@ object PipelineUtils {
     * @param f               function to applied for each item in the sequence
     * @return response from the server
     */
-  def mapWithPipeline[A](conn: Jedis, items: TraversableOnce[A])(f: (Pipeline, A) => Unit)
-                        (implicit readWriteConfig: ReadWriteConfig): Seq[AnyRef] = {
-    val totalResp = mutable.ListBuffer[JList[AnyRef]]()
+  def mapWithPipeline[A, B](conn: Jedis, items: TraversableOnce[A])(f: (Pipeline, A) => Response[B])
+                        (implicit readWriteConfig: ReadWriteConfig): Seq[B] = {
+    val totalResp = mutable.ListBuffer[JList[B]]()
 
     // iterate over items and create new pipelines periodically
     var i = 0
@@ -34,7 +34,7 @@ object PipelineUtils {
       i = i + 1
       if (i % readWriteConfig.maxPipelineSize == 0) {
         val resp = pipeline.syncAndReturnAll()
-        totalResp += resp
+        totalResp += resp.asInstanceOf[JList[B]]
         pipeline = conn.pipelined()
       }
     }
@@ -42,7 +42,7 @@ object PipelineUtils {
     // sync remaining items
     if (i % readWriteConfig.maxPipelineSize != 0) {
       val resp = pipeline.syncAndReturnAll()
-      totalResp += resp
+      totalResp += resp.asInstanceOf[JList[B]]
     }
 
     totalResp.flatMap(_.asScala)

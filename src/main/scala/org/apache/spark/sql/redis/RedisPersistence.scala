@@ -2,7 +2,7 @@ package org.apache.spark.sql.redis
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
-import redis.clients.jedis.Pipeline
+import redis.clients.jedis.{Pipeline, Response}
 
 /**
   * @author The Viet Nguyen
@@ -11,7 +11,7 @@ trait RedisPersistence[T] extends Serializable {
 
   def save(pipeline: Pipeline, key: String, value: T, ttl: Int): Unit
 
-  def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit
+  def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): AnyRef
 
   /**
     * Encode dataframe row before storing it in Redis.

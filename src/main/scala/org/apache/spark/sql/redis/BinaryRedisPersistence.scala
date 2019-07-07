@@ -6,7 +6,7 @@ import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
-import redis.clients.jedis.Pipeline
+import redis.clients.jedis.{Pipeline, Response}
 
 /**
   * @author The Viet Nguyen
@@ -22,7 +22,7 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
     }
   }
 
-  override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit =
+  override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): AnyRef =
     pipeline.get(key.getBytes(UTF_8))
 
   override def encodeRow(keyName: String, value: Row): Array[Byte] = {

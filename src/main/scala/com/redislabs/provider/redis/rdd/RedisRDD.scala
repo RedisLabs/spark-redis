@@ -42,7 +42,7 @@ class RedisKVRDD(prev: RDD[String],
       val response = mapWithPipeline(conn, stringKeys) { (pipeline, key) =>
         pipeline.get(key)
       }
-      val res = stringKeys.zip(response).iterator.asInstanceOf[Iterator[(String, String)]]
+      val res = stringKeys.zip(response).iterator
       conn.close()
       res
     }
@@ -465,6 +465,16 @@ trait Keys {
     */
   def groupKeysByNode(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(RedisNode, Array[String])] = {
     keys.map(key => (getMasterNode(nodes, key), key)).toArray.groupBy(_._1).
+      map(x => (x._1, x._2.map(_._2))).iterator
+  }
+
+  /**
+    * @param nodes list of RedisNode
+    * @param keyVals  list of (key, value) pairs
+    * @return (node: ((key1, val1), (key2, val2), ...), node2: ((key3, val3), (key4, val4),...), ...)
+    */
+  def groupKeyValuesByNode[A](nodes: Array[RedisNode], keyVals: Iterator[(String, A)]): Iterator[(RedisNode, Array[(String, A)])] = {
+    keyVals.map{ case (key, v) => (getMasterNode(nodes, key), (key, v))}.toArray.groupBy(_._1).
       map(x => (x._1, x._2.map(_._2))).iterator
   }
 

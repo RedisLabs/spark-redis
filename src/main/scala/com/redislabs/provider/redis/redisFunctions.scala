@@ -2,8 +2,9 @@ package com.redislabs.provider.redis
 
 import com.redislabs.provider.redis.rdd._
 import com.redislabs.provider.redis.util.PipelineUtils._
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
+import redis.clients.jedis.{Pipeline, Response}
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -439,9 +440,39 @@ object RedisContext extends Serializable {
   }
 }
 
+class RddExtension[A](rdd: RDD[(String, A)]) extends Keys with Serializable {
+
+  val conf: SparkConf = rdd.sparkContext.getConf
+
+  /**
+    * Applies a function to all elements of this RDD.
+    * The function takes a pipeline object and pair of (key, value).
+    *
+    * The key argument should be provided to a pipeline call as a Redis key.
+    *
+    * @param f function to apply
+    * @return keys zipped with execution result
+    */
+  def mapWithRedis[B](f: (Pipeline, (String, A)) => Response[B])(implicit
+                                                       redisConfig: RedisConfig = RedisConfig.fromSparkConf(conf),
+                                                       readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(conf)): RDD[(String, B)] = {
+    rdd.mapPartitions { keyVals =>
+      groupKeyValuesByNode(redisConfig.hosts, keyVals).flatMap { case (node, nodeKeyVals) =>
+        val conn = node.endpoint.connect()
+        val pipelineResponse = mapWithPipeline(conn, nodeKeyVals)(f)
+        val keys = nodeKeyVals.map(_._1)
+        val res = keys.zip(pipelineResponse)
+        conn.close()
+        res
+      }
+    }
+  }
+}
+
 trait RedisFunctions {
 
   implicit def toRedisContext(sc: SparkContext): RedisContext = new RedisContext(sc)
 
+  implicit def toRddExtension[A](rdd: RDD[(String, A)]): RddExtension[A] = new RddExtension[A](rdd)
 }
 
