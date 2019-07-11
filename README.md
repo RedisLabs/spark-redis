@@ -19,11 +19,11 @@ Spark-Redis also supports Spark Streaming (DStreams) and Structured Streaming.
 The library has several branches, each corresponds to a different supported Spark version. For example, 'branch-2.3' works with any Spark 2.3.x version.
 The master branch contains the recent development for the next release.
 
-| Spark-Redis | Spark         | Redis            | Supported Scala Versions | 
-| ----------- | ------------- | ---------------- | ------------------------ |
-| 2.4         | 2.4.x         | >=2.9.0          | 2.11                     | 
-| 2.3         | 2.3.x         | >=2.9.0          | 2.11                     | 
-| 1.4         | 1.4.x         |                  | 2.10                     | 
+| Spark-Redis                                                     | Spark         | Redis            | Supported Scala Versions | 
+| ----------------------------------------------------------------| ------------- | ---------------- | ------------------------ |
+| [2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x         | >=2.9.0          | 2.11                     | 
+| [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3) | 2.3.x         | >=2.9.0          | 2.11                     | 
+| [1.4](https://github.com/RedisLabs/spark-redis/tree/branch-1.4) | 1.4.x         |                  | 2.10                     | 
 
 
 ## Known limitations
@@ -34,6 +34,8 @@ The master branch contains the recent development for the next release.
 This library is a work in progress so the API may change before the official release.
 
 ## Documentation
+
+Please make sure you use documentation from the correct branch ([2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4#documentation), [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3#documentation), etc). 
 
   - [Getting Started](doc/getting-started.md)
   - [RDD](doc/rdd.md)
