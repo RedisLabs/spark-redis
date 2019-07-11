@@ -24,7 +24,7 @@ $ bin/pyspark --jars <path-to>/spark-redis-<version>-jar-with-dependencies.jar -
 ```python
 df = spark.read.json("examples/src/main/resources/people.json")
 df.write.format("org.apache.spark.sql.redis").option("table", "people").option("key.column", "name").save()
-loadedDf = spark.read.format("org.apache.spark.sql.redis").option("table", "people").load()
+loadedDf = spark.read.format("org.apache.spark.sql.redis").option("table", "people").option("key.column", "name").load()
 loadedDf.show()
 ```
 
@@ -34,8 +34,6 @@ loadedDf.show()
 127.0.0.1:6379> hgetall people:Justin
 1) "age"
 2) "19"
-3) "name"
-4) "Justin"
 ```
 
 The self-contained application can be configured in the following manner:
