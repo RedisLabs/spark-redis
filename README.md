@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis)
 [![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis)
+[![Gitter](https://badges.gitter.im/RedisLabs/spark-redis.svg)](https://gitter.im/RedisLabs/spark-redis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 <!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
 # Spark-Redis
