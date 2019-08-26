@@ -2,8 +2,6 @@ sudo: required
 language: scala
 jdk:
     - openjdk8
-scala:
-    - 2.11.2
 install:
     - wget http://download.redis.io/releases/redis-5.0.1.tar.gz
     - tar -xzvf redis-5.0.1.tar.gz
