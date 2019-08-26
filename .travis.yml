@@ -9,6 +9,7 @@ install:
     - export PATH=$PWD/redis-5.0.1/src:$PATH
 script:
     - make test MVN_EXTRA_OPTS="-P scala-2.12"
+    - make test
 cache:
     directories:
         - $HOME/.m2
