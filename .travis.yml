@@ -8,7 +8,6 @@ install:
     - make -C redis-5.0.1 -j4
     - export PATH=$PWD/redis-5.0.1/src:$PATH
 script:
-    - make test
     - make test MVN_EXTRA_OPTS="-P scala-2.12"
 cache:
     directories:
