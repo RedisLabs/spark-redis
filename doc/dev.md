@@ -25,3 +25,9 @@ To build Spark-Redis skipping tests, run:
 ```
 mvn clean package -DskipTests
 ```
+
+To change scala version use corresponding Maven profile, e.g:
+
+```
+mvn -P scala-2.12 clean package -DskipTests
+```

@@ -134,7 +134,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data.foreachPartition { partition =>
+    data.foreachPartition { partition: Iterator[Row] =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
         // the following can be optimized to not create a map
