@@ -1,3 +1,6 @@
+# extra Maven options
+MVN_EXTRA_OPTS=
+
 # STANDALONE REDIS NODE
 define REDIS_STANDALONE_NODE_CONF
 daemonize yes
@@ -93,22 +96,22 @@ test:
 	make start
 	# with --batch-mode maven doesn't print 'Progress: 125/150kB', the progress lines take up 90% of the log and causes
 	# Travis build to fail with 'The job exceeded the maximum log length, and has been terminated'
-	mvn clean test -B
+	mvn $(MVN_EXTRA_OPTS) clean test -B
 	make stop
 
 benchmark:
 	make start
-	mvn clean test -B -Pbenchmark
+	mvn $(MVN_EXTRA_OPTS) clean test -B -Pbenchmark
 	make stop
 
 deploy:
 	make start
-	mvn --batch-mode clean deploy
+	mvn $(MVN_EXTRA_OPTS) --batch-mode clean deploy
 	make stop
 
 package:
 	make start
-	mvn --batch-mode clean package
+	mvn $(MVN_EXTRA_OPTS) --batch-mode clean package
 	make stop
 
 .PHONY: test
