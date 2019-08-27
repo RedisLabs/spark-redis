@@ -8,11 +8,10 @@ install:
     - make -C redis-5.0.1 -j4
     - export PATH=$PWD/redis-5.0.1/src:$PATH
 script:
-    - make test MVN_EXTRA_OPTS="-P scala-2.12"
-    - ps aux | grep redis
+    - make test MVN_EXTRA_OPTS="-P scala-2.12" # test with scala 2.12
     - sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
     - ps aux | grep redis
-    - make test
+    - make test # test with the default scala version defined in pom.xml
 cache:
     directories:
         - $HOME/.m2

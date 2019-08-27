@@ -31,3 +31,9 @@ To change scala version use corresponding Maven profile, e.g:
 ```
 mvn -P scala-2.12 clean package -DskipTests
 ```
+
+or with make:
+
+```
+make package MVN_EXTRA_OPTS="-P scala-2.12"
+```
