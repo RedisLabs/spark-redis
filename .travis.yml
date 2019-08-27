@@ -10,10 +10,9 @@ install:
 script:
     - make test MVN_EXTRA_OPTS="-P scala-2.12"
     - ps aux | grep redis
-    - make stop
+    - sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
     - ps aux | grep redis
     - make test
-    - ps aux | grep redis
 cache:
     directories:
         - $HOME/.m2

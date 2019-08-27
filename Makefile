@@ -74,16 +74,16 @@ start:
 	make start-cluster
 
 stop-standalone:
-    ps aux | grep redis
-    cat /tmp/redis_standalone_node_for_spark-redis.pid
+	ps aux | grep redis
+	cat /tmp/redis_standalone_node_for_spark-redis.pid
 	kill `cat /tmp/redis_standalone_node_for_spark-redis.pid`
 	ps aux | grep redis
 
 stop-cluster:
-    ps aux | grep redis
-    cat /tmp/redis_cluster_node1_for_spark-redis.pid
-    cat /tmp/redis_cluster_node2_for_spark-redis.pid
-    cat /tmp/redis_cluster_node3_for_spark-redis.pid
+	ps aux | grep redis
+	cat /tmp/redis_cluster_node1_for_spark-redis.pid
+	cat /tmp/redis_cluster_node2_for_spark-redis.pid
+	cat /tmp/redis_cluster_node3_for_spark-redis.pid
 	kill `cat /tmp/redis_cluster_node1_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node2_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node3_for_spark-redis.pid` || true
