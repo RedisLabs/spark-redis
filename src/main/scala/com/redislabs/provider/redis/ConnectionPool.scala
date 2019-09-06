@@ -23,7 +23,7 @@ object ConnectionPool {
         poolConfig.setMinEvictableIdleTimeMillis(60000)
         poolConfig.setTimeBetweenEvictionRunsMillis(30000)
         poolConfig.setNumTestsPerEvictionRun(-1)
-        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum)
+        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum, re.ssl)
       }
     )
     var sleepTime: Int = 4
