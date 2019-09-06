@@ -1,5 +1,6 @@
 hs_err_pid*.log
 nohup.out
+scalastyle-output.xml
 .idea
 *.iml
 **/.idea
@@ -32,3 +33,11 @@ src_managed/
 project/boot/
 project/plugins/project/
 build/*.jar
+
+# eclipse
+.project
+.classpath
+/.settings/
+
+# Redis
+dump.rdb
