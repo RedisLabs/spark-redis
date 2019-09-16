@@ -8,6 +8,7 @@ import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.SparkException
 import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
 import org.apache.spark.sql.redis._
+import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
 import org.scalatest.Matchers
 
 /**
@@ -100,6 +101,20 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
         .load()
         .collect()
     }
+  }
+
+  test("read dataframe by non-existing key (not pattern)") {
+    val df = spark.read.format(RedisFormat)
+      .option(SqlOptionKeysPattern, "some-non-existing-key")
+      .schema(StructType(Array(
+        StructField("id", IntegerType),
+        StructField("value", IntegerType)
+      )))
+      .load()
+      .cache()
+
+    df.show()
+    df.count() should be (0)
   }
 
   def serialize(value: Map[String, String]): Array[Byte] = {
