@@ -106,6 +106,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
   test("read dataframe by non-existing key (not pattern)") {
     val df = spark.read.format(RedisFormat)
       .option(SqlOptionKeysPattern, "some-non-existing-key")
+      .option(SqlOptionModel, SqlOptionModelBinary)
       .schema(StructType(Array(
         StructField("id", IntegerType),
         StructField("value", IntegerType)
