@@ -1,8 +1,7 @@
 package com.redislabs.provider.redis
 
-import redis.clients.jedis.{JedisPoolConfig, Jedis, JedisPool}
+import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 import redis.clients.jedis.exceptions.JedisConnectionException
-
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConversions._
@@ -14,7 +13,7 @@ object ConnectionPool {
   def connect(re: RedisEndpoint): Jedis = {
     val pool = pools.getOrElseUpdate(re,
       {
-        val poolConfig: JedisPoolConfig = new JedisPoolConfig();
+        val poolConfig: RedisTLSConfig = new RedisTLSConfig();
         poolConfig.setMaxTotal(250)
         poolConfig.setMaxIdle(32)
         poolConfig.setTestOnBorrow(false)
