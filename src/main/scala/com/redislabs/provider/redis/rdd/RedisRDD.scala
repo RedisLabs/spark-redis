@@ -374,7 +374,7 @@ trait Keys {
     * @param key
     * @return true if the key is a RedisRegex
     */
-  private def isRedisRegex(key: String) = {
+  def isRedisRegex(key: String): Boolean = {
     def judge(key: String, escape: Boolean): Boolean = {
       if (key.length == 0) {
         false
