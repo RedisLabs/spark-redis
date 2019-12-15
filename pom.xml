@@ -49,7 +49,7 @@
 		<java.version>1.8</java.version>
 		<scala.major.version>2.11</scala.major.version>
 		<scala.complete.version>${scala.major.version}.12</scala.complete.version>
-		<jedis.version>3.1.0-m1</jedis.version>
+		<jedis.version>3.2.0</jedis.version>
 		<spark.version>2.4.1</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
