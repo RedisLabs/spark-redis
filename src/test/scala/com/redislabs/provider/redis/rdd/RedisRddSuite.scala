@@ -1,7 +1,9 @@
 package com.redislabs.provider.redis.rdd
 
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.{RedisConfig, SparkRedisSuite, toRedisContext}
 import org.scalatest.Matchers
+import scala.collection.JavaConverters._
 
 import scala.io.Source.fromInputStream
 
@@ -107,6 +109,27 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     val setContents = redisSetRDD.sortBy(x => x).collect
     val ws = content.split("\\W+").filter(!_.isEmpty).distinct.sorted
     setContents should be(ws)
+  }
+
+  test("toRedisLIST, byte array") {
+    val list1 = Seq("a1", "b1", "c1")
+    val list2 = Seq("a2", "b2", "c2")
+    val keyValues = Seq(
+      ("list1", list1),
+      ("list2", list2)
+    )
+    val keyValueBytes = keyValues.map {case (k, list) => (k.getBytes, list.map(_.getBytes())) }
+    val rdd = sc.parallelize(keyValueBytes)
+    sc.toRedisByteLIST(rdd)
+
+    def verify(list: String, vals: Seq[String]): Unit = {
+      withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
+        conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
+      }
+    }
+
+    verify("list1", list1)
+    verify("list2", list2)
   }
 
   test("Expire") {
