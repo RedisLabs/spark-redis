@@ -301,12 +301,10 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
-    * TODO: name, doc!
+    * Write RDD of binary values to Redis List.
     *
-    * @param rdd
-    * @param ttl
-    * @param redisConfig
-    * @param readWriteConfig
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
     */
   def toRedisByteLIST(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
                      (implicit
