@@ -24,14 +24,8 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     val rdd = sc.parallelize(keyValueBytes)
     sc.toRedisByteLIST(rdd)
 
-    def verify(list: String, vals: Seq[String]): Unit = {
-      withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
-        conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
-      }
-    }
-
-    verify("binary-list1", list1)
-    verify("binary-list2", list2)
+    verifyList("binary-list1", list1)
+    verifyList("binary-list2", list2)
   }
 
   test("toRedisLISTs") {
@@ -44,14 +38,14 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     val rdd = sc.parallelize(keyValues)
     sc.toRedisLISTs(rdd)
 
-    def verify(list: String, vals: Seq[String]): Unit = {
-      withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
-        conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
-      }
-    }
+    verifyList("list1", list1)
+    verifyList("list2", list2)
+  }
 
-    verify("list1", list1)
-    verify("list2", list2)
+  def verifyList(list: String, vals: Seq[String]): Unit = {
+    withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
+      conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
+    }
   }
 
 }
