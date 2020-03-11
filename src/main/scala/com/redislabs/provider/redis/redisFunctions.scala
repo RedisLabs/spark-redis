@@ -316,10 +316,26 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   /**
     * Write RDD of binary values to Redis Lists.
     *
+    * @deprecated use toRedisByteLISTs, the method name has changed to make API consistent
+    *
     * @param rdd RDD of tuples (list name, list values)
     * @param ttl time to live
     */
+  @Deprecated
   def toRedisByteLIST(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
+                     (implicit
+                      redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                      readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    toRedisByteLISTs(rdd, ttl)(redisConfig, readWriteConfig)
+  }
+
+  /**
+    * Write RDD of binary values to Redis Lists.
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  def toRedisByteLISTs(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
                      (implicit
                       redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
                       readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {

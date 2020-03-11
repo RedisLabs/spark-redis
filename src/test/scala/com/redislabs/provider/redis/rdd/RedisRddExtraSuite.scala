@@ -13,7 +13,7 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
 
   implicit val redisConfig: RedisConfig
 
-  test("toRedisByteLIST") {
+  test("toRedisByteLISTs") {
     val list1 = Seq("a1", "b1", "c1")
     val list2 = Seq("a2", "b2", "c2")
     val keyValues = Seq(
@@ -22,7 +22,7 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     )
     val keyValueBytes = keyValues.map { case (k, list) => (k.getBytes, list.map(_.getBytes())) }
     val rdd = sc.parallelize(keyValueBytes)
-    sc.toRedisByteLIST(rdd)
+    sc.toRedisByteLISTs(rdd)
 
     verifyList("binary-list1", list1)
     verifyList("binary-list2", list2)
