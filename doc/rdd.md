@@ -137,10 +137,18 @@ sc.toRedisFixedLIST(listRDD, listName, listSize)
 The `listRDD` is an RDD that contains all of the list's string elements in order, and `listName` is the list's key name.
 `listSize` is an integer which specifies the size of the Redis list; it is optional, and will default to an unlimited size.
 
-Use the following to store an RDD of binary values in a Redis List:
+Use the following to store an RDD in multiple Redis Lists:
 
 ```scala
-sc.toRedisByteLIST(byteListRDD)
+sc.toRedisLISTs(rdd)
+```
+
+The `rdd` is an RDD of tuples (`list name`, `list values`)
+
+Use the following to store an RDD of binary values in multiple Redis Lists:
+
+```scala
+sc.toRedisByteLISTs(byteListRDD)
 ```
 
 The `byteListRDD` is an RDD of tuples (`list name`, `list values`) represented as byte arrays. 

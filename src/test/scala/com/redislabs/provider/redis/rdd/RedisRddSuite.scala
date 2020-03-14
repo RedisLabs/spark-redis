@@ -111,27 +111,6 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     setContents should be(ws)
   }
 
-  test("toRedisLIST, byte array") {
-    val list1 = Seq("a1", "b1", "c1")
-    val list2 = Seq("a2", "b2", "c2")
-    val keyValues = Seq(
-      ("list1", list1),
-      ("list2", list2)
-    )
-    val keyValueBytes = keyValues.map {case (k, list) => (k.getBytes, list.map(_.getBytes())) }
-    val rdd = sc.parallelize(keyValueBytes)
-    sc.toRedisByteLIST(rdd)
-
-    def verify(list: String, vals: Seq[String]): Unit = {
-      withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
-        conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
-      }
-    }
-
-    verify("list1", list1)
-    verify("list2", list2)
-  }
-
   test("Expire") {
     val expireTime = 1
     val prefix = s"#expire in $expireTime#:"
