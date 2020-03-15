@@ -25,3 +25,12 @@ To build Spark-Redis skipping tests, run:
 ```
 mvn clean package -DskipTests
 ```
+
+To change scala version use `./dev/change-scala-version.sh` script. It will change scala version in `pom.xml`. For example:
+```
+./dev/change-scala-version.sh 2.12
+```
+
+```
+./dev/change-scala-version.sh 2.11
+```
