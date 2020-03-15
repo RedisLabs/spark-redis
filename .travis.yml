@@ -2,14 +2,17 @@ sudo: required
 language: scala
 jdk:
     - openjdk8
-scala:
-    - 2.11.2
 install:
     - wget http://download.redis.io/releases/redis-5.0.1.tar.gz
     - tar -xzvf redis-5.0.1.tar.gz
     - make -C redis-5.0.1 -j4
     - export PATH=$PWD/redis-5.0.1/src:$PATH
-script: make test
+script:
+    - make test # test with scala 2.11
+    - sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
+    - ps aux | grep redis
+    - ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
+    - make test # test with scala 2.12
 cache:
     directories:
         - $HOME/.m2
