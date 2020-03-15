@@ -2,7 +2,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.redislabs</groupId>
-	<artifactId>spark-redis</artifactId>
+	<artifactId>spark-redis_2.11</artifactId>
 	<version>2.4.1-SNAPSHOT</version>
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
