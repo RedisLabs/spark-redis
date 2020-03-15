@@ -1,15 +1,13 @@
 package org.apache.spark.sql.redis
 
 import java.util.UUID
+import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.{
-  ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString,
-  RedisEndpoint, RedisNode, toRedisContext
-}
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -290,7 +288,21 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
         persistence.load(pipeline, key, requiredColumns)
       }
-      filteredKeys.zip(pipelineValues).map { case (key, value) =>
+      val keysAndValues = filteredKeys.zip(pipelineValues)
+
+      // if specific key (not pattern) is provided and the value doesn't exist, filter them out
+      val filteredKeysAndValues =
+        if (Keys.isRedisRegex(dataKeyPattern)) {
+          keysAndValues
+        } else {
+          keysAndValues.filter {
+            case (_, null) => false // binary model
+            case (_, value: JList[_]) if value.forall(_ == null) => false // hash model
+            case _ => true
+          }
+        }
+
+      filteredKeysAndValues.map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         persistence.decodeRow(keyMap, value, schema, requiredColumns)
       }

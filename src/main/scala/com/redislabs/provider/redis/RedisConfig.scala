@@ -166,11 +166,22 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
   }
 
   /**
-    * @param key
     * *IMPORTANT* Please remember to close after using
-    * @return jedis who is a connection for a given key
+    *
+    * @param key
+    * @return jedis that is a connection for a given key
     */
   def connectionForKey(key: String): Jedis = {
+    getHost(key).connect()
+  }
+
+  /**
+    * *IMPORTANT* Please remember to close after using
+    *
+    * @param key
+    * @return jedis is a connection for a given key
+    */
+  def connectionForKey(key: Array[Byte]): Jedis = {
     getHost(key).connect()
   }
 
@@ -195,9 +206,22 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     */
   def getHost(key: String): RedisNode = {
     val slot = JedisClusterCRC16.getSlot(key)
-    hosts.filter(host => {
+    getHostBySlot(slot)
+  }
+
+  /**
+    * @param key
+    * @return host whose slots should involve key
+    */
+  def getHost(key: Array[Byte]): RedisNode = {
+    val slot = JedisClusterCRC16.getSlot(key)
+    getHostBySlot(slot)
+  }
+
+  private def getHostBySlot(slot: Int): RedisNode = {
+    hosts.filter { host =>
       host.startSlot <= slot && host.endSlot >= slot
-    })(0)
+    }(0)
   }
 
 

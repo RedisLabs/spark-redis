@@ -1,6 +1,7 @@
 package com.redislabs.provider.redis
 
 import com.redislabs.provider.redis.rdd._
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -300,6 +301,48 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * Write RDD of (list name, list values) to Redis Lists.
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  def toRedisLISTs(rdd: RDD[(String, Seq[String])], ttl: Int = 0)
+                  (implicit
+                  redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                  readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    rdd.foreachPartition(partition => setList(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
+    * Write RDD of binary values to Redis Lists.
+    *
+    * @deprecated use toRedisByteLISTs, the method name has changed to make API consistent
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  @Deprecated
+  def toRedisByteLIST(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
+                     (implicit
+                      redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                      readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    toRedisByteLISTs(rdd, ttl)(redisConfig, readWriteConfig)
+  }
+
+  /**
+    * Write RDD of binary values to Redis Lists.
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  def toRedisByteLISTs(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
+                     (implicit
+                      redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                      readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    rdd.foreachPartition(partition => setByteList(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
     * @param vs       RDD of values
     * @param listName target list's name which hold all the vs
     * @param listSize target list's size
@@ -413,6 +456,53 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(listName, ttl)
     pipeline.sync()
     conn.close()
+  }
+
+
+  def setByteList(keyValues: Iterator[(Array[Byte], Seq[Array[Byte]])],
+                  ttl: Int,
+                  redisConfig: RedisConfig,
+                  readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    keyValues
+      .map { case (key, listValues) =>
+        (redisConfig.getHost(key), (key, listValues))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, listVals) = a._2
+            pipeline.rpush(key, listVals: _*)
+            if (ttl > 0) pipeline.expire(key, ttl)
+          }
+        }
+      }
+  }
+
+  def setList(keyValues: Iterator[(String, Seq[String])],
+              ttl: Int,
+              redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    keyValues
+      .map { case (key, listValues) =>
+        (redisConfig.getHost(key), (key, listValues))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, listVals) = a._2
+            pipeline.rpush(key, listVals: _*)
+            if (ttl > 0) pipeline.expire(key, ttl)
+          }
+        }
+      }
   }
 
   /**
