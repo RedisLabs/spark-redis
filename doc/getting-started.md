@@ -6,8 +6,20 @@
   <dependencies>
     <dependency>
       <groupId>com.redislabs</groupId>
-      <artifactId>spark-redis</artifactId>
-      <version>2.4.0</version>
+      <artifactId>spark-redis_2.11</artifactId>
+      <version>2.4.2</version>
+    </dependency>
+  </dependencies>
+```
+
+Or
+
+```xml
+  <dependencies>
+    <dependency>
+      <groupId>com.redislabs</groupId>
+      <artifactId>spark-redis_2.12</artifactId>
+      <version>2.4.2</version>
     </dependency>
   </dependencies>
 ```
