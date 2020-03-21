@@ -32,6 +32,22 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param keysOrKeyPattern an array of keys or a key pattern
+    * @param partitionNum number of partitions
+    * @return RedisHashRDD of related Key-Values stored in redis server
+    */
+  def fromRedisHLL[T](keysOrKeyPattern: T,
+                      partitionNum: Int = 3)
+                     (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))):
+  RDD[(String, Long)] = {
+    keysOrKeyPattern match {
+      case keyPattern: String => fromRedisKeyPattern(keyPattern, partitionNum)(redisConfig).getPFCount()
+      case keys: Array[String] => fromRedisKeys(keys, partitionNum)(redisConfig).getPFCount()
+      case _ => throw new scala.Exception("KeysOrKeyPattern should be String or Array[String]")
+    }
+  }
+
+  /**
     * @param keys         an array of keys
     * @param partitionNum number of partitions
     * @return RedisKeysRDD of simple Keys stored in redis server
@@ -262,6 +278,15 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
                   redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
                   readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
     kvs.foreachPartition(partition => setHash(hashName, partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
+    *
+    * @param kvs RDD of values
+    */
+  def toRedisHLL(kvs: RDD[(String, String)])
+                (implicit redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint(sc.getConf))): Unit = {
+    kvs.foreachPartition(partition => setPF(partition, redisConfig))
   }
 
   /**
@@ -526,6 +551,23 @@ object RedisContext extends Serializable {
     }
     pipeline.sync()
     conn.close()
+  }
+
+  /**
+    * @param arr HLL kvps to be updated in target host
+    *            calls PFADD key value to each pair in RDD
+    */
+  def setPF(arr: Iterator[(String, String)], redisConfig: RedisConfig): Unit = {
+    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
+      mapValues(a => a.map(p => p._2)).foreach {
+      x => {
+        val conn = x._1.endpoint.connect()
+        val pipeline = conn.pipelined
+        x._2.foreach(x => pipeline.pfadd(x._1, x._2))
+        pipeline.sync()
+        conn.close()
+      }
+    }
   }
 }
 

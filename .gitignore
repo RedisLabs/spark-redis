@@ -39,5 +39,7 @@ build/*.jar
 .classpath
 /.settings/
 
+checkpoint-test/
+
 # Redis
 dump.rdb

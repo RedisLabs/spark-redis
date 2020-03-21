@@ -10,7 +10,18 @@ import scala.io.Source.fromInputStream
 /**
   * @author The Viet Nguyen
   */
+object RedisRddSuite {
+  val zSetKey: String = "all:words:cnt:sortedset"
+  val hashKey: String = "all:words:cnt:hash"
+  val listKey: String = "all:words:list"
+  val setKey: String = "all:words:set"
+
+  val wcntsPrefix: String = "wcnts"
+  val hllPrefix: String = "hll"
+}
+
 trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
+  import RedisRddSuite._
 
   implicit val redisConfig: RedisConfig
 
@@ -18,10 +29,6 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     .getLines.toArray.mkString("\n")
 
   val contentWords: Array[String] = content.split("\\W+").filter(_.nonEmpty)
-  val zSetKey: String = "all:words:cnt:sortedset"
-  val hashKey: String = "all:words:cnt:hash"
-  val listKey: String = "all:words:list"
-  val setKey: String = "all:words:set"
 
   override def beforeAll() {
     super.beforeAll()
@@ -33,7 +40,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
         _ + _
       }
       .map { x =>
-        (x._1, x._2.toString)
+        (s"$wcntsPrefix-${x._1}", x._2.toString)
       }
     val wds = sc.parallelize(contentWords)
     // Flush all the hosts
@@ -42,18 +49,27 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
       conn.flushAll
       conn.close()
     })
+    val hllRDD = sc.parallelize(
+      Seq(
+        (s"$hllPrefix-apple", "gala"),
+        (s"$hllPrefix-apple", "red-delicious"),
+        (s"$hllPrefix-pear", "barlett"),
+        (s"$hllPrefix-peach", "freestone")
+      )
+    )
     sc.toRedisKV(wcnts)
     sc.toRedisZSET(wcnts, zSetKey)
     sc.toRedisHASH(wcnts, hashKey)
     sc.toRedisLIST(wds, listKey)
     sc.toRedisSET(wds, setKey)
+    sc.toRedisHLL(hllRDD)
   }
 
   test("RedisKVRDD") {
-    val redisKVRDD = sc.fromRedisKV("*")
+    val redisKVRDD = sc.fromRedisKV(s"$wcntsPrefix-*")
     val kvContents = redisKVRDD.sortByKey().collect
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
+      map(x => (wcntsPrefix + "-" + x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
     kvContents shouldBe wcnts
   }
 
@@ -78,7 +94,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     val zrangeByScore = redisZRangeByScore.collect.sorted
 
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2).sum.toDouble))
+      map(x => (wcntsPrefix + "-" + x._1, x._2.map(_._2).sum.toDouble))
 
     zsetWithScore should be(wcnts.toArray.sortBy(_._1))
     zset should be(wcnts.keys.toArray.sorted)
@@ -93,7 +109,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     val redisHashRDD = sc.fromRedisHash(hashKey)
     val hashContents = redisHashRDD.sortByKey().collect
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
-      map(x => (x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
+      map(x => (wcntsPrefix + "-" + x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
     hashContents should be(wcnts)
   }
 
@@ -111,12 +127,26 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     setContents should be(ws)
   }
 
+  test("RedisHLLRDD") {
+    val redisSetRDD = sc.fromRedisHLL(s"$hllPrefix-apple")
+    redisSetRDD.count() should be(1)
+    redisSetRDD.take(1)(0)._2 should be(2)
+
+    val redisSetRDDp = sc.fromRedisHLL(s"$hllPrefix-p*")
+    redisSetRDDp.count() should be(2)
+    redisSetRDDp.take(1)(0)._2 should be(1)
+
+    val all = sc.fromRedisHLL(s"$hllPrefix-*")
+    all.count() should be(3)
+  }
+
   test("Expire") {
     val expireTime = 1
     val prefix = s"#expire in $expireTime#:"
     val wcnts = sc.parallelize(contentWords).map((_, 1)).
-      reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
+      reduceByKey(_ + _).map(x => (wcntsPrefix + "-" + prefix + x._1, x._2.toString))
     val wds = sc.parallelize(contentWords)
+
     sc.toRedisKV(wcnts, expireTime)
     sc.toRedisZSET(wcnts, prefix + zSetKey, expireTime)
     sc.toRedisHASH(wcnts, prefix + hashKey, expireTime)

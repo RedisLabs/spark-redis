@@ -104,6 +104,14 @@ val zsetRDD = sc.fromRedisZRangeByScore(Array("foo", "bar"), min, max)
 
 Using `fromRedisZSet` will store in `zsetRDD: RDD[String]`, an RDD that consists of members and the members' scores are within [min, max] from the Redis Sorted Sets whose keys are provided by keyPattern or Array[String].
 
+#### Hyperloglog
+```
+val cntRDD = sc.fromRedisHLL("keyPattern*")
+val cntRDD = sc.fromRedisHLL("key"))
+```
+
+The Redis PF Count of keys will be written to `cntRDD: RDD[String,Long]`.
+
 ### Writing data
 To write data to Redis from Spark, you'll need to prepare the appropriate RDD depending on the type of data you want to write.
 
@@ -169,6 +177,15 @@ sc.toRedisZSET(zsetRDD, zsetName)
 ```
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
+
+#### HyperLogLog
+For storing data in a Redis HLL , use `toRedisHLL` as follows:
+
+```scala
+sc.toRedisHLL(hllKey, hllValue)
+```
+
+Where `hllKey` is the first param for pfadd and `hllValue` is the second param 
 
 ### Read and write configuration options
 
