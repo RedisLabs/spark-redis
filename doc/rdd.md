@@ -1,3 +1,4 @@
+
 # RDD
 
   - [The keys RDD](#the-keys-rdd)
@@ -114,12 +115,27 @@ For String values, your RDD should consist of the key-value pairs that are to be
 sc.toRedisKV(stringRDD)
 ```
 
+In order to set an expiry on the key, we can pass in the `ttl` (in seconds) as an additional argument:
+
+```scala
+sc.toRedisKV(stringRDD, ttl)
+```
+
+By default, Strings won't have any expiry set.
+
 #### Hashes
 To store a Redis Hash, the RDD should consist of its field-value pairs. If the RDD is called `hashRDD`, the following should be used for storing it in the key name specified by `hashName`:
 
 ```scala
 sc.toRedisHASH(hashRDD, hashName)
 ```
+In order to set an expiry on the key, we can pass in the `ttl` (in seconds) as an additional argument:
+
+```scala
+sc.toRedisHASH(hashRDD, hashName, ttl)
+```
+
+By default, Hashes won't have any expiry set.
 
 #### Lists
 Use the following to store an RDD in a Redis List:
@@ -153,6 +169,14 @@ sc.toRedisByteLISTs(byteListRDD)
 
 The `byteListRDD` is an RDD of tuples (`list name`, `list values`) represented as byte arrays. 
 
+Expiry can be set on Lists by passing in an additional argument called `ttl` (in seconds) to the above methods except `toRedisFixedLIST`:
+```scala
+sc.toRedisLIST(listRDD, listName, ttl)
+sc.toRedisLISTs(rdd, ttl)
+sc.toRedisByteLISTs(byteListRDD, ttl)
+```
+
+By default, Lists won't have any expiry set.
 
 #### Sets
 For storing data in a Redis Set, use `toRedisSET` as follows:
@@ -163,12 +187,28 @@ sc.toRedisSET(setRDD, setName)
 
 Where `setRDD` is an RDD with the set's string elements and `setName` is the name of the key for that set.
 
+In order to set an expiry on the key, we can pass in the `ttl` (in seconds) as an additional argument:
+
+```scala
+sc.toRedisSET(setRDD, setName, ttl)
+```
+
+By default, Sets won't have any expiry set.
+
 #### Sorted Sets
 ```scala
 sc.toRedisZSET(zsetRDD, zsetName)
 ```
 
 The above example demonstrates storing data in Redis in a Sorted Set. The `zsetRDD` in the example should contain pairs of members and their scores, whereas `zsetName` is the name for that key.
+
+In order to set an expiry on the key, we can pass in the `ttl` (in seconds) as an additional argument:
+
+```scala
+sc.toRedisZSET(zsetRDD, zsetName, ttl)
+```
+
+By default, Sorted Sets won't have any expiry set.
 
 ### Read and write configuration options
 
