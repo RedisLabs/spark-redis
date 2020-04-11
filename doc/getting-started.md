@@ -24,6 +24,12 @@ Or
   </dependencies>
 ```
 
+### SBT
+
+```scala
+libraryDependencies += "com.redislabs" %% "spark-redis" % "2.4.2"
+```
+
 ### Build form source
 You can download the library's source and build it:
 ```
