@@ -1,8 +1,8 @@
 [![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
 [![GitHub issues](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis)
-[![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11)
+[![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis_2.11.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis_2.11)
 [![Gitter](https://badges.gitter.im/RedisLabs/spark-redis.svg)](https://gitter.im/RedisLabs/spark-redis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 <!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
@@ -22,7 +22,7 @@ The master branch contains the recent development for the next release.
 
 | Spark-Redis                                                     | Spark         | Redis            | Supported Scala Versions | 
 | ----------------------------------------------------------------| ------------- | ---------------- | ------------------------ |
-| [2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x         | >=2.9.0          | 2.11                     | 
+| [2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x         | >=2.9.0          | 2.11, 2.12               | 
 | [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3) | 2.3.x         | >=2.9.0          | 2.11                     | 
 | [1.4](https://github.com/RedisLabs/spark-redis/tree/branch-1.4) | 1.4.x         |                  | 2.10                     | 
 
