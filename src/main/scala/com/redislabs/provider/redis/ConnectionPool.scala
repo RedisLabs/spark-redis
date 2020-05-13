@@ -1,16 +1,17 @@
 package com.redislabs.provider.redis
 
-import redis.clients.jedis.{JedisPoolConfig, Jedis, JedisPool}
+import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig, JedisSentinelPool}
 import redis.clients.jedis.exceptions.JedisConnectionException
-
 import java.util.concurrent.ConcurrentHashMap
+
+import redis.clients.jedis.util.Pool
 
 import scala.collection.JavaConversions._
 
 
 object ConnectionPool {
-  @transient private lazy val pools: ConcurrentHashMap[RedisEndpoint, JedisPool] =
-    new ConcurrentHashMap[RedisEndpoint, JedisPool]()
+  @transient private lazy val pools: ConcurrentHashMap[RedisEndpoint, Pool[Jedis]] =
+    new ConcurrentHashMap[RedisEndpoint, Pool[Jedis]]()
 
   def connect(re: RedisEndpoint): Jedis = {
     val pool = pools.getOrElseUpdate(re,
@@ -25,7 +26,12 @@ object ConnectionPool {
         poolConfig.setTimeBetweenEvictionRunsMillis(30000)
         poolConfig.setNumTestsPerEvictionRun(-1)
 
-        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum, re.ssl)
+        if (null == re.master || re.master.trim.isEmpty) {
+          new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum, re.ssl)
+        } else {
+          val sentinels = re.host.split(",").map(x => x + ":" + re.port).toSet
+          new JedisSentinelPool(re.master.trim, sentinels, poolConfig, re.auth)
+        }
       }
     )
     var sleepTime: Int = 4

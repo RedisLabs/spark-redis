@@ -41,7 +41,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val dbNum = parameters.get("dbNum").map(_.toInt).getOrElse(Protocol.DEFAULT_DATABASE)
         val timeout = parameters.get("timeout").map(_.toInt).getOrElse(Protocol.DEFAULT_TIMEOUT)
         val ssl = parameters.get("ssl").map(_.toBoolean).getOrElse(false)
-        RedisEndpoint(host, port, auth, dbNum, timeout, ssl)
+        val master = parameters.getOrElse("master", null)
+        RedisEndpoint(host, port, auth, dbNum, timeout, ssl, master)
       }
     )
   }

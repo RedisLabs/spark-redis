@@ -24,8 +24,11 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
                          auth: String = null,
                          dbNum: Int = Protocol.DEFAULT_DATABASE,
                          timeout: Int = Protocol.DEFAULT_TIMEOUT,
-                         ssl: Boolean = false)
+                         ssl: Boolean = false,
+                         master: String = null)
   extends Serializable {
+  def apply(getHost: String, getPort: Int, str: String, i: Int, value: Any, bool: Boolean, str1: String): Unit = ???
+
 
   /**
     * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth, spark.redis.db and spark.redis.ssl
@@ -39,7 +42,8 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       conf.get("spark.redis.auth", null),
       conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
       conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT),
-      conf.getBoolean("spark.redis.ssl", false)
+      conf.getBoolean("spark.redis.ssl", false),
+      conf.get("spark.redis.sentinel.master", null)
     )
   }
 
