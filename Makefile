@@ -18,6 +18,7 @@ logfile /tmp/redis_standalone_node_ssl_for_spark-redis.log
 save ""
 appendonly no
 requirepass passwd
+tls-auth-clients no
 tls-port 6380
 tls-cert-file ./src/test/resources/tls/redis.crt
 tls-key-file ./src/test/resources/tls/redis.key
@@ -117,7 +118,7 @@ test:
 
 benchmark:
 	make start
-	mvn clean test -B -Pbenchmark
+	mvn clean test -B -Pbenchmark -DargLine="-Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=/home/guy/redisclients/spark-redis/src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks"
 	make stop
 
 deploy:
