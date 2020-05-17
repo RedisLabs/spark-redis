@@ -5,7 +5,7 @@ jdk:
 install:
     - wget http://download.redis.io/releases/redis-6.0.3.tar.gz
     - tar -xzvf redis-6.0.3.tar.gz
-    - make -C redis-6.0.3 -j4
+    - make -C redis-6.0.3 -j4 BUILD_TLS=yes
     - export PATH=$PWD/redis-6.0.3/src:$PATH
 script:
     - make test # test with scala 2.11
