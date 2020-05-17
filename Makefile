@@ -9,6 +9,22 @@ appendonly no
 requirepass passwd
 endef
 
+# STANDALONE REDIS NODE WITH SSL
+define REDIS_STANDALONE_NODE_CONF_SSL
+daemonize yes
+port 0
+pidfile /tmp/redis_standalone_node__ssl_for_spark-redis.pid
+logfile /tmp/redis_standalone_node_ssl_for_spark-redis.log
+save ""
+appendonly no
+requirepass passwd
+tls-port 6380
+tls-cert-file ./src/test/resources/tls/redis.crt
+tls-key-file ./src/test/resources/tls/redis.key
+tls-ca-cert-file ./src/test/resources/tls/ca.crt
+tls-dh-params-file ./src/test/resources/tls/redis.dh
+endef
+
 # CLUSTER REDIS NODES
 define REDIS_CLUSTER_NODE1_CONF
 daemonize yes
@@ -44,12 +60,14 @@ cluster-config-file /tmp/redis_cluster_node3_for_spark-redis.conf
 endef
 
 export REDIS_STANDALONE_NODE_CONF
+export REDIS_STANDALONE_NODE_CONF_SSL
 export REDIS_CLUSTER_NODE1_CONF
 export REDIS_CLUSTER_NODE2_CONF
 export REDIS_CLUSTER_NODE3_CONF
 
 start-standalone:
 	echo "$$REDIS_STANDALONE_NODE_CONF" | redis-server -
+	echo "$$REDIS_STANDALONE_NODE_CONF_SSL" | redis-server -
 
 
 start-cluster:
@@ -72,7 +90,8 @@ start:
 
 stop-standalone:
 	kill `cat /tmp/redis_standalone_node_for_spark-redis.pid`
-
+	kill `cat /tmp/redis_standalone_node__ssl_for_spark-redis.pid`
+	
 stop-cluster:
 	kill `cat /tmp/redis_cluster_node1_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node2_for_spark-redis.pid` || true
