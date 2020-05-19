@@ -88,6 +88,26 @@ val spark = SparkSession
 val sc = spark.sparkContext  
 ```
 
+The SparkSession can be configured with SSL enabled:
+
+```scala
+val spark = SparkSession
+  .builder()
+  .appName("myApp")
+  .master("local[*]")
+  .config("spark.redis.host", "localhost")
+  .config("spark.redis.port", "6379")
+  .config("spark.redis.auth", "passwd")
+  .config("spark.redis.ssl", "true")
+  .getOrCreate()
+  
+val sc = spark.sparkContext  
+```
+
+```bash
+java -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=path/to/keystore -Djavax.net.ssl.trustStoreType=jceks ...
+```
+
 ### Create RDD
 
 ```scala
