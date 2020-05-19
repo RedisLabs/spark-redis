@@ -11,6 +11,9 @@ topology from the initial node, so there is no need to provide the rest of the c
 * `spark.redis.max.pipeline.size` - the maximum number of commands per pipeline (used to batch commands). The default value is 100.
 * `spark.redis.scan.count` - count option of SCAN command (used to iterate over keys). The default value is 100.
 * `spark.redis.ssl` - set to true to use tls
+* `spark.redis.sentinel.master` - master node name in Sentinel mode
+* `spark.redis.sentinel.auth` - the sentinel's password
+ 
 
 
 
