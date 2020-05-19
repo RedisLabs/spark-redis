@@ -118,7 +118,7 @@ test:
 
 benchmark:
 	make start
-	mvn clean test -B -Pbenchmark -DargLine="-Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=/home/guy/redisclients/spark-redis/src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks"
+	mvn clean test -B -Pbenchmark
 	make stop
 
 deploy:
