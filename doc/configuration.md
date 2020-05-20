@@ -3,7 +3,7 @@ The supported configuration parameters are:
 ## Spark Context configuration parameters
 
 * `spark.redis.host` - host or IP of the initial node we connect to. The connector will read the cluster
-topology from the initial node, so there is no need to provide the rest of the cluster nodes.
+topology from the initial node, so there is no need to provide the rest of the cluster nodes. For sentinel mode all sentinels should be add comma separated `sentinel1,sentinel2,...`
 * `spark.redis.port` - the initial node's TCP redis port.
 * `spark.redis.auth` - the initial node's AUTH password
 * `spark.redis.db` - optional DB number. Avoid using this, especially in cluster mode.
