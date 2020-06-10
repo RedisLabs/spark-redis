@@ -29,12 +29,6 @@ trait Logging {
     }
   }
 
-  def logWarn(msg: => String): Unit = {
-    if (logger.isWarnEnabled) {
-      _logger.warn(msg)
-    }
-  }
-
   def logDebug(msg: => String): Unit = {
     if (logger.isDebugEnabled) {
       _logger.debug(msg)
