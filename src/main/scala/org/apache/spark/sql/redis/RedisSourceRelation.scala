@@ -5,7 +5,7 @@ import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.Logging
+import com.redislabs.provider.redis.util.{Logging, SparkUtils}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
@@ -159,19 +159,17 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         new GenericRow(Array[Any]())
       }
     } else {
-      // filter schema columns, it should be in the same order as given 'requiredColumns'
-      val requiredSchema = {
-        val fieldsMap = schema.fields.map(f => (f.name, f)).toMap
-        val requiredFields = requiredColumns.map { c =>
-          fieldsMap(c)
-        }
-        StructType(requiredFields)
-      }
-      val keyType =
+      /*
+      For binary its crucial to have a schema, as we cen't infer it and catalyst requiredColumns doesn't guarantee
+      the same order. Thus the schema is only place where we can read correct attribute positions for binary
+      */
+      val (keyType, requiredSchema) =
         if (persistenceModel == SqlOptionModelBinary) {
-          RedisDataTypeString
+          if (this.schema == null)
+            logWarn("Unable to identify the schema when reading a dataframe in Binary mode. It can cause type inconsistency!")
+          (RedisDataTypeString, this.schema)
         } else {
-          RedisDataTypeHash
+          (RedisDataTypeHash, SparkUtils.alignSchemaWithCatalyst(this.schema, requiredColumns))
         }
       keysRdd.mapPartitions { partition =>
         // grouped iterator to only allocate memory for a portion of rows
