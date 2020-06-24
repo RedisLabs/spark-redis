@@ -12,6 +12,9 @@ import redis.clients.jedis._
 import scala.reflect.{ClassTag, classTag}
 import scala.util.control.NonFatal
 
+/**
+  * Receives messages from Redis List
+  */
 class RedisInputDStream[T: ClassTag](_ssc: StreamingContext,
                                      keys: Array[String],
                                      storageLevel: StorageLevel,
@@ -50,8 +53,8 @@ private class RedisReceiver[T: ClassTag](keys: Array[String],
       try {
         while(!isStopped) {
           val response = conn.blpop(2, key)
-          if (response == null) {
-
+          if (response == null || response.isEmpty) {
+            // no-op
           } else if (classTag[T] == classTag[String]) {
             store(response.get(1).asInstanceOf[T])
           } else if (classTag[T] == classTag[(String, String)]) {

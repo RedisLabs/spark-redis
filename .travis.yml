@@ -1,12 +1,18 @@
 sudo: required
 language: scala
-scala:
-    - 2.10.4
-before_install:
-    - git clone https://github.com/antirez/redis.git redis_for_spark-redis_test || true
+jdk:
+    - openjdk8
 install:
-    - make -C redis_for_spark-redis_test -j4
-script: make test
+    - wget http://download.redis.io/releases/redis-6.0.3.tar.gz
+    - tar -xzvf redis-6.0.3.tar.gz
+    - make -C redis-6.0.3 -j4 BUILD_TLS=yes
+    - export PATH=$PWD/redis-6.0.3/src:$PATH
+script:
+    - make test # test with scala 2.11
+    - sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
+    - ps aux | grep redis
+    - ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
+    - make test # test with scala 2.12
 cache:
     directories:
         - $HOME/.m2
