@@ -37,7 +37,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       conf.get("spark.redis.host", Protocol.DEFAULT_HOST),
       conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
       conf.get("spark.redis.auth", null),
-      conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
+      conf.getInt("spark.redis.dbNum", Protocol.DEFAULT_DATABASE),
       conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT),
       conf.getBoolean("spark.redis.ssl", false)
     )
