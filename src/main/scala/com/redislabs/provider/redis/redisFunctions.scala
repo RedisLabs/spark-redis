@@ -242,6 +242,18 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param kvs      RDD of
+    * @param geoName target geo's name which hold all the kvs
+    * @param ttl      time to live
+    */
+  def toRedisGEO(kvs: RDD[(Double,Double,String)], geoName: String, ttl: Int = 0)
+                 (implicit
+                  redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                  readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    kvs.foreachPartition(partition => setGeo(geoName, partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
     * @param kvs Pair RDD of K/V
     * @param ttl time to live
     */
@@ -397,6 +409,23 @@ object RedisContext extends Serializable {
       pipeline.hset(hashName, k, v)
     }
     if (ttl > 0) pipeline.expire(hashName, ttl)
+    pipeline.sync()
+    conn.close()
+  }
+
+  /**
+    * @param geoName
+    * @param arr k/vs which should be saved in the target host
+    *            save all the k/vs to zsetName(zset type) to the target host
+    * @param ttl time to live
+    */
+  def setGeo(geoName: String, arr: Iterator[(Double,Double,String)], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+    val conn = redisConfig.connectionForKey(geoName)
+    val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (lon,lat,mem)) =>
+      pipeline.geoadd(geoName,lon,lat,mem)
+    }
+    if (ttl > 0) pipeline.expire(geoName, ttl)
     pipeline.sync()
     conn.close()
   }
