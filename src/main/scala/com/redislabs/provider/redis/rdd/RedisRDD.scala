@@ -7,11 +7,13 @@ import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
+import redis.clients.jedis.exceptions.JedisDataException
 import redis.clients.jedis.{Jedis, ScanParams}
 import redis.clients.jedis.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._
 import scala.reflect.{ClassTag, classTag}
+import scala.util.{Failure, Success, Try}
 
 
 class RedisKVRDD(prev: RDD[String],
@@ -38,11 +40,22 @@ class RedisKVRDD(prev: RDD[String],
   def getKV(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val stringKeys = filterKeysByType(conn, nodeKeys, "string")
-      val response = mapWithPipeline(conn, stringKeys) { (pipeline, key) =>
+
+      val response = mapWithPipeline(conn, nodeKeys) { (pipeline, key) =>
         pipeline.get(key)
       }
-      val res = stringKeys.zip(response).iterator.asInstanceOf[Iterator[(String, String)]]
+
+      val res = nodeKeys.zip(response)
+        .flatMap{
+          // Silently filter out this exception, when the value doesn't match the expected type "String"
+          case (_, e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+            // Throw any other JedisDataException we encounter
+          case (_, e: JedisDataException) => throw e
+          case (k, v: String) => Some(k, v)
+          // Default case, that shouldn't really happen
+          case _ => None
+        }
+        .iterator
       conn.close()
       res
     }
@@ -51,8 +64,13 @@ class RedisKVRDD(prev: RDD[String],
   def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val hashKeys = filterKeysByType(conn, nodeKeys, "hash")
-      val res = hashKeys.flatMap(conn.hgetAll).iterator
+      val res = nodeKeys.flatMap{k =>
+        Try(conn.hgetAll(k).toMap) match {
+          case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+          case Failure(e) => throw e
+          case Success(value) => Some(value)
+        }
+      }.flatten.iterator
       conn.close()
       res
     }
@@ -80,8 +98,14 @@ class RedisListRDD(prev: RDD[String],
   def getSET(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val setKeys = filterKeysByType(conn, nodeKeys, "set")
-      val res = setKeys.flatMap(conn.smembers).iterator
+      val res: Iterator[String] = nodeKeys.flatMap{k =>
+        Try(conn.smembers(k).toSet) match {
+          case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+          case Failure(e) => throw e
+          case Success(value) => Some(value)
+        }
+      }.flatten
+        .iterator
       conn.close()
       res
     }
@@ -90,8 +114,13 @@ class RedisListRDD(prev: RDD[String],
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val listKeys = filterKeysByType(conn, nodeKeys, "list")
-      val res = listKeys.flatMap(conn.lrange(_, 0, -1)).iterator
+      val res = nodeKeys.flatMap{ k =>
+        Try(conn.lrange(k, 0, -1)) match {
+          case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+          case Failure(e) => throw e
+          case Success(value) =>Some(value)
+        }
+      }.flatten.iterator
       conn.close()
       res
     }
@@ -133,13 +162,24 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              endPos: Long): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val zsetKeys = filterKeysByType(conn, nodeKeys, "zset")
       val res = {
         if (classTag[T] == classTag[(String, Double)]) {
-          zsetKeys.flatMap(k => conn.zrangeWithScores(k, startPos, endPos)).
-            map(tup => (tup.getElement, tup.getScore)).iterator
+          nodeKeys.flatMap{k =>
+            Try(conn.zrangeWithScores(k, startPos, endPos)) match {
+              case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+              case Failure(e) => throw e
+              case Success(value) => Some(value)
+            }
+          }.flatten
+            .map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
-          zsetKeys.flatMap(k => conn.zrange(k, startPos, endPos)).iterator
+          nodeKeys.flatMap{k =>
+            Try(conn.zrange(k, startPos, endPos)) match {
+              case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+              case Failure(e) => throw e
+              case Success(value) => Some(value)
+            }
+          }.flatten.iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
@@ -155,13 +195,13 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              endScore: Double): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       val conn = node.endpoint.connect()
-      val zsetKeys = filterKeysByType(conn, nodeKeys, "zset")
       val res = {
         if (classTag[T] == classTag[(String, Double)]) {
-          zsetKeys.flatMap(k => conn.zrangeByScoreWithScores(k, startScore, endScore)).
-            map(tup => (tup.getElement, tup.getScore)).iterator
+          nodeKeys.flatMap(k => Try(conn.zrangeByScoreWithScores(k, startScore, endScore)).toOption).
+            flatten
+            .map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
-          zsetKeys.flatMap(k => conn.zrangeByScore(k, startScore, endScore)).iterator
+          nodeKeys.flatMap(k => Try(conn.zrangeByScore(k, startScore, endScore)).toOption).flatten.iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
