@@ -197,11 +197,23 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       val conn = node.endpoint.connect()
       val res = {
         if (classTag[T] == classTag[(String, Double)]) {
-          nodeKeys.flatMap(k => Try(conn.zrangeByScoreWithScores(k, startScore, endScore)).toOption).
+          nodeKeys.flatMap{k =>
+            Try(conn.zrangeByScoreWithScores(k, startScore, endScore)) match {
+              case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+              case Failure(e) => throw e
+              case Success(value) => Some(value)
+            }
+          }.
             flatten
             .map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
-          nodeKeys.flatMap(k => Try(conn.zrangeByScore(k, startScore, endScore)).toOption).flatten.iterator
+          nodeKeys.flatMap{ k =>
+              Try(conn.zrangeByScore(k, startScore, endScore)) match {
+                case Failure(e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
+                case Failure(e) => throw e
+                case Success(value) => Some(value)
+              }
+          }.flatten.iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
