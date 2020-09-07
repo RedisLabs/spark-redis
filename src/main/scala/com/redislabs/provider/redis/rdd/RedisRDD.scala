@@ -50,8 +50,8 @@ class RedisKVRDD(prev: RDD[String],
         .flatMap{
           // Silently filter out this exception, when the value doesn't match the expected type "String"
           case (_, e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
-            // Throw any other JedisDataException we encounter
-          case (_, e: JedisDataException) => throw e
+            // Throw any other Exception we encounter
+          case (_, e: Throwable) => throw e
           case (k, v: String) => Some(k, v)
           // Default case, that shouldn't really happen
           case _ => None
