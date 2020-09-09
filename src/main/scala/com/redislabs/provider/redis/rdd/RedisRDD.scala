@@ -8,7 +8,6 @@ import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.exceptions.JedisDataException
 import redis.clients.jedis.{Jedis, ScanParams}
 import redis.clients.jedis.util.JedisClusterCRC16
 
@@ -47,16 +46,14 @@ class RedisKVRDD(prev: RDD[String],
       }
 
       val res = nodeKeys.zip(response)
+        .view
         .flatMap{
-          // Silently filter out this exception, when the value doesn't match the expected type "String"
-          case (_, e: JedisDataException) if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => None
-            // Throw any other Exception we encounter
-          case (_, e: Throwable) => throw e
-          case (k, v: String) => Some(k, v)
-          // Default case, that shouldn't really happen
+          case (_, e: Throwable) => Some(Failure(e))
+          case (k, v: String) => Some(Success((k,v)))
           case _ => None
-        }
+        }.flatMap(ignoreJedisWrongTypeException(_).get) // Unwrap `Try` to throw exceptions if any
         .iterator
+
       conn.close()
       res
     }
