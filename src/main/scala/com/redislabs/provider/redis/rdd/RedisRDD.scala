@@ -46,7 +46,6 @@ class RedisKVRDD(prev: RDD[String],
       }
 
       val res = nodeKeys.zip(response)
-        .view
         .flatMap{
           case (_, e: Throwable) => Some(Failure(e))
           case (k, v: String) => Some(Success((k,v)))
