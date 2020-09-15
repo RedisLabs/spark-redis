@@ -137,6 +137,14 @@ sc.toRedisHASH(hashRDD, hashName, ttl)
 
 By default, Hashes won't have any expiry set.
 
+Use the following to store an RDD into multiple hashs:
+
+```scala
+sc.toRedisHASHes(hashRDD, ttl)
+```
+
+The `hashRDD` is a rdd of tuples (`hashname`, `map[field name, field value]`)
+
 #### Lists
 Use the following to store an RDD in a Redis List:
 
