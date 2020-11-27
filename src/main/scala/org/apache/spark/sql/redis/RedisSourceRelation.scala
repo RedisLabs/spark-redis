@@ -107,6 +107,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       s"You should only use either one.")
   }
 
+  // check if both ttl column and ttl are set
+  if (ttlColumn.isDefined && ttl > 0) {
+    throw new IllegalArgumentException(s"Both options '$SqlOptionTTL' and '$SqlOptionTTLColumn' are set. " +
+      s"You should only use either one.")
+  }
+
   override def schema: StructType = {
     if (currentSchema == null) {
       currentSchema = userSpecifiedSchema.getOrElse {
