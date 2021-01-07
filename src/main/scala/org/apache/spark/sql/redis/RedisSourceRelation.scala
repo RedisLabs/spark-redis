@@ -103,7 +103,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
-    throw new IllegalArgumentException(s"Both options '$SqlOptionTableName' and '$SqlOptionTableName' are set. " +
+    throw new IllegalArgumentException(s"Both options '$SqlOptionKeysPattern' and '$SqlOptionTableName' are set. " +
       s"You should only use either one.")
   }
 
