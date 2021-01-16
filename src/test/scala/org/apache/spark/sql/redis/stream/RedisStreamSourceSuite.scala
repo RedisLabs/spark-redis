@@ -228,7 +228,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
 
     val (spark, query) = readStream2(streamKey, extraReadOptions, extraWriteOptions, writeFormat)
     // give some time for spark query to start
-    Thread.sleep(50)
+    Thread.sleep(2000)
     try {
       body(spark)
     } finally {

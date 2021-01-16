@@ -14,6 +14,7 @@ trait RedisStandaloneEnv extends Env {
     .set("spark.redis.port", s"$redisPort")
     .set("spark.redis.auth", redisAuth)
     .set("spark.streaming.stopGracefullyOnShutdown", "true")
+    .set("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true")
     .set("spark.driver.bindAddress", "127.0.0.1")
 
   override val redisConfig: RedisConfig =

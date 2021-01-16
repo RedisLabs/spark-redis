@@ -22,6 +22,7 @@ The master branch contains the recent development for the next release.
 
 | Spark-Redis                                                     | Spark         | Redis            | Supported Scala Versions | 
 | ----------------------------------------------------------------| ------------- | ---------------- | ------------------------ |
+| [master](https://github.com/RedisLabs/spark-redis/)             | 3.0.x         | >=2.9.0          | 2.12                     | 
 | [2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x         | >=2.9.0          | 2.11, 2.12               | 
 | [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3) | 2.3.x         | >=2.9.0          | 2.11                     | 
 | [1.4](https://github.com/RedisLabs/spark-redis/tree/branch-1.4) | 1.4.x         |                  | 2.10                     | 
