@@ -8,10 +8,6 @@ install:
     - make -C redis-6.0.3 -j4 BUILD_TLS=yes
     - export PATH=$PWD/redis-6.0.3/src:$PATH
 script:
-    - make test # test with scala 2.11
-    - sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
-    - ps aux | grep redis
-    - ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
     - make test # test with scala 2.12
 cache:
     directories:

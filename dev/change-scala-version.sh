@@ -2,10 +2,9 @@
 
 set -e
 
-VALID_VERSIONS=( 2.11 2.12 )
+VALID_VERSIONS=( 2.12 )
 
-SCALA_211_MINOR_VERSION="12"
-SCALA_212_MINOR_VERSION="9"
+SCALA_212_MINOR_VERSION="12"
 
 usage() {
   echo "Usage: $(basename $0) [-h|--help] <version>
