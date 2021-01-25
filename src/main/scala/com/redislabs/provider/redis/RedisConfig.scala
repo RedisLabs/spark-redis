@@ -43,6 +43,24 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     )
   }
 
+
+  /**
+   * Constructor from spark config and parameters.
+   *
+   * @param conf spark context config
+   * @param parameters source specific parameters
+   */
+  def this(conf: SparkConf, parameters: Map[String, String]) {
+    this(
+      parameters.getOrElse("host", conf.get("spark.redis.host", Protocol.DEFAULT_HOST)),
+      parameters.getOrElse("port", conf.get("spark.redis.port", Protocol.DEFAULT_PORT.toString)).toInt,
+      parameters.getOrElse("auth", conf.get("spark.redis.auth", null)),
+      parameters.getOrElse("dbNum", conf.get("spark.redis.db", Protocol.DEFAULT_DATABASE.toString)).toInt,
+      parameters.getOrElse("timeout", conf.get("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT.toString)).toInt,
+      parameters.getOrElse("ssl", conf.get("spark.redis.ssl", false.toString)).toBoolean)
+  }
+
+
   /**
     * Constructor with Jedis URI
     *
@@ -121,6 +139,10 @@ object RedisConfig {
     */
   def fromSparkConf(conf: SparkConf): RedisConfig = {
     new RedisConfig(new RedisEndpoint(conf))
+  }
+
+  def fromSparkConfAndParameters(conf: SparkConf, parameters: Map[String, String]): RedisConfig = {
+    new RedisConfig(new RedisEndpoint(conf, parameters))
   }
 }
 

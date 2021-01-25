@@ -25,7 +25,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val sc = sqlContext.sparkContext
 
-  implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf)
+  implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConfAndParameters(sc.getConf, parameters)
 
   private val sourceConfig = RedisSourceConfig.fromMap(parameters)
 
