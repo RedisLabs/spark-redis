@@ -1,8 +1,9 @@
 [![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
 [![GitHub issues](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
 [![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis)
-[![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11)
+[![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis_2.11.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis_2.11)
+[![Gitter](https://badges.gitter.im/RedisLabs/spark-redis.svg)](https://gitter.im/RedisLabs/spark-redis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 <!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
 # Spark-Redis
@@ -19,11 +20,11 @@ Spark-Redis also supports Spark Streaming (DStreams) and Structured Streaming.
 The library has several branches, each corresponds to a different supported Spark version. For example, 'branch-2.3' works with any Spark 2.3.x version.
 The master branch contains the recent development for the next release.
 
-| Spark-Redis | Spark         | Redis            | Supported Scala Versions | 
-| ----------- | ------------- | ---------------- | ------------------------ |
-| 2.4         | 2.4.x         | >=2.9.0          | 2.11                     | 
-| 2.3         | 2.3.x         | >=2.9.0          | 2.11                     | 
-| 1.4         | 1.4.x         |                  | 2.10                     | 
+| Spark-Redis                                                     | Spark         | Redis            | Supported Scala Versions | 
+| ----------------------------------------------------------------| ------------- | ---------------- | ------------------------ |
+| [2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x         | >=2.9.0          | 2.11, 2.12               | 
+| [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3) | 2.3.x         | >=2.9.0          | 2.11                     | 
+| [1.4](https://github.com/RedisLabs/spark-redis/tree/branch-1.4) | 1.4.x         |                  | 2.10                     | 
 
 
 ## Known limitations
@@ -34,6 +35,8 @@ The master branch contains the recent development for the next release.
 This library is a work in progress so the API may change before the official release.
 
 ## Documentation
+
+Please make sure you use documentation from the correct branch ([2.4](https://github.com/RedisLabs/spark-redis/tree/branch-2.4#documentation), [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3#documentation), etc). 
 
   - [Getting Started](doc/getting-started.md)
   - [RDD](doc/rdd.md)

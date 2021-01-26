@@ -1,9 +1,11 @@
 package com.redislabs.provider.redis
 
 import com.redislabs.provider.redis.rdd._
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import scala.collection.JavaConversions.mapAsJavaMap
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -264,6 +266,19 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+   * Write RDD of (hash name, hash KVs)
+   *
+   * @param kvs      RDD of tuples (hash name, Map(hash field name, hash field value))
+   * @param ttl      time to live
+   */
+  def toRedisHASHes(kvs: RDD[(String, Map[String, String])], ttl: Int = 0)
+                  (implicit
+                   redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                   readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    kvs.foreachPartition(partition => setHash(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
     * @param kvs      Pair RDD of K/V
     * @param zsetName target zset's name which hold all the kvs
     * @param ttl      time to live
@@ -297,6 +312,48 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
                   redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
                   readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
     vs.foreachPartition(partition => setList(listName, partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
+    * Write RDD of (list name, list values) to Redis Lists.
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  def toRedisLISTs(rdd: RDD[(String, Seq[String])], ttl: Int = 0)
+                  (implicit
+                  redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                  readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    rdd.foreachPartition(partition => setList(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
+    * Write RDD of binary values to Redis Lists.
+    *
+    * @deprecated use toRedisByteLISTs, the method name has changed to make API consistent
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  @Deprecated
+  def toRedisByteLIST(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
+                     (implicit
+                      redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                      readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    toRedisByteLISTs(rdd, ttl)(redisConfig, readWriteConfig)
+  }
+
+  /**
+    * Write RDD of binary values to Redis Lists.
+    *
+    * @param rdd RDD of tuples (list name, list values)
+    * @param ttl time to live
+    */
+  def toRedisByteLISTs(rdd: RDD[(Array[Byte], Seq[Array[Byte]])], ttl: Int = 0)
+                     (implicit
+                      redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                      readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    rdd.foreachPartition(partition => setByteList(partition, ttl, redisConfig, readWriteConfig))
   }
 
   /**
@@ -359,6 +416,33 @@ object RedisContext extends Serializable {
   }
 
   /**
+   * @param hashes hashName: map of k/vs to be saved in the target host
+   * @param ttl time to live
+   */
+  def setHash(hashes: Iterator[(String, Map[String,String])],
+              ttl: Int,
+              redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    hashes
+      .map { case (key, hashFields) =>
+        (redisConfig.getHost(key), (key, hashFields))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, hashFields) = a._2
+            pipeline.hmset(key, hashFields)
+            if (ttl > 0) pipeline.expire(key, ttl)
+          }
+        }
+      }
+  }
+
+  /**
     * @param zsetName
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to zsetName(zset type) to the target host
@@ -413,6 +497,53 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(listName, ttl)
     pipeline.sync()
     conn.close()
+  }
+
+
+  def setByteList(keyValues: Iterator[(Array[Byte], Seq[Array[Byte]])],
+                  ttl: Int,
+                  redisConfig: RedisConfig,
+                  readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    keyValues
+      .map { case (key, listValues) =>
+        (redisConfig.getHost(key), (key, listValues))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, listVals) = a._2
+            pipeline.rpush(key, listVals: _*)
+            if (ttl > 0) pipeline.expire(key, ttl)
+          }
+        }
+      }
+  }
+
+  def setList(keyValues: Iterator[(String, Seq[String])],
+              ttl: Int,
+              redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    keyValues
+      .map { case (key, listValues) =>
+        (redisConfig.getHost(key), (key, listValues))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, listVals) = a._2
+            pipeline.rpush(key, listVals: _*)
+            if (ttl > 0) pipeline.expire(key, ttl)
+          }
+        }
+      }
   }
 
   /**

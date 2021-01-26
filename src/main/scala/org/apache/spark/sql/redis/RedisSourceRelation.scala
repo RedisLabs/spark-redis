@@ -1,15 +1,13 @@
 package org.apache.spark.sql.redis
 
 import java.util.UUID
+import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
-import com.redislabs.provider.redis.{
-  ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString,
-  RedisEndpoint, RedisNode, toRedisContext
-}
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -42,7 +40,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val auth = parameters.getOrElse("auth", null)
         val dbNum = parameters.get("dbNum").map(_.toInt).getOrElse(Protocol.DEFAULT_DATABASE)
         val timeout = parameters.get("timeout").map(_.toInt).getOrElse(Protocol.DEFAULT_TIMEOUT)
-        RedisEndpoint(host, port, auth, dbNum, timeout)
+        val ssl = parameters.get("ssl").map(_.toBoolean).getOrElse(false)
+        RedisEndpoint(host, port, auth, dbNum, timeout, ssl)
       }
     )
   }
@@ -103,7 +102,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
-    throw new IllegalArgumentException(s"Both options '$SqlOptionTableName' and '$SqlOptionTableName' are set. " +
+    throw new IllegalArgumentException(s"Both options '$SqlOptionKeysPattern' and '$SqlOptionTableName' are set. " +
       s"You should only use either one.")
   }
 
@@ -134,7 +133,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data.foreachPartition { partition =>
+    data.foreachPartition { partition: Iterator[Row] =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
         // the following can be optimized to not create a map
@@ -290,7 +289,21 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       val pipelineValues = mapWithPipeline(conn, filteredKeys) { (pipeline, key) =>
         persistence.load(pipeline, key, requiredColumns)
       }
-      filteredKeys.zip(pipelineValues).map { case (key, value) =>
+      val keysAndValues = filteredKeys.zip(pipelineValues)
+
+      // if specific key (not pattern) is provided and the value doesn't exist, filter them out
+      val filteredKeysAndValues =
+        if (Keys.isRedisRegex(dataKeyPattern)) {
+          keysAndValues
+        } else {
+          keysAndValues.filter {
+            case (_, null) => false // binary model
+            case (_, value: JList[_]) if value.forall(_ == null) => false // hash model
+            case _ => true
+          }
+        }
+
+      filteredKeysAndValues.map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         persistence.decodeRow(keyMap, value, schema, requiredColumns)
       }
