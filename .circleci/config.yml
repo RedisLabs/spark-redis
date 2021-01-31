@@ -57,7 +57,11 @@ jobs:
             make -C redis-6.0.10 -j4 BUILD_TLS=yes
             export PATH=$PWD/redis-6.0.10/src:$PATH
 
-      - run: make test
+      - run:
+          name: Run Test
+          command: |
+            export PATH=$PWD/redis-6.0.10/src:$PATH
+            make test
       
       - run:
           name: switch scala to 2.12 
@@ -67,8 +71,10 @@ jobs:
             ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
       
       - run: 
-          name: test with scala 2.12     
-          command: make test
+          name: Run Test with scala 2.12     
+          command: |
+            export PATH=$PWD/redis-6.0.10/src:$PATH
+            make test
       
       - early_return_for_forked_pull_requests
 
