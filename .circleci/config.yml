@@ -50,6 +50,8 @@ jobs:
       - run: 
           name: install Redis
           command: |
+            sudo apt-get update
+            sudo apt-get install software-properties-common
             sudo add-apt-repository ppa:redislabs/redis
             sudo apt-get update
             sudo apt-get install redis 
