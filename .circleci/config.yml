@@ -47,12 +47,12 @@ jobs:
             - ~/.m2
           key: spark-redis-{{ checksum "pom.xml" }}
 
-       - run: 
-         - name: install Redis
-         - commad: |
-             sudo add-apt-repository ppa:redislabs/redis
-             sudo apt-get update
-             sudo apt-get install redis 
+      - run: 
+          name: install Redis
+          command: |
+            sudo add-apt-repository ppa:redislabs/redis
+            sudo apt-get update
+            sudo apt-get install redis 
 
       - run: make test
       
