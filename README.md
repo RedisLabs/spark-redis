@@ -1,9 +1,9 @@
 [![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
-[![GitHub issues](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
-[![Build Status](https://travis-ci.org/RedisLabs/spark-redis.svg)](https://travis-ci.org/RedisLabs/spark-redis)
+[![Release](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
+[![CircleCI](https://circleci.com/gh/RedisLabs/spark-redis/tree/master.svg?style=svg)](https://circleci.com/gh/RedisLabs/spark-redis/tree/master)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.11)
 [![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis_2.11.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis_2.11)
-[![Gitter](https://badges.gitter.im/RedisLabs/spark-redis.svg)](https://gitter.im/RedisLabs/spark-redis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![Discord](https://img.shields.io/discord/697882427875393627?style=flat-square)](https://discord.gg/Bjt6TcgV)
 <!--[![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)-->
 
 # Spark-Redis
