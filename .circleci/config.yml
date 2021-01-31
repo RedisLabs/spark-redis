@@ -50,6 +50,8 @@ jobs:
       - run: 
           name: install Redis
           command: |
+            sudo apt-get -y update
+	          sudo apt-get install -y gcc-8 g++-8 libssl-dev
             wget http://download.redis.io/releases/redis-6.0.10.tar.gz
             tar -xzvf redis-6.0.10.tar.gz
             make -C redis-6.0.10 -j4 BUILD_TLS=yes
