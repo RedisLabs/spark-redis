@@ -25,7 +25,7 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit =
     pipeline.get(key.getBytes(UTF_8))
 
-  override def encodeRow(keyName: String, value: Row): Array[Byte] = {
+  override def encodeRow(keyName: String, value: Row, ttlColumn: Option[String] = None): Array[Byte] = {
     val fields = value.schema.fields.map(_.name)
     val valuesArray = fields.map(f => value.getAs[Any](f))
     SerializationUtils.serialize(valuesArray)

@@ -18,9 +18,10 @@ trait RedisPersistence[T] extends Serializable {
     *
     * @param keyName field name that should be encoded in special way, e.g. in Redis keys.
     * @param value   row to encode.
+    * @param ttlColumn field name to be used for setting the ttl and not added as a value
     * @return encoded row
     */
-  def encodeRow(keyName: String, value: Row): T
+  def encodeRow(keyName: String, value: Row, ttlColumn: Option[String] = None): T
 
   /**
     * Decode dataframe row stored in Redis.
