@@ -93,7 +93,7 @@ case class RedisNode(endpoint: RedisEndpoint,
 /**
   * Tuning options for read and write operations.
   */
-case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int)
+case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int, rddWriteIteratorGroupingSize: Int)
 
 object ReadWriteConfig {
   /** maximum number of commands per pipeline **/
@@ -104,12 +104,17 @@ object ReadWriteConfig {
   val ScanCountConfKey = "spark.redis.scan.count"
   val ScanCountDefault = 100
 
-  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault)
+  /** Iterator grouping size for writing RDD **/
+  val RddWriteIteratorGroupingSizeKey = "spark.redis.rdd.write.iterator.grouping.size"
+  val RddWriteIteratorGroupingSizeDefault = 1000
+
+  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault, RddWriteIteratorGroupingSizeDefault)
 
   def fromSparkConf(conf: SparkConf): ReadWriteConfig = {
     ReadWriteConfig(
       conf.getInt(ScanCountConfKey, ScanCountDefault),
-      conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault)
+      conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault),
+      conf.getInt(RddWriteIteratorGroupingSizeKey, RddWriteIteratorGroupingSizeDefault)
     )
   }
 }
