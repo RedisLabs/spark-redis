@@ -145,6 +145,12 @@ sc.toRedisHASHes(hashRDD, ttl)
 
 The `hashRDD` is a rdd of tuples (`hashname`, `map[field name, field value]`)
 
+```scala
+sc.toRedisByteHASHes(hashRDD, ttl)
+```
+
+The `hashRDD` is a rdd of tuples (`hashname`, `map[field name, field value]`) represented as byte arrays.
+
 #### Lists
 Use the following to store an RDD in a Redis List:
 
