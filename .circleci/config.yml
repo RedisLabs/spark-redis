@@ -63,12 +63,6 @@ jobs:
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
       
-      - run:
-          name: Run Test
-          command: |
-            export PATH=$PWD/redis-6.0.10/src:$PATH
-            make test
-      
       - early_return_for_forked_pull_requests
 
       - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN} 
