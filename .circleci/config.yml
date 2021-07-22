@@ -64,14 +64,7 @@ jobs:
             make test
       
       - run:
-          name: switch scala to 2.12 
-          command: |
-            sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
-            ps aux | grep redis
-            ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
-      
-      - run: 
-          name: Run Test with scala 2.12     
+          name: Run Test
           command: |
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
