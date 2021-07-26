@@ -1,5 +1,26 @@
 version: 2.1
 commands:
+
+  abort_for_docs:
+    steps:
+      - run:
+          name: Avoid tests for docs
+          command: |
+            if [[ $CIRCLE_BRANCH == *docs ]]; then
+              echo "Identifies as documents PR, no testing required"
+              circleci step halt
+            fi
+
+  abort_for_noci:
+    steps:
+      - run:
+          name: Ignore CI for specific branches
+          command: |
+            if [[ $CIRCLE_BRANCH == *noci ]]; then
+              echo "Identifies as actively ignoring CI, no testing required."
+              circleci step halt
+            fi
+
   early_return_for_forked_pull_requests:
     description: >-
       If this build is from a fork, stop executing the current job and return success.
@@ -13,18 +34,11 @@ commands:
               circleci step halt
             fi
 
-executors:
-  linux-8-jdk:
-    docker:
-      - image: circleci/openjdk:8-jdk
-
 jobs:
   build:
-    parameters:
-      os:
-        type: executor
-
-    executor: << parameters.os >>
+    docker:
+      - image: cimg/openjdk:8.0-browsers
+      - image: redislabs/redis:6.0.12-58
 
     working_directory: ~/repo
 
@@ -33,6 +47,8 @@ jobs:
       TERM: dumb
 
     steps:
+      - abort_for_docs
+      - abort_for_noci
       - checkout
 
       # Download and cache dependencies
@@ -40,52 +56,26 @@ jobs:
           keys:
             - spark-redis-{{ checksum "pom.xml" }}
 
-      - run: mvn dependency:go-offline 
+      - run: mvn dependency:go-offline
 
       - save_cache:
           paths:
             - ~/.m2
           key: spark-redis-{{ checksum "pom.xml" }}
 
-      - run: 
-          name: install Redis
-          command: |
-            sudo apt-get -y update
-            sudo apt-get install -y gcc-8 g++-8 libssl-dev
-            wget http://download.redis.io/releases/redis-6.0.10.tar.gz
-            tar -xzvf redis-6.0.10.tar.gz
-            make -C redis-6.0.10 -j4 BUILD_TLS=yes
-            export PATH=$PWD/redis-6.0.10/src:$PATH
-
       - run:
           name: Run Test
           command: |
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
-      
-      - run:
-          name: switch scala to 2.12 
-          command: |
-            sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
-            ps aux | grep redis
-            ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
-      
-      - run: 
-          name: Run Test with scala 2.12     
-          command: |
-            export PATH=$PWD/redis-6.0.10/src:$PATH
-            make test
-      
-      - early_return_for_forked_pull_requests
 
-      - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN} 
-     
-      - run: mvn -s .circleci.settings.xml -DskipTests deploy
+      - early_return_for_forked_pull_requests
+      - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+      - run: bash <(curl -s https://raw.githubusercontent.com/codecov/codecov-bash/master/codecov) -t ${CODECOV_TOKEN}
+      - run: mvn -s .circleci.settings.xml -DskipTests -Dgpg.skip deploy
 
 workflows:
-  all-jdks:
+  version: 2
+  commit:
     jobs:
-      - build:
-          matrix:
-            parameters:
-              os: [linux-8-jdk]
+      - build
