@@ -40,14 +40,14 @@ jobs:
           keys:
             - spark-redis-{{ checksum "pom.xml" }}
 
-      - run: mvn dependency:go-offline 
+      - run: mvn dependency:go-offline
 
       - save_cache:
           paths:
             - ~/.m2
           key: spark-redis-{{ checksum "pom.xml" }}
 
-      - run: 
+      - run:
           name: install Redis
           command: |
             sudo apt-get -y update
@@ -62,30 +62,31 @@ jobs:
           command: |
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
-      
+
       - run:
-          name: switch scala to 2.12 
+          name: switch scala to 2.12
           command: |
             sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
             ps aux | grep redis
             ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
-      
-      - run: 
-          name: Run Test with scala 2.12     
+
+      - run:
+          name: Run Test with scala 2.12
           command: |
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
-      
+
       - early_return_for_forked_pull_requests
 
-      - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN} 
-     
+      - run: bash <(curl -s https://raw.githubusercontent.com/codecov/codecov-bash/master/codecov) -t ${CODECOV_TOKEN}
+
       - run: mvn -s .circleci.settings.xml -DskipTests deploy
 
 workflows:
   all-jdks:
     jobs:
       - build:
+          context: common
           matrix:
             parameters:
               os: [linux-8-jdk]
