@@ -62,9 +62,9 @@ jobs:
           command: |
             sudo apt-get -y update
             sudo apt-get install -y gcc-8 g++-8 libssl-dev
-            wget http://download.redis.io/releases/redis-6.0.25.tar.gz
-            tar -xzvf redis-6.0.25.tar.gz
-            make -C redis-6.0.25 -j`nproc` BUILD_TLS=yes
+            wget http://download.redis.io/releases/redis-6.0.10.tar.gz
+            tar -xzvf redis-6.0.10.tar.gz
+            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
             export PATH=$PWD/redis-6.0.10/src:$PATH
 
       - run:
@@ -120,9 +120,9 @@ jobs:
           command: |
             sudo apt-get -y update
             sudo apt-get install -y gcc-8 g++-8 libssl-dev
-            wget http://download.redis.io/releases/redis-6.0.25.tar.gz
-            tar -xzvf redis-6.0.25.tar.gz
-            make -C redis-6.0.25 -j`nproc` BUILD_TLS=yes
+            wget http://download.redis.io/releases/redis-6.0.10.tar.gz
+            tar -xzvf redis-6.0.10.tar.gz
+            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
             export PATH=$PWD/redis-6.0.10/src:$PATH
 
       - run:
