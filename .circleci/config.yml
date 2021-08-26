@@ -74,7 +74,7 @@ jobs:
             make test
 
       - run:
-          name: switch scala to 2.12
+          name: gracefully kill redis
           command: |
             sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
             ps aux | grep redis
@@ -131,7 +131,7 @@ jobs:
             make test
 
       - run:
-          name: switch scala to 2.12
+          name: gracefully kill redis
           command: |
             sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
             ps aux | grep redis
