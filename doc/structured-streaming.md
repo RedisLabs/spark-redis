@@ -84,7 +84,7 @@ there will be the output `keys output:*`:
 4) "30.5"
 ```
 
-Please refer to [DataFrame docs](dataframe.md) for different options(such as specifying key name) available for writing .
+Please refer to [DataFrame docs](dataframe.md) for different options (such as specifying key name) available for writing.
 
 ### Stream Offset
 
@@ -141,6 +141,19 @@ The first approach is to create stream from multiple Redis keys. You can specify
 Please note, item ordering will be preserved only within a particular Redis key (Spark partition), there is no ordering guarantees for items across different keys.
 
 With the second approach you can read data from a single Redis key with multiple consumers in parallel, e.g. `option("stream.parallelism", 4)`. Each consumer will be mapped to a Spark partition. There are no ordering guarantees in this case.
+
+### Connection options
+
+Similarly to Dataframe API, we can override connection options on the individual stream level, using following options passed to `spark.readStream`:
+
+| Name       | Description                                                  | Type       | Default     |
+| -----------| -------------------------------------------------------------| ---------- | ----------- |
+| host       | overrides `spark.redis.host` configured in SparkSession      | `String`   | `localhost` |
+| port       | overrides `spark.redis.port` configured in SparkSession      | `Int`      | `6379`      |
+| auth       | overrides `spark.redis.auth` configured in SparkSession      | `String`   | -           |
+| dbNum      | overrides `spark.redis.db` configured in SparkSession        | `Int`      | `0`         |
+| timeout    | overrides `spark.redis.timeout` configured in SparkSession   | `Int`      | `2000`      |
+
 
 ### Other configuration
 

@@ -341,11 +341,11 @@ root
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |
 | scan.count             | count option of SCAN command (used to iterate over keys)                                  | `Int`                 | 100     |
 | iterator.grouping.size | the number of items to be grouped when iterating over underlying RDD partition            | `Int`                 | 1000    |
-| host                   | overrides `spark.redis.host` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `String`              | `localhost`    |
-| port                   | overrides `spark.redis.port` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `Int`                 | `6379`         |
-| auth                   | overrides `spark.redis.auth` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `String`              | -              |
-| dbNum                  | overrides `spark.redis.db` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                       | `Int`                 | `0`            |
-| timeout                | overrides `spark.redis.timeout` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                     | `Int`                 | `2000`         |
+| host                   | overrides `spark.redis.host` configured in SparkSession                                   | `String`              | `localhost`    |
+| port                   | overrides `spark.redis.port` configured in SparkSession                                   | `Int`                 | `6379`         |
+| auth                   | overrides `spark.redis.auth` configured in SparkSession                                   | `String`              | -              |
+| dbNum                  | overrides `spark.redis.db` configured in SparkSession                                     | `Int`                 | `0`            |
+| timeout                | overrides `spark.redis.timeout` configured in SparkSession                                | `Int`                 | `2000`         |
 
 
 ## Known limitations
