@@ -30,21 +30,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     with Serializable
     with Logging {
 
-  private implicit val redisConfig: RedisConfig = {
-    new RedisConfig(
-      if ((parameters.keySet & Set("host", "port", "auth", "dbNum", "timeout")).isEmpty) {
-        new RedisEndpoint(sqlContext.sparkContext.getConf)
-      } else {
-        val host = parameters.getOrElse("host", Protocol.DEFAULT_HOST)
-        val port = parameters.get("port").map(_.toInt).getOrElse(Protocol.DEFAULT_PORT)
-        val auth = parameters.getOrElse("auth", null)
-        val dbNum = parameters.get("dbNum").map(_.toInt).getOrElse(Protocol.DEFAULT_DATABASE)
-        val timeout = parameters.get("timeout").map(_.toInt).getOrElse(Protocol.DEFAULT_TIMEOUT)
-        val ssl = parameters.get("ssl").map(_.toBoolean).getOrElse(false)
-        RedisEndpoint(host, port, auth, dbNum, timeout, ssl)
-      }
-    )
-  }
+  private implicit val redisConfig: RedisConfig = RedisConfig.fromSparkConfAndParameters(
+    sqlContext.sparkContext.getConf, parameters)
 
   implicit private val readWriteConfig: ReadWriteConfig = {
     val global = ReadWriteConfig.fromSparkConf(sqlContext.sparkContext.getConf)
@@ -102,7 +89,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
-    throw new IllegalArgumentException(s"Both options '$SqlOptionTableName' and '$SqlOptionTableName' are set. " +
+    throw new IllegalArgumentException(s"Both options '$SqlOptionKeysPattern' and '$SqlOptionTableName' are set. " +
       s"You should only use either one.")
   }
 

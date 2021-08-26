@@ -1,11 +1,11 @@
 package com.redislabs.provider.redis.util
 
-import java.lang.{
-  Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong,
-  Short => JShort
-}
+import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
 
 import org.apache.spark.sql.types._
+import redis.clients.jedis.exceptions.JedisDataException
+
+import scala.util.{Failure, Success, Try}
 
 /**
   * @author The Viet Nguyen
@@ -41,4 +41,12 @@ object ParseUtils {
       case TimestampType => java.sql.Timestamp.valueOf(fieldValueStr)
       case _ => fieldValueStr
     }
+
+  private[redis] def ignoreJedisWrongTypeException[T](tried: Try[T]): Try[Option[T]] = {
+    tried.transform(s => Success(Some(s)), {
+      // Swallow this exception
+      case e: JedisDataException if Option(e.getMessage).getOrElse("").contains("WRONGTYPE") => Success(None)
+      case e: Throwable => Failure(e)
+    })
+  }
 }

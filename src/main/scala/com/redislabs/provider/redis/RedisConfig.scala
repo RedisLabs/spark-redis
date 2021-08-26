@@ -43,6 +43,24 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     )
   }
 
+
+  /**
+   * Constructor from spark config and parameters.
+   *
+   * @param conf spark context config
+   * @param parameters source specific parameters
+   */
+  def this(conf: SparkConf, parameters: Map[String, String]) {
+    this(
+      parameters.getOrElse("host", conf.get("spark.redis.host", Protocol.DEFAULT_HOST)),
+      parameters.getOrElse("port", conf.get("spark.redis.port", Protocol.DEFAULT_PORT.toString)).toInt,
+      parameters.getOrElse("auth", conf.get("spark.redis.auth", null)),
+      parameters.getOrElse("dbNum", conf.get("spark.redis.db", Protocol.DEFAULT_DATABASE.toString)).toInt,
+      parameters.getOrElse("timeout", conf.get("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT.toString)).toInt,
+      parameters.getOrElse("ssl", conf.get("spark.redis.ssl", false.toString)).toBoolean)
+  }
+
+
   /**
     * Constructor with Jedis URI
     *
@@ -93,7 +111,7 @@ case class RedisNode(endpoint: RedisEndpoint,
 /**
   * Tuning options for read and write operations.
   */
-case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int)
+case class ReadWriteConfig(scanCount: Int, maxPipelineSize: Int, rddWriteIteratorGroupingSize: Int)
 
 object ReadWriteConfig {
   /** maximum number of commands per pipeline **/
@@ -104,12 +122,17 @@ object ReadWriteConfig {
   val ScanCountConfKey = "spark.redis.scan.count"
   val ScanCountDefault = 100
 
-  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault)
+  /** Iterator grouping size for writing RDD **/
+  val RddWriteIteratorGroupingSizeKey = "spark.redis.rdd.write.iterator.grouping.size"
+  val RddWriteIteratorGroupingSizeDefault = 1000
+
+  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault, RddWriteIteratorGroupingSizeDefault)
 
   def fromSparkConf(conf: SparkConf): ReadWriteConfig = {
     ReadWriteConfig(
       conf.getInt(ScanCountConfKey, ScanCountDefault),
-      conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault)
+      conf.getInt(MaxPipelineSizeConfKey, MaxPipelineSizeDefault),
+      conf.getInt(RddWriteIteratorGroupingSizeKey, RddWriteIteratorGroupingSizeDefault)
     )
   }
 }
@@ -121,6 +144,10 @@ object RedisConfig {
     */
   def fromSparkConf(conf: SparkConf): RedisConfig = {
     new RedisConfig(new RedisEndpoint(conf))
+  }
+
+  def fromSparkConfAndParameters(conf: SparkConf, parameters: Map[String, String]): RedisConfig = {
+    new RedisConfig(new RedisEndpoint(conf, parameters))
   }
 }
 

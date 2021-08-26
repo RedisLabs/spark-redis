@@ -4,7 +4,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
-import com.redislabs.provider.redis.util.{ConnectionUtils, Logging, ParseUtils}
+import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource._
@@ -25,7 +25,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
   private val sc = sqlContext.sparkContext
 
-  implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf)
+  implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConfAndParameters(sc.getConf, parameters)
 
   private val sourceConfig = RedisSourceConfig.fromMap(parameters)
 

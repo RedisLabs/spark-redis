@@ -1,15 +1,14 @@
 package com.redislabs.provider.redis.streaming
 
 import java.util.AbstractMap.SimpleEntry
-
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
 import com.redislabs.provider.redis.util.{Logging, StreamUtils}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
 import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
-import org.spark_project.guava.util.concurrent.RateLimiter
-import redis.clients.jedis.{StreamEntryID, Jedis, StreamEntry}
+import org.sparkproject.guava.util.concurrent.RateLimiter
+import redis.clients.jedis.{Jedis, StreamEntry, StreamEntryID}
 
 import scala.collection.JavaConversions._
 
