@@ -1,12 +1,13 @@
 package org.apache.spark.sql.redis
 
-import java.util.{List => JList}
+import com.google.gson.Gson
 
+import java.util.{List => JList}
 import com.redislabs.provider.redis.util.ParseUtils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
-import redis.clients.jedis.Pipeline
+import redis.clients.jedis.{Pipeline, StreamEntryID}
 
 import scala.collection.JavaConverters._
 
@@ -15,9 +16,16 @@ import scala.collection.JavaConverters._
   */
 class HashRedisPersistence extends RedisPersistence[Any] {
 
-  override def save(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
+  override def save(pipeline: Pipeline, key: String, value: Any,
+                    ttl: Int, method: String, tableName: String): Unit = {
     val javaValue = value.asInstanceOf[Map[String, String]].asJava
-    pipeline.hmset(key, javaValue)
+    method match {
+      case SqlOptionModelHash => pipeline.hmset(key, javaValue)
+      case SqlOptionMethodStream => pipeline.xadd(tableName, StreamEntryID.NEW_ENTRY, javaValue)
+      case SqlOptionMethodList => pipeline.rpush(tableName, new Gson().toJson(javaValue))
+      case _ => throw new IllegalArgumentException(s"${method} is not supported")
+    }
+
     if (ttl > 0) {
       pipeline.expire(key, ttl)
     }

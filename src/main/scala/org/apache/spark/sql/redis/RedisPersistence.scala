@@ -9,7 +9,7 @@ import redis.clients.jedis.Pipeline
   */
 trait RedisPersistence[T] extends Serializable {
 
-  def save(pipeline: Pipeline, key: String, value: T, ttl: Int): Unit
+  def save(pipeline: Pipeline, key: String, value: T, ttl: Int, method: String, tableName: String): Unit
 
   def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit
 

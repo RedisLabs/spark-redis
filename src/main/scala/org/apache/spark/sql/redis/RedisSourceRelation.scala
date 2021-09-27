@@ -65,6 +65,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistence = RedisPersistence(persistenceModel)
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+  private val method = parameters.getOrDefault(SqlOptionMethod, SqlOptionModelHash)
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -130,7 +131,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           foreachWithPipeline(conn, keys) { (pipeline, key) =>
             val row = rowsWithKey(key)
             val encodedRow = persistence.encodeRow(keyName, row)
-            persistence.save(pipeline, key, encodedRow, ttl)
+            persistence.save(pipeline, key, encodedRow, ttl, method, tableName())
           }
           conn.close()
         }
