@@ -40,7 +40,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val auth = parameters.getOrElse("auth", null)
         val dbNum = parameters.get("dbNum").map(_.toInt).getOrElse(Protocol.DEFAULT_DATABASE)
         val timeout = parameters.get("timeout").map(_.toInt).getOrElse(Protocol.DEFAULT_TIMEOUT)
-        RedisEndpoint(host, port, auth, dbNum, timeout)
+        val ssl = parameters.get("ssl").map(_.toBoolean).getOrElse(false)
+        RedisEndpoint(host, port, auth, dbNum, timeout, ssl)
       }
     )
   }
@@ -101,7 +102,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
-    throw new IllegalArgumentException(s"Both options '$SqlOptionTableName' and '$SqlOptionTableName' are set. " +
+    throw new IllegalArgumentException(s"Both options '$SqlOptionKeysPattern' and '$SqlOptionTableName' are set. " +
       s"You should only use either one.")
   }
 
@@ -132,7 +133,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
 
     // write data
-    data.foreachPartition { partition =>
+    data.foreachPartition { partition: Iterator[Row] =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
         // the following can be optimized to not create a map

@@ -42,9 +42,29 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyList("list2", list2)
   }
 
+  test("toRedisHASHes") {
+    val map1 = Map("k1" -> "v1", "k2" -> "v2")
+    val map2 = Map("k3" -> "v3", "k4" -> "v4")
+    val hashes = Seq(
+      ("hash1", map1),
+      ("hash2", map2)
+    )
+    val rdd = sc.parallelize(hashes)
+    sc.toRedisHASHes(rdd)
+
+    verifyHash("hash1", map1)
+    verifyHash("hash2", map2)
+  }
+
   def verifyList(list: String, vals: Seq[String]): Unit = {
     withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
       conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
+    }
+  }
+
+  def verifyHash(hash: String, vals: Map[String, String]): Unit = {
+    withConnection(redisConfig.getHost(hash).endpoint.connect()) { conn =>
+      conn.hgetAll(hash).asScala should be(vals)
     }
   }
 

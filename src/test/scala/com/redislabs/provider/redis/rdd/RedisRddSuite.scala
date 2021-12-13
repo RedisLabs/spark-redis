@@ -22,6 +22,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   val hashKey: String = "all:words:cnt:hash"
   val listKey: String = "all:words:list"
   val setKey: String = "all:words:set"
+  val missingRedisKey: String = "missingRedisKey"
 
   override def beforeAll() {
     super.beforeAll()
@@ -52,9 +53,13 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   test("RedisKVRDD") {
     val redisKVRDD = sc.fromRedisKV("*")
     val kvContents = redisKVRDD.sortByKey().collect
+    val wrongTypeKeysRes = List(hashKey, zSetKey, listKey, setKey).map(sc.fromRedisKV(_).collect)
+    val missingKeyRes = sc.fromRedisKV(missingRedisKey).collect()
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
     kvContents shouldBe wcnts
+    all(wrongTypeKeysRes) should have size 0
+    missingKeyRes should have size 0
   }
 
   test("RedisZsetRDD") {
@@ -77,6 +82,9 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     val redisZRangeByScore = sc.fromRedisZRangeByScore(zSetKey, 3, 9)
     val zrangeByScore = redisZRangeByScore.collect.sorted
 
+    val wrongTypeKeysRes = List(hashKey, setKey, listKey, contentWords(0)).map(sc.fromRedisZSetWithScore(_).collect)
+    val missingKeyRes = sc.fromRedisZSetWithScore(missingRedisKey).collect()
+
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).sum.toDouble))
 
@@ -87,6 +95,8 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     zrangeByScoreWithScore should be(wcnts.toArray.filter(x => x._2 >= 3 && x._2 <= 9)
       .sortBy(x => (x._2, x._1)))
     zrangeByScore should be(wcnts.toArray.filter(x => x._2 >= 3 && x._2 <= 9).map(_._1).sorted)
+    all(wrongTypeKeysRes) should have length 0
+    missingKeyRes should have length 0
   }
 
   test("RedisHashRDD") {
@@ -94,21 +104,36 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     val hashContents = redisHashRDD.sortByKey().collect
     val wcnts = contentWords.map((_, 1)).groupBy(_._1).
       map(x => (x._1, x._2.map(_._2).sum.toString)).toArray.sortBy(_._1)
+    val wrongTypeKeysRes = List(zSetKey, setKey, listKey, contentWords(0)).map(sc.fromRedisHash(_).collect)
+    val missingKeyRes = sc.fromRedisHash(missingRedisKey).collect()
+
     hashContents should be(wcnts)
+    all(wrongTypeKeysRes) should have length 0
+    missingKeyRes should have length 0
   }
 
   test("RedisListRDD") {
     val redisListRDD = sc.fromRedisList(listKey)
     val listContents = redisListRDD.sortBy(x => x).collect
     val ws = contentWords.sorted
+    val wrongTypeKeysRes = List(zSetKey, setKey, hashKey, contentWords(0)).map(sc.fromRedisList(_).collect)
+    val missingKeyRes = sc.fromRedisList(missingRedisKey).collect()
+
     listContents should be(ws)
+    all(wrongTypeKeysRes) should have length 0
+    missingKeyRes should have length 0
   }
 
   test("RedisSetRDD") {
     val redisSetRDD = sc.fromRedisSet(setKey)
     val setContents = redisSetRDD.sortBy(x => x).collect
     val ws = content.split("\\W+").filter(!_.isEmpty).distinct.sorted
+    val wrongTypeKeysRes = List(zSetKey, listKey, hashKey, contentWords(0)).map(sc.fromRedisSet(_).collect)
+    val missingKeyRes = sc.fromRedisSet(missingRedisKey).collect()
+
     setContents should be(ws)
+    all(wrongTypeKeysRes) should have length 0
+    missingKeyRes should have length 0
   }
 
   test("Expire") {

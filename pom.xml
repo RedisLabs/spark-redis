@@ -2,8 +2,8 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.redislabs</groupId>
-	<artifactId>spark-redis</artifactId>
-	<version>2.4.1-SNAPSHOT</version>
+	<artifactId>spark-redis_2.11</artifactId>
+	<version>2.6.0-SNAPSHOT</version>
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
 	<url>http://github.com/RedisLabs/spark-redis</url>
@@ -67,6 +67,25 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.5</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>net.alchim31.maven</groupId>
 				<artifactId>scala-maven-plugin</artifactId>
@@ -226,7 +245,7 @@
 					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
 					<junitxml>.</junitxml>
 					<filereports>WDF TestSuite.txt</filereports>
-					<argLine>-XX:MaxPermSize=256m -Xmx2g</argLine>
+					<argLine>-XX:MaxPermSize=256m -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
 					<tagsToExclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToExclude>
 				</configuration>
 				<executions>
@@ -300,7 +319,7 @@
 		<dependency>
 			<groupId>org.scalatest</groupId>
 			<artifactId>scalatest_${scala.major.version}</artifactId>
-			<version>2.2.1</version>
+			<version>3.0.8</version>
 			<scope>test</scope>
 		</dependency>
     </dependencies>
