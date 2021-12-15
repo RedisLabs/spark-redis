@@ -3,12 +3,14 @@ package com.redislabs.provider.redis.rdd
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import org.scalatest.Matchers
 import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.util.TestUtils
+import redis.clients.jedis.exceptions.JedisConnectionException
 
 import scala.collection.JavaConverters._
 
 /**
-  * More RDD tests
-  */
+ * More RDD tests
+ */
 trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
 
   implicit val redisConfig: RedisConfig
@@ -69,6 +71,33 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
 
     verifyHash("hash1", map1)
     verifyHash("hash2", map2)
+  }
+
+  test("connection fails with incorrect user/pass") {
+    assertThrows[JedisConnectionException] {
+      new RedisConfig(RedisEndpoint(
+        host = redisHost,
+        port = redisPort,
+        user = user,
+        auth = "wrong_password"))
+    }
+  }
+
+  test("connection with correct user/pass") {
+    val userConfig = new RedisConfig(RedisEndpoint(
+      host = redisHost,
+      port = redisPort,
+      user = user,
+      auth = userPassword))
+
+    val someKey = TestUtils.generateRandomKey()
+    val jedis = userConfig.connectionForKey(someKey)
+    jedis.set(someKey, "123")
+    jedis.get(someKey) should be("123")
+
+    // test RDD operation
+    sc.fromRedisKeyPattern(someKey)(redisConfig = userConfig)
+      .collect()(0) should be(someKey)
   }
 
   def verifyList(list: String, vals: Seq[String]): Unit = {
