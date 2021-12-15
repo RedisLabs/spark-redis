@@ -1,10 +1,10 @@
 package com.redislabs.provider.redis
 
-import redis.clients.jedis.{JedisPoolConfig, Jedis, JedisPool}
 import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-
 import scala.collection.JavaConversions._
 
 
@@ -21,11 +21,11 @@ object ConnectionPool {
         poolConfig.setTestOnBorrow(false)
         poolConfig.setTestOnReturn(false)
         poolConfig.setTestWhileIdle(false)
-        poolConfig.setMinEvictableIdleTimeMillis(60000)
-        poolConfig.setTimeBetweenEvictionRunsMillis(30000)
+        poolConfig.setSoftMinEvictableIdleTime(Duration.ofMinutes(1))
+        poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(30))
         poolConfig.setNumTestsPerEvictionRun(-1)
 
-        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.auth, re.dbNum, re.ssl)
+        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.user, re.auth, re.dbNum, re.ssl)
       }
     )
     var sleepTime: Int = 4

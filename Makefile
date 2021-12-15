@@ -1,3 +1,6 @@
+# user
+USER_ACL = user alice on >p1pp0 ~* +@all
+
 # STANDALONE REDIS NODE
 define REDIS_STANDALONE_NODE_CONF
 daemonize yes
@@ -7,6 +10,7 @@ logfile /tmp/redis_standalone_node_for_spark-redis.log
 save ""
 appendonly no
 requirepass passwd
+$(USER_ACL)
 endef
 
 # STANDALONE REDIS NODE WITH SSL
@@ -18,6 +22,7 @@ logfile /tmp/redis_standalone_node_ssl_for_spark-redis.log
 save ""
 appendonly no
 requirepass passwd
+$(USER_ACL)
 tls-auth-clients no
 tls-port 6380
 tls-cert-file ./src/test/resources/tls/redis.crt
@@ -30,6 +35,7 @@ endef
 define REDIS_CLUSTER_NODE1_CONF
 daemonize yes
 port 7379
+$(USER_ACL)
 pidfile /tmp/redis_cluster_node1_for_spark-redis.pid
 logfile /tmp/redis_cluster_node1_for_spark-redis.log
 save ""
@@ -41,6 +47,7 @@ endef
 define REDIS_CLUSTER_NODE2_CONF
 daemonize yes
 port 7380
+$(USER_ACL)
 pidfile /tmp/redis_cluster_node2_for_spark-redis.pid
 logfile /tmp/redis_cluster_node2_for_spark-redis.log
 save ""
@@ -52,6 +59,7 @@ endef
 define REDIS_CLUSTER_NODE3_CONF
 daemonize yes
 port 7381
+$(USER_ACL)
 pidfile /tmp/redis_cluster_node3_for_spark-redis.pid
 logfile /tmp/redis_cluster_node3_for_spark-redis.log
 save ""

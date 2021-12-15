@@ -15,12 +15,14 @@ import scala.collection.JavaConversions._
   *
   * @param host  the redis host or ip
   * @param port  the redis port
+  * @param user  the authentication username
   * @param auth  the authentication password
   * @param dbNum database number (should be avoided in general)
   * @param ssl true to enable SSL connection. Defaults to false
   */
 case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
                          port: Int = Protocol.DEFAULT_PORT,
+                         user: String = null,
                          auth: String = null,
                          dbNum: Int = Protocol.DEFAULT_DATABASE,
                          timeout: Int = Protocol.DEFAULT_TIMEOUT,
@@ -36,6 +38,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     this(
       conf.get("spark.redis.host", Protocol.DEFAULT_HOST),
       conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
+      conf.get("spark.redis.user", null),
       conf.get("spark.redis.auth", null),
       conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
       conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT),
@@ -46,17 +49,17 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   /**
     * Constructor with Jedis URI
     *
-    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
+    * @param uri connection URI in the form of redis://$user:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
     */
   def this(uri: URI) {
-    this(uri.getHost, uri.getPort, JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri),
+    this(uri.getHost, uri.getPort, JedisURIHelper.getUser(uri), JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri),
       Protocol.DEFAULT_TIMEOUT, uri.getScheme == RedisSslScheme)
   }
 
   /**
     * Constructor with Jedis URI from String
     *
-    * @param uri connection URI in the form of redis://:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
+    * @param uri connection URI in the form of redis://$user:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
     */
   def this(uri: String) {
     this(URI.create(uri))
@@ -253,8 +256,14 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
       val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
 
       //simply re-enter this function witht he master host/port
-      getNonClusterNodes(initialHost = new RedisEndpoint(host, port,
-        initialHost.auth, initialHost.dbNum, ssl = initialHost.ssl))
+      getNonClusterNodes(initialHost = RedisEndpoint(
+        host = host,
+        port = port,
+        user = initialHost.user,
+        auth = initialHost.auth,
+        dbNum = initialHost.dbNum,
+        ssl = initialHost.ssl
+      ))
 
     } else {
       //this is a master - take its slaves
@@ -268,10 +277,17 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
 
       val nodes = master +: slaves
       val range = nodes.length
-      (0 until range).map(i =>
-        RedisNode(RedisEndpoint(nodes(i)._1, nodes(i)._2, initialHost.auth, initialHost.dbNum,
-          initialHost.timeout, initialHost.ssl),
-          0, 16383, i, range)).toArray
+      (0 until range).map(i => {
+        val endpoint = RedisEndpoint(
+          host = nodes(i)._1,
+          port = nodes(i)._2,
+          user = initialHost.user,
+          auth = initialHost.auth,
+          dbNum = initialHost.dbNum,
+          timeout = initialHost.timeout,
+          ssl = initialHost.ssl)
+        RedisNode(endpoint, 0, 16383, i, range)
+      }).toArray
     }
   }
 
@@ -299,12 +315,15 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
           val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
           val host = SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]])
           val port = node.get(1).toString.toInt
-          RedisNode(RedisEndpoint(host, port, initialHost.auth, initialHost.dbNum,
-            initialHost.timeout, initialHost.ssl),
-            sPos,
-            ePos,
-            i,
-            slotInfo.size - 2)
+          val endpoint = RedisEndpoint(
+            host = host,
+            port = port,
+            user = initialHost.user,
+            auth = initialHost.auth,
+            dbNum = initialHost.dbNum,
+            timeout = initialHost.timeout,
+            ssl = initialHost.ssl)
+          RedisNode(endpoint, sPos, ePos, i, slotInfo.size - 2)
         })
       }
     }.toArray
