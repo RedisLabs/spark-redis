@@ -69,10 +69,11 @@ jobs:
             export PATH=$PWD/redis-6.0.10/src:$PATH
             make test
       - run:
-          name: gracefully kill redis
+          name: switch scala to 2.12
           command: |
             sleep 5s # let redis exit gracefully (we use kill, not kill -9 in makefile)
             ps aux | grep redis
+            ./dev/change-scala-version.sh 2.12 # switch to scala 2.12
       - run:
           name: Run Test with scala 2.12
           command: |
@@ -111,7 +112,7 @@ jobs:
           name: install Redis
           command: |
             sudo apt-get -y update
-            sudo apt-get install -y gcc-8 g++-8 libssl-dev
+            sudo apt-get install -y libssl-dev
             wget http://download.redis.io/releases/redis-6.0.10.tar.gz
             tar -xzvf redis-6.0.10.tar.gz
             make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
