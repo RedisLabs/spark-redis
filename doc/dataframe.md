@@ -330,22 +330,23 @@ root
 
 ## DataFrame options
 
-| Name                   | Description                                                                               | Type                  | Default |
-| -----------------------| ------------------------------------------------------------------------------------------| --------------------- | ------- |
-| model                  | defines the Redis model used to persist DataFrame, see [Persistence model](#persistence-model)| `enum [binary, hash]` | `hash`  |
-| filter.keys.by.type    | make sure the underlying data structures match persistence model                          | `Boolean`             | `false` |
-| partitions.number      | number of partitions (applies only when reading DataFrame)                                | `Int`                 | `3`     |
+| Name                   | Description                                                                                                                                                 | Type                  | Default |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------| --------------------- | ------- |
+| model                  | defines the Redis model used to persist DataFrame, see [Persistence model](#persistence-model)                                                              | `enum [binary, hash]` | `hash`  |
+| filter.keys.by.type    | make sure the underlying data structures match persistence model                                                                                            | `Boolean`             | `false` |
+| partitions.number      | number of partitions (applies only when reading DataFrame)                                                                                                  | `Int`                 | `3`     |
 | key.column             | when writing - specifies unique column used as a Redis key, by default a key is auto-generated <br/> when reading - specifies column name to store hash key | `String`              | -       |
-| ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`             | `Int`                 | `0`     |
-| infer.schema           | infer schema from random row, all columns will have `String` type                         | `Boolean`             | `false` |
-| max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                          | `Int`                 | 100     |
-| scan.count             | count option of SCAN command (used to iterate over keys)                                  | `Int`                 | 100     |
-| iterator.grouping.size | the number of items to be grouped when iterating over underlying RDD partition            | `Int`                 | 1000    |
-| host                   | overrides `spark.redis.host` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `String`              | `localhost`    |
-| port                   | overrides `spark.redis.port` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `Int`                 | `6379`         |
-| auth                   | overrides `spark.redis.auth` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                        | `String`              | -              |
-| dbNum                  | overrides `spark.redis.db` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                       | `Int`                 | `0`            |
-| timeout                | overrides `spark.redis.timeout` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                     | `Int`                 | `2000`         |
+| ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`                                                                               | `Int`                 | `0`     |
+| infer.schema           | infer schema from random row, all columns will have `String` type                                                                                           | `Boolean`             | `false` |
+| max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                                                                                            | `Int`                 | 100     |
+| scan.count             | count option of SCAN command (used to iterate over keys)                                                                                                    | `Int`                 | 100     |
+| iterator.grouping.size | the number of items to be grouped when iterating over underlying RDD partition                                                                              | `Int`                 | 1000    |
+| host                   | overrides `spark.redis.host` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | `localhost`    |
+| port                   | overrides `spark.redis.port` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `Int`                 | `6379`         |
+| user                   | overrides `spark.redis.user` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
+| auth                   | overrides `spark.redis.auth` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
+| dbNum                  | overrides `spark.redis.db` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                  | `Int`                 | `0`            |
+| timeout                | overrides `spark.redis.timeout` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                             | `Int`                 | `2000`         |
 
 
 ## Known limitations

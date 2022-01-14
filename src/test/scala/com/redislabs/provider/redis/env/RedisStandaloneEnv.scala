@@ -4,8 +4,8 @@ import com.redislabs.provider.redis.{RedisConfig, RedisEndpoint}
 import org.apache.spark.SparkConf
 
 /**
-  * @author The Viet Nguyen
-  */
+ * @author The Viet Nguyen
+ */
 trait RedisStandaloneEnv extends Env {
 
   override val conf: SparkConf = new SparkConf()
@@ -17,5 +17,8 @@ trait RedisStandaloneEnv extends Env {
     .set("spark.driver.bindAddress", "127.0.0.1")
 
   override val redisConfig: RedisConfig =
-    new RedisConfig(RedisEndpoint(redisHost, redisPort, redisAuth))
+    new RedisConfig(RedisEndpoint(
+      host = redisHost,
+      port = redisPort,
+      auth = redisAuth))
 }

@@ -389,7 +389,7 @@ object RedisContext extends Serializable {
           pipeline.set(k, v)
         }
         else {
-          pipeline.setex(k, ttl, v)
+          pipeline.setex(k, ttl.toLong, v)
         }
       }
       conn.close()
@@ -410,7 +410,7 @@ object RedisContext extends Serializable {
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
       pipeline.hset(hashName, k, v)
     }
-    if (ttl > 0) pipeline.expire(hashName, ttl)
+    if (ttl > 0) pipeline.expire(hashName, ttl.toLong)
     pipeline.sync()
     conn.close()
   }
@@ -436,7 +436,7 @@ object RedisContext extends Serializable {
           foreachWithPipeline(conn, arr) { (pipeline, a) =>
             val (key, hashFields) = a._2
             pipeline.hmset(key, hashFields)
-            if (ttl > 0) pipeline.expire(key, ttl)
+            if (ttl > 0) pipeline.expire(key, ttl.toLong)
           }
         }
       }
@@ -455,7 +455,7 @@ object RedisContext extends Serializable {
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
       pipeline.zadd(zsetName, v.toDouble, k)
     }
-    if (ttl > 0) pipeline.expire(zsetName, ttl)
+    if (ttl > 0) pipeline.expire(zsetName, ttl.toLong)
     pipeline.sync()
     conn.close()
   }
@@ -473,7 +473,7 @@ object RedisContext extends Serializable {
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
       pipeline.sadd(setName, v)
     }
-    if (ttl > 0) pipeline.expire(setName, ttl)
+    if (ttl > 0) pipeline.expire(setName, ttl.toLong)
     pipeline.sync()
     conn.close()
   }
@@ -494,7 +494,7 @@ object RedisContext extends Serializable {
     val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
       pipeline.rpush(listName, v)
     }
-    if (ttl > 0) pipeline.expire(listName, ttl)
+    if (ttl > 0) pipeline.expire(listName, ttl.toLong)
     pipeline.sync()
     conn.close()
   }
@@ -517,7 +517,7 @@ object RedisContext extends Serializable {
           foreachWithPipeline(conn, arr) { (pipeline, a) =>
             val (key, listVals) = a._2
             pipeline.rpush(key, listVals: _*)
-            if (ttl > 0) pipeline.expire(key, ttl)
+            if (ttl > 0) pipeline.expire(key, ttl.toLong)
           }
         }
       }
@@ -540,7 +540,7 @@ object RedisContext extends Serializable {
           foreachWithPipeline(conn, arr) { (pipeline, a) =>
             val (key, listVals) = a._2
             pipeline.rpush(key, listVals: _*)
-            if (ttl > 0) pipeline.expire(key, ttl)
+            if (ttl > 0) pipeline.expire(key, ttl.toLong)
           }
         }
       }
