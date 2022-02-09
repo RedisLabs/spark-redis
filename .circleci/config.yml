@@ -61,10 +61,10 @@ jobs:
           name: install Redis
           command: |
             sudo apt-get -y update
-            sudo apt-get install -y gcc-8 g++-8 libssl-dev
+            sudo apt-get install -y gcc-10 g++-10 libssl-dev
             wget http://download.redis.io/releases/redis-6.0.10.tar.gz
             tar -xzvf redis-6.0.10.tar.gz
-            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
+            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes CC=gcc-10
             export PATH=$PWD/redis-6.0.10/src:$PATH
 
       - run:
@@ -118,10 +118,10 @@ jobs:
           name: install Redis
           command: |
             sudo apt-get -y update
-            sudo apt-get install -y gcc-8 g++-8 libssl-dev
+            sudo apt-get install -y gcc-10 g++-10 libssl-dev
             wget http://download.redis.io/releases/redis-6.0.10.tar.gz
             tar -xzvf redis-6.0.10.tar.gz
-            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
+            make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes CC=gcc-10
             export PATH=$PWD/redis-6.0.10/src:$PATH
 
       - run:
