@@ -1,5 +1,5 @@
 [![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
-[![Release](https://img.shields.io/github/release/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis/releases/latest)
+[![Release](https://img.shields.io/github/release/RedisLabs/spark-redis.svg?sort=semver)](https://github.com/RedisLabs/spark-redis/releases/latest)
 [![CircleCI](https://circleci.com/gh/RedisLabs/spark-redis/tree/master.svg?style=svg)](https://circleci.com/gh/RedisLabs/spark-redis/tree/master)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.12)
 [![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis_2.12.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis_2.12)
