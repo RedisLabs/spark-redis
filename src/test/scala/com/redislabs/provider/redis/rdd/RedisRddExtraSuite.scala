@@ -58,6 +58,21 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyHash("hash2", map2)
   }
 
+  test("toRedisByteHASHes") {
+    val map1 = Map("k1" -> "v1", "k2" -> "v2")
+    val map2 = Map("k3" -> "v3", "k4" -> "v4")
+    val hashes = Seq(
+      ("hash1", map1),
+      ("hash2", map2)
+    )
+    val hashesBytes = hashes.map { case (k, hash) => (k.getBytes, hash.map { case (mapKey, mapVal) => (mapKey.getBytes, mapVal.getBytes) }) }
+    val rdd = sc.parallelize(hashesBytes)
+    sc.toRedisByteHASHes(rdd)
+
+    verifyHash("hash1", map1)
+    verifyHash("hash2", map2)
+  }
+
   test("connection fails with incorrect user/pass") {
     assertThrows[JedisConnectionException] {
       new RedisConfig(RedisEndpoint(

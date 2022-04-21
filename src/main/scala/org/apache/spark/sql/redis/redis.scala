@@ -7,6 +7,9 @@ package object redis {
 
   val RedisFormat = "org.apache.spark.sql.redis"
 
+  val RddWriteIteratorGroupingSize = "rdd.write.iterator.grouping.size"
+  val RddWriteIteratorGroupingSizeDefault = 1000
+
   val SqlOptionFilterKeysByType = "filter.keys.by.type"
   val SqlOptionNumPartitions = "partitions.number"
   /**
