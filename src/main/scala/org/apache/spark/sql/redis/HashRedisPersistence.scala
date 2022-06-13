@@ -19,7 +19,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
     val javaValue = value.asInstanceOf[Map[String, String]].asJava
     pipeline.hmset(key, javaValue)
     if (ttl > 0) {
-      pipeline.expire(key, ttl)
+      pipeline.expire(key, ttl.toLong)
     }
   }
 

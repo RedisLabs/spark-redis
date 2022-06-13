@@ -14,7 +14,12 @@ trait Env {
 
   val redisHost = "127.0.0.1"
   val redisPort = 6379
-  val redisAuth = "passwd"
+  val redisAuth = "passwd" // password for 'default' user (AUTH <password>)
+
+  // user credentials
+  val user = "alice"
+  val userPassword = "p1pp0"
+
   val redisConfig: RedisConfig
 }
 
