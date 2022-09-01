@@ -100,7 +100,7 @@ start:
 stop-standalone:
 	kill `cat /tmp/redis_standalone_node_for_spark-redis.pid`
 	kill `cat /tmp/redis_standalone_node__ssl_for_spark-redis.pid`
-	
+
 stop-cluster:
 	kill `cat /tmp/redis_cluster_node1_for_spark-redis.pid` || true
 	kill `cat /tmp/redis_cluster_node2_for_spark-redis.pid` || true
@@ -138,5 +138,10 @@ package:
 	make start
 	mvn --batch-mode clean package
 	make stop
+
+system-setup:
+	[ ! -e redis-git ] && git clone https://github.com/redis/redis.git --branch unstable --single-branch redis-git || true
+	$(MAKE) -C redis-git clean
+	$(MAKE) -C redis-git
 
 .PHONY: test
