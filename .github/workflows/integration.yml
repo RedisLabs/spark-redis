@@ -49,6 +49,7 @@ jobs:
       - name: build and install redis
         run: |
           git clone https://github.com/redis/redis.git --branch unstable --single-branch redis-git
+          cd redis-git
           make
           sudo make install
       - name: run tests
