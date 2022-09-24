@@ -137,7 +137,8 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       }
     }
     // If dataframe contains only key column
-    if (fields.size() < 2) {
+    val colCount = data.columns.length
+    if (colCount < 2) {
       logInfo(s"Dataframe only contains key.column specified in options. No data was writen to redis.")
     }
   }
