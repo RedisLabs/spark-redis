@@ -65,6 +65,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistence = RedisPersistence(persistenceModel)
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+  private val ttlColumn: Option[String] = parameters.get(SqlOptionTTLColumn)
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -90,6 +91,12 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   // check specified parameters
   if (tableNameOpt.isDefined && keysPatternOpt.isDefined) {
     throw new IllegalArgumentException(s"Both options '$SqlOptionKeysPattern' and '$SqlOptionTableName' are set. " +
+      s"You should only use either one.")
+  }
+
+  // check if both ttl column and ttl are set
+  if (ttlColumn.isDefined && ttl > 0) {
+    throw new IllegalArgumentException(s"Both options '$SqlOptionTTL' and '$SqlOptionTTLColumn' are set. " +
       s"You should only use either one.")
   }
 
@@ -129,8 +136,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
           val conn = node.connect()
           foreachWithPipeline(conn, keys) { (pipeline, key) =>
             val row = rowsWithKey(key)
-            val encodedRow = persistence.encodeRow(keyName, row)
-            persistence.save(pipeline, key, encodedRow, ttl)
+            val encodedRow = persistence.encodeRow(keyName, row, ttlColumn)
+            val recordTTL = if (ttlColumn.isEmpty) ttl else row.getAs[Int](ttlColumn.get)
+            persistence.save(pipeline, key, encodedRow, recordTTL)
           }
           conn.close()
         }
