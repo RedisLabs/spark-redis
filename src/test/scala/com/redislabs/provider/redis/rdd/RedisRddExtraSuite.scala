@@ -4,6 +4,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import org.scalatest.Matchers
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.util.TestUtils
+import redis.clients.jedis.StreamEntryID
 import redis.clients.jedis.exceptions.JedisConnectionException
 
 import scala.collection.JavaConverters._
@@ -73,6 +74,20 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyHash("hash2", map2)
   }
 
+  test("toRedisSTREAMs") {
+    val map1 = Map("k1" -> "v1", "k2" -> "v2")
+    val map2 = Map("k3" -> "v3", "k4" -> "v4")
+    val hashes = Seq(
+      ("stream1", null.asInstanceOf[StreamEntryID], map1),
+      ("stream2", null.asInstanceOf[StreamEntryID], map2)
+    )
+    val rdd = sc.parallelize(hashes)
+    sc.toRedisSTREAMs(rdd)
+
+    verifyStreamLastEntry("stream1", map1)
+    verifyStreamLastEntry("stream2", map2)
+  }
+
   test("connection fails with incorrect user/pass") {
     assertThrows[JedisConnectionException] {
       new RedisConfig(RedisEndpoint(
@@ -109,6 +124,13 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
   def verifyHash(hash: String, vals: Map[String, String]): Unit = {
     withConnection(redisConfig.getHost(hash).endpoint.connect()) { conn =>
       conn.hgetAll(hash).asScala should be(vals)
+    }
+  }
+
+  def verifyStreamLastEntry(stream: String, vals: Map[String, String]): Unit = {
+    withConnection(redisConfig.getHost(stream).endpoint.connect()) { conn =>
+      conn.xrevrange(stream, null, null, 1).get(0) should be(vals)
+      // TODO: breaking in Jedis 4
     }
   }
 
