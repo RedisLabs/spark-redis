@@ -50,7 +50,7 @@ jobs:
       - name: run tests
         run: |
           make test
-      - cache:
+      - name: cache
         uses: actions/cache@v2
         with:
         path: |
