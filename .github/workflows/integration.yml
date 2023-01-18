@@ -53,6 +53,7 @@ jobs:
       - name: cache
         uses: actions/cache@v2
         with:
+          key: spark-${{hashFiles('**/pom.xml')}}
           path: |
             ~/.m2/repository
             /var/cache/apt
