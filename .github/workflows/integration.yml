@@ -35,8 +35,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -qy make gcc g++ libssl-dev
-      - name: build redis
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: redis/redis
           path: redis
@@ -45,7 +44,7 @@ jobs:
       - name: build and install redis
         working-directory: redis
         run: |
-          make
+          make BUILD_TLS=yes
           sudo make install
 
       - name: run tests
