@@ -50,3 +50,12 @@ jobs:
       - name: run tests
         run: |
           make test
+      - cache:
+        uses: actions/cache@v2
+        with:
+        path: |
+          ~/.m2/repository
+          /var/cache/apt
+      - name: codecov
+        run: |
+          bash < (curl -s https://codecov.io/bash)
