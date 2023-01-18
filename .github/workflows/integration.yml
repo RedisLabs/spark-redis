@@ -57,6 +57,3 @@ jobs:
           path: |
             ~/.m2/repository
             /var/cache/apt
-      - name: codecov
-        run: |
-          bash < (curl -s https://codecov.io/bash)
