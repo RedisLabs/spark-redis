@@ -1,0 +1,59 @@
+---
+
+name: Integration
+
+env:
+  redis_version: 6.0.10
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+    branches:
+      - master
+      - main
+      - '[0-9].[0-9]'
+  pull_request:
+    branches:
+      - master
+      - main
+  schedule:
+    - cron: '0 1 * * *'
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v2
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+      - name: build redis
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -qy make gcc g++ libssl-dev
+      - uses: actions/checkout@v3
+        with:
+          repository: redis/redis
+          path: redis
+          ref: ${{env.redis_version}}
+
+      - name: build and install redis
+        working-directory: redis
+        run: |
+          make BUILD_TLS=yes
+          sudo make install
+
+      - name: run tests
+        run: |
+          make test
+      - name: cache
+        uses: actions/cache@v2
+        with:
+          key: spark-${{hashFiles('**/pom.xml')}}
+          path: |
+            ~/.m2/repository
+            /var/cache/apt
