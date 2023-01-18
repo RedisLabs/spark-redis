@@ -34,7 +34,7 @@ jobs:
       - name: build redis
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y make gcc-8 g++-8 libssl-dev
+          sudo apt-get install -qy make gcc g++ libssl-dev
       - name: build redis
         uses: actions/checkout@v3
         with:
