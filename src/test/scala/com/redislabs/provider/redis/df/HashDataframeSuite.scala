@@ -169,7 +169,8 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging 
         7: Short,
         "str8",
         Date.valueOf("2018-10-12"),
-        Timestamp.valueOf("2017-12-02 03:04:00")
+        Timestamp.valueOf("2017-12-02 03:04:00"),
+        Array.empty[Byte]
       )
     )).toDF()
 
@@ -198,6 +199,7 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging 
     row.getAs[String]("_8") should be("str8")
     row.getAs[java.sql.Date]("_9") should be(Date.valueOf("2018-10-12"))
     row.getAs[java.sql.Timestamp]("_10") should be(Timestamp.valueOf("2017-12-02 03:04:00"))
+    row.getAs[Array[Byte]]("_10") should be(Array.empty[Byte])
   }
 
   test("read key column from Redis keys") {

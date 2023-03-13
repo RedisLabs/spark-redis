@@ -3,7 +3,6 @@ package org.apache.spark.sql.redis.stream
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
@@ -11,8 +10,9 @@ import org.apache.spark.sql.redis.stream.RedisSource._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.unsafe.types.UTF8String
-import redis.clients.jedis.{StreamEntryID, Jedis}
+import redis.clients.jedis.{Jedis, StreamEntryID}
 
+import java.nio.charset.StandardCharsets
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -97,7 +97,7 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     // read data
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
       .map { case (id, fields) =>
-        val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
+        val fieldMap = fields.asScala.toMap + ("_id" -> id.toString.getBytes(StandardCharsets.UTF_8))
         val values = ParseUtils.parseFields(fieldMap, localSchema)
           .map {
             case str: String => UTF8String.fromString(str)

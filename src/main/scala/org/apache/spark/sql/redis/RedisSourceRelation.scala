@@ -2,7 +2,6 @@ package org.apache.spark.sql.redis
 
 import java.util.UUID
 import java.util.{List => JList}
-
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
@@ -15,8 +14,9 @@ import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import redis.clients.jedis.{PipelineBase, Protocol}
+import redis.clients.jedis.Pipeline
 
+import java.nio.charset.StandardCharsets
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -112,7 +112,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
           val conn = node.connect()
           foreachWithPipeline(conn, keys) { (pipeline, key) =>
-            (pipeline: PipelineBase).del(key) // fix ambiguous reference to overloaded definition
+            (pipeline: Pipeline).del(key) // fix ambiguous reference to overloaded definition
           }
           conn.close()
         }

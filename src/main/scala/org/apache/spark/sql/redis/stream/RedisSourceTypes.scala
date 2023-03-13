@@ -9,7 +9,7 @@ import redis.clients.jedis.{StreamEntryID, StreamEntry => JStreamEntry}
   */
 object RedisSourceTypes {
 
-  type StreamEntry = (StreamEntryID, JMap[String, String])
-  type StreamEntryBatch = JMap.Entry[String, JList[JStreamEntry]]
+  type StreamEntry = (StreamEntryID, JMap[String, Array[Byte]])
+  type StreamEntryBatch = JMap.Entry[Array[Byte], JList[JStreamEntry]]
   type StreamEntryBatches = JList[StreamEntryBatch]
 }

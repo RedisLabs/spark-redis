@@ -8,8 +8,10 @@ import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
 import org.sparkproject.guava.util.concurrent.RateLimiter
+import redis.clients.jedis.params.XReadGroupParams
 import redis.clients.jedis.{Jedis, StreamEntry, StreamEntryID}
 
+import java.nio.charset.StandardCharsets
 import scala.collection.JavaConversions._
 
 /**
@@ -69,15 +71,14 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
     def receiveUnacknowledged(): Unit = {
       logInfo(s"Starting receiving unacknowledged messages for key ${conf.streamKey}")
       var continue = true
-      val unackId = new SimpleEntry(conf.streamKey, new StreamEntryID(0, 0))
+      val unackId = new SimpleEntry(conf.streamKey.getBytes(StandardCharsets.UTF_8), new StreamEntryID(0, 0))
 
       while (!isStopped && continue) {
+        val params = new XReadGroupParams().count(conf.batchSize).block(conf.block.toInt)
         val response = jedis.xreadGroup(
-          conf.groupName,
-          conf.consumerName,
-          conf.batchSize,
-          conf.block,
-          false,
+          conf.groupName.getBytes(StandardCharsets.UTF_8),
+          conf.consumerName.getBytes(StandardCharsets.UTF_8),
+          params,
           unackId)
 
         val unackMessagesMap = response.map(e => (e.getKey, e.getValue)).toMap

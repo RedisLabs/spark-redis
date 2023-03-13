@@ -49,7 +49,7 @@
 		<java.version>1.8</java.version>
 		<scala.major.version>2.12</scala.major.version>
 		<scala.complete.version>${scala.major.version}.0</scala.complete.version>
-		<jedis.version>3.9.0</jedis.version>
+		<jedis.version>4.3.1</jedis.version>
 		<spark.version>3.2.1</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
@@ -245,7 +245,7 @@
 					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
 					<junitxml>.</junitxml>
 					<filereports>WDF TestSuite.txt</filereports>
-					<argLine>-XX:MaxPermSize=256m -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
+					<argLine> -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
 					<tagsToExclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToExclude>
 				</configuration>
 				<executions>
@@ -268,7 +268,15 @@
                     <autoReleaseAfterClose>true</autoReleaseAfterClose>
                 </configuration>
             </plugin>
-		</plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>7</source>
+                    <target>7</target>
+                </configuration>
+            </plugin>
+        </plugins>
 	</build>
 	<dependencies>
         <dependency>
