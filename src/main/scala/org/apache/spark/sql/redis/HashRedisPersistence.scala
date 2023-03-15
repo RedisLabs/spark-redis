@@ -1,12 +1,13 @@
 package org.apache.spark.sql.redis
 
-import java.util.{List => JList}
-import com.redislabs.provider.redis.util.ParseUtils
+import java.util.{Date, UUID, List => JList}
+import com.redislabs.provider.redis.util.{ParseUtils, WriteUtils}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
 import redis.clients.jedis.Pipeline
 
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import scala.collection.JavaConverters._
 
@@ -32,6 +33,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
       cols: _*)
   }
 
+  //noinspection ScalaStyle
   override def encodeRow(keyName: String, value: Row): Map[String, Array[Byte]] = {
     val fields = value.schema.fields.map(_.name)
     val kvMap = value.getValuesMap[Any](fields)
@@ -40,16 +42,11 @@ class HashRedisPersistence extends RedisPersistence[Any] {
         // don't store null values
         v != null
       }
-      .map { case (k, v) =>
-        k -> (v match {
-          case value: Array[Byte] => value
-          case _ => throw new Exception("The Dressipi version of Spark Redis only supports byte arrays for now.")
-        })
-      }
       .filter { case (k, _) =>
         // don't store key values
         k != keyName
       }
+      .map { case (k, v) =>  k -> WriteUtils.convertValue(v) }
   }
 
   override def decodeRow(keyMap: (String, String), value: Any, schema: StructType,

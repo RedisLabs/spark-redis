@@ -12,7 +12,7 @@ import org.apache.spark.sql.redis.RedisSourceRelation.dataKey
   */
 class BinaryDataframeStandaloneSuite extends BinaryDataframeSuite with RedisStandaloneEnv {
 
-  override def saveMap(tableName: String, key: String, value: Map[String, String]): Unit = {
+  override def saveMap(tableName: String, key: String, value: Map[String, Array[Byte]]): Unit = {
     val host = redisConfig.initialHost
     withConnection(host.connect()) { conn =>
       conn.set(dataKey(tableName, key).getBytes(UTF_8), serialize(value))

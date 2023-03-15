@@ -10,7 +10,7 @@ import com.redislabs.provider.redis.{ReadWriteConfig, RedisBenchmarks, toRedisCo
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.redis._
-import redis.clients.jedis.PipelineBase
+import redis.clients.jedis.Pipeline
 
 /**
   * @author The Viet Nguyen
@@ -37,7 +37,7 @@ trait DataframeBenchmarkSuite extends RedisDataframeSuite with RedisBenchmarks w
             .foreach { case (n, ks) =>
               val conn = n.connect()
               foreachWithPipeline(conn, ks) { (pl, k) =>
-                (pl: PipelineBase).del(k) // fix ambiguous reference to overloaded definition
+                (pl: Pipeline).del(k) // fix ambiguous reference to overloaded definition
               }
               conn.close()
             }

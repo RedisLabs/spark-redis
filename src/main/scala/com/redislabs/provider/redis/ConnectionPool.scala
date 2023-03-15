@@ -1,6 +1,6 @@
 package com.redislabs.provider.redis
 
-import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.exceptions.{JedisAccessControlException, JedisConnectionException}
 import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 
 import java.time.Duration
@@ -35,7 +35,7 @@ object ConnectionPool {
         conn = pool.getResource
       }
       catch {
-        case e: JedisConnectionException if e.getCause.toString.
+        case e: JedisAccessControlException if e.getCause.toString.
           contains("ERR max number of clients reached") => {
           if (sleepTime < 500) sleepTime *= 2
           Thread.sleep(sleepTime)

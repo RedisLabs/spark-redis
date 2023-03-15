@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.df
 
 import com.redislabs.provider.redis.toRedisContext
-import com.redislabs.provider.redis.util.Person
+import com.redislabs.provider.redis.util.{Person, WriteUtils}
 import com.redislabs.provider.redis.util.Person._
 import com.redislabs.provider.redis.util.TestUtils._
 import org.apache.commons.lang3.SerializationUtils
@@ -69,7 +69,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionModel, SqlOptionModelHash)
       .save()
     val extraKey = RedisSourceRelation.uuid()
-    saveMap(tableName, extraKey, Person.dataMaps.head)
+    saveMapWithConversion(tableName, extraKey, Person.dataMaps.head)
     val loadedIds = spark.read.format(RedisFormat)
       .schema(Person.fullSchema)
       .option(SqlOptionTableName, tableName)
@@ -93,7 +93,7 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
       .option(SqlOptionTableName, tableName)
       .option(SqlOptionModel, SqlOptionModelHash)
       .save()
-    saveMap(tableName, RedisSourceRelation.uuid(), Person.dataMaps.head)
+    saveMapWithConversion(tableName, RedisSourceRelation.uuid(), Person.dataMaps.head)
     interceptSparkErr[SparkException] {
       spark.read.format(RedisFormat)
         .option(SqlOptionTableName, tableName)
@@ -118,10 +118,14 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
     df.count() should be (0)
   }
 
-  def serialize(value: Map[String, String]): Array[Byte] = {
+  def serialize(value: Map[String, Array[Byte]]): Array[Byte] = {
     val valuesArray = value.values.toArray
     SerializationUtils.serialize(valuesArray)
   }
 
-  def saveMap(tableName: String, key: String, value: Map[String, String]): Unit
+  def saveMapWithConversion(tableName: String, key: String, value: Map[String, Any]): Unit = {
+    saveMap(tableName, key, value.map(x => x._1 -> WriteUtils.convertValue(x._2)))
+  }
+
+  def saveMap(tableName: String, key: String, value: Map[String, Array[Byte]]): Unit
 }

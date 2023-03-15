@@ -4,7 +4,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import org.scalatest.Matchers
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.util.TestUtils
-import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.exceptions.JedisAccessControlException
 
 import scala.collection.JavaConverters._
 
@@ -74,7 +74,7 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
   }
 
   test("connection fails with incorrect user/pass") {
-    assertThrows[JedisConnectionException] {
+    assertThrows[JedisAccessControlException] {
       new RedisConfig(RedisEndpoint(
         host = redisHost,
         port = redisPort,
