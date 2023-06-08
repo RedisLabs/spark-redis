@@ -157,6 +157,11 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
           nodeKeys.flatMap{k =>
             ignoreJedisWrongTypeException(Try(conn.zrange(k, startPos, endPos))).get
           }.flatten.iterator
+        } else if (classTag[T] == classTag[(String, String, Double)]) {
+          nodeKeys.flatMap { k =>
+            val a = ignoreJedisWrongTypeException(Try(conn.zrangeWithScores(k, startPos, endPos))).get
+            a.get.map(x => (k, x.getElement, x.getScore))
+          }.iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
@@ -329,6 +334,13 @@ class RedisKeysRDD(sc: SparkContext,
     val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, false, "byRange")
     new RedisZSetRDD(this, zsetContext, classOf[String], readWriteConfig)
   }
+
+
+  def getZSetWithKey(): RDD[(String, String, Double)] = {
+    val zsetContext: ZSetContext = new ZSetContext(0, -1, Double.MinValue, Double.MaxValue, true, "byRange")
+    new RedisZSetRDD(this, zsetContext, classOf[(String, String, Double)], readWriteConfig)
+  }
+
 
   /**
     * filter the 'zset' type keys and get all the elements(with scores) of them
