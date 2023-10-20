@@ -73,6 +73,20 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyHash("hash2", map2)
   }
 
+  test("toRedisZETs") {
+    val map1 = Map("k1" -> "3.14", "k2" -> "2.71")
+    val map2 = Map("k3" -> "10", "k4" -> "12", "k5" -> "8", "k6" -> "2")
+    val zsets = Seq(
+      ("zset1", map1),
+      ("zset2", map2)
+    )
+    val rdd = sc.parallelize(zsets)
+    sc.toRedisZSETs(rdd)
+
+    verifyZSET("zset1", map1)
+    verifyZSET("zset2", map2)
+  }
+
   test("connection fails with incorrect user/pass") {
     assertThrows[JedisConnectionException] {
       new RedisConfig(RedisEndpoint(
@@ -110,6 +124,11 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     withConnection(redisConfig.getHost(hash).endpoint.connect()) { conn =>
       conn.hgetAll(hash).asScala should be(vals)
     }
+  }
+
+  def verifyZSET(zset: String, vals: Map[String, String]): Unit = {
+    val zsetWithScore = sc.fromRedisZSetWithScore(zset).sortByKey().collect
+    zsetWithScore should be(vals.mapValues((v) => v.toDouble).toArray.sortBy(_._1))
   }
 
 }
