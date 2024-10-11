@@ -8,7 +8,7 @@ import redis.clients.jedis.Jedis
 import redis.clients.jedis.commands.ProtocolCommand
 import redis.clients.jedis.util.SafeEncoder
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
   * @author The Viet Nguyen
@@ -35,13 +35,18 @@ object ConnectionUtils {
     def xinfo(command: String, args: String*): Map[String, Any] = {
       val client = jedis.getClient
       val combinedArgs = command +: args
+
       client.sendCommand(XINFO, combinedArgs: _*)
-      val response = asList(client.getOne).asScala
+      // just an object
+      val response = asList(client.getOne)
       command match {
         case SubCommandStream =>
-          asMap(response)
+          asMap(response.asScala.toSeq)
         case SubCommandGroups =>
-          response.map(m => asList(m)).map(_.asScala).map(asMap)
+          response.asScala.toList
+            .map(m => asList(m))
+            .map(_.asScala.toSeq)
+            .map(asMap)
             .map(m => String.valueOf(m("name")) -> m).toMap
       }
     }

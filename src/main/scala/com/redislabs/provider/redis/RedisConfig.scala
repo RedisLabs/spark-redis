@@ -1,12 +1,13 @@
 package com.redislabs.provider.redis
 
 import java.net.URI
-
 import org.apache.spark.SparkConf
+import redis.clients.jedis.resps.{ClusterShardInfo, ClusterShardNodeInfo}
 import redis.clients.jedis.util.{JedisClusterCRC16, JedisURIHelper, SafeEncoder}
 import redis.clients.jedis.{Jedis, Protocol}
 
-import scala.collection.JavaConversions._
+import java.nio.charset.Charset
+import scala.jdk.CollectionConverters._
 
 
 /**
@@ -71,7 +72,8 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
     * @param uri connection URI in the form of redis://$user:$password@$host:$port/[dbnum]. Use "rediss://" scheme for redis SSL
     */
   def this(uri: URI) {
-    this(uri.getHost, uri.getPort, JedisURIHelper.getUser(uri), JedisURIHelper.getPassword(uri), JedisURIHelper.getDBIndex(uri),
+    this(uri.getHost, uri.getPort, JedisURIHelper.getUser(uri), JedisURIHelper.getPassword(uri),
+      JedisURIHelper.getDBIndex(uri),
       Protocol.DEFAULT_TIMEOUT, uri.getScheme == RedisSslScheme)
   }
 
@@ -130,7 +132,8 @@ object ReadWriteConfig {
   val RddWriteIteratorGroupingSizeKey = "spark.redis.rdd.write.iterator.grouping.size"
   val RddWriteIteratorGroupingSizeDefault = 1000
 
-  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault, RddWriteIteratorGroupingSizeDefault)
+  val Default: ReadWriteConfig = ReadWriteConfig(ScanCountDefault, MaxPipelineSizeDefault,
+    RddWriteIteratorGroupingSizeDefault)
 
   def fromSparkConf(conf: SparkConf): ReadWriteConfig = {
     ReadWriteConfig(
@@ -325,11 +328,14 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     */
   private def getClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val conn = initialHost.connect()
-    val res = conn.clusterSlots().flatMap {
-      slotInfoObj => {
-        val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
-        val sPos = slotInfo.get(0).toString.toInt
-        val ePos = slotInfo.get(1).toString.toInt
+
+    val res = conn.clusterShards().asScala.flatMap {
+      shardInfoObj: ClusterShardInfo => {
+        val slotInfo = shardInfoObj.getSlots
+
+        // todo: Can we have more than 1 node per ClusterShard?
+        val nodeInfo = shardInfoObj.getNodes.get(0)
+
         /*
          * We will get all the nodes with the slots range [sPos, ePos],
          * and create RedisNode for each nodes, the total field of all
@@ -339,10 +345,11 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
          * And the idx of a master is always 0, we rely on this fact to
          * filter master.
          */
-        (0 until (slotInfo.size - 2)).map(i => {
-          val node = slotInfo(i + 2).asInstanceOf[java.util.List[java.lang.Object]]
-          val host = SafeEncoder.encode(node.get(0).asInstanceOf[Array[scala.Byte]])
-          val port = node.get(1).toString.toInt
+        (0 until (slotInfo.size)).map(i => {
+          val host = SafeEncoder.encode(nodeInfo.getIp.getBytes(Charset.forName("UTF8")))
+          val port = nodeInfo.getPort.toInt
+          val slotStart = slotInfo.get(i).get(0).toInt
+          val slotEnd = slotInfo.get(i).get(1).toInt
           val endpoint = RedisEndpoint(
             host = host,
             port = port,
@@ -351,7 +358,9 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
             dbNum = initialHost.dbNum,
             timeout = initialHost.timeout,
             ssl = initialHost.ssl)
-          RedisNode(endpoint, sPos, ePos, i, slotInfo.size - 2)
+          val role = nodeInfo.getRole
+          val idx = if (role == "master") 0 else i
+          RedisNode(endpoint, slotStart, slotEnd, idx, slotInfo.size)
         })
       }
     }.toArray
