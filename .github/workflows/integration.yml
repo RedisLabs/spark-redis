@@ -1,0 +1,64 @@
+name: Continuous Integration
+on:
+  push:
+    paths-ignore:
+      - 'doc/**'
+      - '**/*.md'
+    branches:
+      - main
+      - '[0-9].*'
+  pull_request:
+    branches:
+      - main
+      - '[0-9].*'
+  schedule:
+    - cron: '0 1 * * *' # nightly build
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    name: Build and Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Set Java up in the runner
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Setup Maven
+        uses: s4u/setup-maven-action@v1.8.0
+        with:
+          java-version: 8
+      - name: Install missing dependencies to container
+        run: |
+          sudo apt update -y update
+          sudo apt install -y libssl-dev
+          wget http://download.redis.io/releases/redis-6.0.10.tar.gz
+          tar -xzvf redis-6.0.10.tar.gz
+          make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
+          export PATH=$PWD/redis-6.0.10/src:$PATH
+      - name: Maven offline
+        run: |
+          mvn -q dependency:go-offline
+      - name: Clean environment
+        run: |
+          make cleanup
+        env:
+          JVM_OPTS: -Xmx3200m
+          TERM: dumb
+      - name: Run tests
+        run: |
+          export PATH=$PWD/redis-6.0.10/src:$PATH
+          make test
+        env:
+          JVM_OPTS: -Xmx3200m
+          TERM: dumb
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.0.1
+        if: ${{ false }} # Temporarily disabled
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
