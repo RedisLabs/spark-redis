@@ -1,11 +1,14 @@
+[![Integration](https://github.com/RedisLabs/spark-redis/actions/workflows/integration.yml/badge.svg?branch=master)](https://github.com/RedisLabs/spark-redis/actions/workflows/integration.yml)
 [![license](https://img.shields.io/github/license/RedisLabs/spark-redis.svg)](https://github.com/RedisLabs/spark-redis)
 [![Release](https://img.shields.io/github/release/RedisLabs/spark-redis.svg?sort=semver)](https://github.com/RedisLabs/spark-redis/releases/latest)
-[![CircleCI](https://circleci.com/gh/RedisLabs/spark-redis/tree/master.svg?style=svg)](https://circleci.com/gh/RedisLabs/spark-redis/tree/master)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.12)
+[![Maven Central](https://img.shields.io/maven-central/v/com.redislabs/spark-redis_2.12?logo=redis)](https://maven-badges.herokuapp.com/maven-central/com.redislabs/spark-redis_2.12)
 [![Javadocs](https://www.javadoc.io/badge/com.redislabs/spark-redis_2.12.svg)](https://www.javadoc.io/doc/com.redislabs/spark-redis_2.12)
-[![Discord](https://img.shields.io/discord/697882427875393627?style=flat-square)](https://discord.gg/Bjt6TcgV)
 [![Codecov](https://codecov.io/gh/RedisLabs/spark-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/RedisLabs/spark-redis)
 
+[![Discord](https://img.shields.io/discord/697882427875393627.svg?style=social&logo=discord)](https://discord.gg/redis)
+[![Twitch](https://img.shields.io/twitch/status/redisinc?style=social)](https://www.twitch.tv/redisinc)
+[![YouTube](https://img.shields.io/youtube/channel/views/UCD78lHSwYqMlyetR0_P4Vig?style=social)](https://www.youtube.com/redisinc)
+[![Twitter](https://img.shields.io/twitter/follow/redisinc?style=social)](https://twitter.com/redisinc)
 # Spark-Redis
 A library for reading and writing data in [Redis](http://redis.io) using [Apache Spark](http://spark.apache.org/).
 

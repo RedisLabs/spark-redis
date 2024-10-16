@@ -5,11 +5,11 @@ on:
       - 'doc/**'
       - '**/*.md'
     branches:
-      - main
+      - master
       - '[0-9].*'
   pull_request:
     branches:
-      - main
+      - master
       - '[0-9].*'
   schedule:
     - cron: '0 1 * * *' # nightly build
@@ -40,7 +40,6 @@ jobs:
           wget http://download.redis.io/releases/redis-6.0.10.tar.gz
           tar -xzvf redis-6.0.10.tar.gz
           make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
-          export PATH=$PWD/redis-6.0.10/src:$PATH
       - name: Maven offline
         run: |
           mvn -q dependency:go-offline
@@ -53,6 +52,5 @@ jobs:
           TERM: dumb
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
-        if: ${{ false }} # Temporarily disabled
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

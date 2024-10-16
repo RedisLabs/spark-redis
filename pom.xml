@@ -12,10 +12,6 @@
 		<name>RedisLabs</name>
 		<url>www.redislabs.com</url>
 	</organization>
-	<ciManagement>
-		<system>CircleCI</system>
-		<url>https://circleci.com/gh/RedisLabs/spark-redis</url>
-	</ciManagement>
 	<issueManagement>
 		<url>https://github.com/RedisLabs/spark-redis/issues</url>
 		<system>Github</system>
