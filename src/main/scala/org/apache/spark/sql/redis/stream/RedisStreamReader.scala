@@ -2,14 +2,14 @@ package org.apache.spark.sql.redis.stream
 
 import java.util.AbstractMap.SimpleEntry
 import java.util.{Map => JMap}
-
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import org.apache.spark.sql.redis.stream.RedisSourceTypes.{StreamEntry, StreamEntryBatch, StreamEntryBatches}
 import redis.clients.jedis.StreamEntryID
+import redis.clients.jedis.params.XReadGroupParams
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.math.Ordering.Implicits._
 
 /**
@@ -26,7 +26,7 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
     )
 
     val res = filterStreamEntries(offsetRange) {
-      val startEntryOffset = new SimpleEntry(config.streamKey, StreamEntryID.UNRECEIVED_ENTRY)
+      val startEntryOffset = new SimpleEntry(config.streamKey, StreamEntryID.XREADGROUP_UNDELIVERED_ENTRY)
       Iterator.continually {
         readStreamEntryBatches(offsetRange, startEntryOffset)
       }
@@ -37,15 +37,21 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
   private def readStreamEntryBatches(offsetRange: RedisSourceOffsetRange,
                                      startEntryOffset: JMap.Entry[String, StreamEntryID]): StreamEntryBatches = {
     val config = offsetRange.config
+
+    // we don't need acknowledgement, if spark processing fails, it will request the same batch again
+    val xReadGroupParams = XReadGroupParams.xReadGroupParams()
+      .block(config.block)
+      .count(config.batchSize)
+      .noAck()
+
+
+
     withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
-      // we don't need acknowledgement, if spark processing fails, it will request the same batch again
-      val noAck = true
+
       val response = conn.xreadGroup(config.groupName,
         config.consumerName,
-        config.batchSize,
-        config.block,
-        noAck,
-        startEntryOffset)
+        xReadGroupParams,
+        Map[String, StreamEntryID]((startEntryOffset.getKey, startEntryOffset.getValue)).asJava)
       logDebug(s"Got entries: $response")
       response
     }

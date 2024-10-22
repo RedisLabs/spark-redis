@@ -4,7 +4,7 @@ import com.redislabs.provider.redis.util.Person.{TableNamePrefix, data}
 import com.redislabs.provider.redis.util.TestUtils.{generateTableName, interceptSparkErr}
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
 import org.scalatest.Matchers
-import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.exceptions.{JedisAccessControlException, JedisConnectionException}
 
 /**
  * Basic dataframe test with user/password authentication
@@ -25,7 +25,7 @@ trait AclDataframeSuite extends RedisDataframeSuite with Matchers {
   }
 
   test("incorrect password in dataframe options") {
-    interceptSparkErr[JedisConnectionException] {
+    interceptSparkErr[JedisAccessControlException] {
       val tableName = generateTableName(TableNamePrefix)
       val df = spark.createDataFrame(data)
       df.write.format(RedisFormat)

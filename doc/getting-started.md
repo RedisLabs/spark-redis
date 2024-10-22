@@ -6,28 +6,17 @@
   <dependencies>
     <dependency>
       <groupId>com.redislabs</groupId>
-      <artifactId>spark-redis_2.11</artifactId>
-      <version>2.4.2</version>
+      <artifactId>spark-redis_2.13</artifactId>
+      <version>4.0.0</version>
     </dependency>
   </dependencies>
 ```
 
-Or
-
-```xml
-  <dependencies>
-    <dependency>
-      <groupId>com.redislabs</groupId>
-      <artifactId>spark-redis_2.12</artifactId>
-      <version>2.4.2</version>
-    </dependency>
-  </dependencies>
-```
 
 ### SBT
 
 ```scala
-libraryDependencies += "com.redislabs" %% "spark-redis" % "2.4.2"
+libraryDependencies += "com.redislabs" %% "spark-redis" % "4.0.0"
 ```
 
 ### Build form source
@@ -114,4 +103,10 @@ import com.redislabs.provider.redis.streaming._
 val ssc = new StreamingContext(sc, Seconds(1))
 val redisStream = ssc.createRedisStream(Array("foo", "bar"),
     storageLevel = StorageLevel.MEMORY_AND_DISK_2)
+```
+
+or 
+
+```scala
+// add example with StructuredStreaming
 ```
