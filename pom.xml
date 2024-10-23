@@ -44,9 +44,9 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
 		<scala.major.version>2.12</scala.major.version>
-		<scala.complete.version>${scala.major.version}.0</scala.complete.version>
+		<scala.complete.version>${scala.major.version}.18</scala.complete.version>
 		<jedis.version>3.9.0</jedis.version>
-		<spark.version>3.2.1</spark.version>
+		<spark.version>3.5.0</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
 
