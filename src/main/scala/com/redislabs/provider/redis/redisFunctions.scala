@@ -6,6 +6,7 @@ import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import scala.collection.JavaConversions.mapAsJavaMap
+import scala.collection.JavaConverters.mapAsJavaMapConverter
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -304,6 +305,17 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * @param kvs      Write RDD of (zset name, zset member -> score)
+    * @param ttl      time to live
+    */
+  def toRedisZSETs(kvs: RDD[(String, Map[String, String])], ttl: Int = 0)
+                 (implicit
+                  redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                  readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    kvs.foreachPartition(partition => setZset(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
     * @param vs      RDD of values
     * @param setName target set's name which hold all the vs
     * @param ttl     time to live
@@ -501,6 +513,33 @@ object RedisContext extends Serializable {
     if (ttl > 0) pipeline.expire(zsetName, ttl.toLong)
     pipeline.sync()
     conn.close()
+  }
+
+  /**
+    * @param zsets  zsetName: map of member -> score to be saved in the target host
+    * @param ttl    time to live
+    */
+  def setZset(zsets: Iterator[(String, Map[String, String])],
+              ttl: Int,
+              redisConfig: RedisConfig,
+              readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    zsets
+      .map { case (key, memberScores) =>
+        (redisConfig.getHost(key), (key, memberScores))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, memberScores) = a._2
+            pipeline.zadd(key, memberScores.mapValues((v) => Double.box(v.toDouble)).asJava)
+            if (ttl > 0) pipeline.expire(key, ttl.toLong)
+          }
+        }
+      }
   }
 
   /**
