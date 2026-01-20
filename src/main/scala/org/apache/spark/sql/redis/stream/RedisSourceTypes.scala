@@ -2,7 +2,8 @@ package org.apache.spark.sql.redis.stream
 
 import java.util.{List => JList, Map => JMap}
 
-import redis.clients.jedis.{StreamEntryID, StreamEntry => JStreamEntry}
+import redis.clients.jedis.StreamEntryID
+import redis.clients.jedis.resps.{StreamEntry => JStreamEntry}
 
 /**
   * @author The Viet Nguyen

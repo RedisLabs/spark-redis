@@ -8,7 +8,8 @@ import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.{Jedis, ScanParams}
+import redis.clients.jedis.Jedis
+import redis.clients.jedis.params.ScanParams
 import redis.clients.jedis.util.JedisClusterCRC16
 
 import scala.collection.JavaConversions._

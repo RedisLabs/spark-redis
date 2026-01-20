@@ -8,9 +8,12 @@ import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
 import org.sparkproject.guava.util.concurrent.RateLimiter
-import redis.clients.jedis.{Jedis, StreamEntry, StreamEntryID}
+import redis.clients.jedis.{Jedis, StreamEntryID}
+import redis.clients.jedis.resps.StreamEntry
+import redis.clients.jedis.params.XReadGroupParams
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
   * Receives messages from Redis Stream
@@ -69,16 +72,17 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
     def receiveUnacknowledged(): Unit = {
       logInfo(s"Starting receiving unacknowledged messages for key ${conf.streamKey}")
       var continue = true
-      val unackId = new SimpleEntry(conf.streamKey, new StreamEntryID(0, 0))
 
       while (!isStopped && continue) {
+        val params = XReadGroupParams.xReadGroupParams()
+          .count(conf.batchSize)
+          .block(conf.block.toInt)
+        val streams = Map(conf.streamKey -> new StreamEntryID(0, 0)).asJava
         val response = jedis.xreadGroup(
           conf.groupName,
           conf.consumerName,
-          conf.batchSize,
-          conf.block,
-          false,
-          unackId)
+          params,
+          streams)
 
         val unackMessagesMap = response.map(e => (e.getKey, e.getValue)).toMap
         val entries = unackMessagesMap(conf.streamKey)
@@ -91,16 +95,17 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
 
     def receiveNewMessages(): Unit = {
       logInfo(s"Starting receiving new messages for key ${conf.streamKey}")
-      val newMessId = new SimpleEntry(conf.streamKey, StreamEntryID.UNRECEIVED_ENTRY)
 
       while (!isStopped) {
+        val params = XReadGroupParams.xReadGroupParams()
+          .count(conf.batchSize)
+          .block(conf.block.toInt)
+        val streams = Map(conf.streamKey -> StreamEntryID.UNRECEIVED_ENTRY).asJava
         val response = jedis.xreadGroup(
           conf.groupName,
           conf.consumerName,
-          conf.batchSize,
-          conf.block,
-          false,
-          newMessId)
+          params,
+          streams)
 
         if (response != null) {
           for (streamMessages <- response) {

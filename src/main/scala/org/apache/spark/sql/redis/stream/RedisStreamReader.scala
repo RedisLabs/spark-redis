@@ -8,6 +8,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import org.apache.spark.sql.redis.stream.RedisSourceTypes.{StreamEntry, StreamEntryBatch, StreamEntryBatches}
 import redis.clients.jedis.StreamEntryID
+import redis.clients.jedis.params.XReadGroupParams
 
 import scala.collection.JavaConverters._
 import scala.math.Ordering.Implicits._
@@ -39,13 +40,15 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
     val config = offsetRange.config
     withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
       // we don't need acknowledgement, if spark processing fails, it will request the same batch again
-      val noAck = true
+      val params = XReadGroupParams.xReadGroupParams()
+        .count(config.batchSize)
+        .block(config.block)
+        .noAck()
+      val streams = Map(startEntryOffset.getKey -> startEntryOffset.getValue).asJava
       val response = conn.xreadGroup(config.groupName,
         config.consumerName,
-        config.batchSize,
-        config.block,
-        noAck,
-        startEntryOffset)
+        params,
+        streams)
       logDebug(s"Got entries: $response")
       response
     }

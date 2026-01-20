@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis
 
 import redis.clients.jedis.exceptions.JedisConnectionException
-import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
+import redis.clients.jedis.{DefaultJedisClientConfig, HostAndPort, Jedis, JedisPool, JedisPoolConfig}
 
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
@@ -25,7 +25,17 @@ object ConnectionPool {
         poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(30))
         poolConfig.setNumTestsPerEvictionRun(-1)
 
-        new JedisPool(poolConfig, re.host, re.port, re.timeout, re.user, re.auth, re.dbNum, re.ssl)
+        val clientConfig = DefaultJedisClientConfig.builder()
+          .user(re.user)
+          .password(re.auth)
+          .database(re.dbNum)
+          .connectionTimeoutMillis(re.timeout)
+          .socketTimeoutMillis(re.timeout)
+          .ssl(re.ssl)
+          .build()
+
+        val hostAndPort = new HostAndPort(re.host, re.port)
+        new JedisPool(poolConfig, hostAndPort, clientConfig)
       }
     )
     var sleepTime: Int = 4
