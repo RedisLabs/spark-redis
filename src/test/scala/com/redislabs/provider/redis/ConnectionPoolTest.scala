@@ -9,6 +9,14 @@ import org.scalatest.{FunSuite, Matchers}
   */
 class ConnectionPoolTest extends FunSuite with Matchers with RedisStandaloneEnv {
 
+  /**
+    * Cancels the test on servers older than Redis 7.2, which introduced the lib-name / lib-ver
+    * fields, detected from the CLIENT LIST reply the caller already holds.
+    */
+  private def assumeServerReportsClientLibraryInfo(clientList: String): Unit =
+    assume(clientList.contains("lib-name="),
+      "CLIENT SETINFO requires Redis 7.2+; this server does not report lib-name/lib-ver")
+
   test("connection should be established successfully") {
     val endpoint = RedisEndpoint(host = redisHost, port = redisPort, auth = redisAuth)
     val conn = ConnectionPool.connect(endpoint)
@@ -24,6 +32,7 @@ class ConnectionPoolTest extends FunSuite with Matchers with RedisStandaloneEnv 
     val conn = ConnectionPool.connect(endpoint)
     try {
       val clientList = conn.clientList()
+      assumeServerReportsClientLibraryInfo(clientList)
       clientList should include("lib-name=" + RedisClientLibraryInfo.libName)
     } finally {
       conn.close()
@@ -35,6 +44,7 @@ class ConnectionPoolTest extends FunSuite with Matchers with RedisStandaloneEnv 
     val conn = ConnectionPool.connect(endpoint)
     try {
       val clientList = conn.clientList()
+      assumeServerReportsClientLibraryInfo(clientList)
       clientList should include("lib-ver=" + RedisClientLibraryInfo.libVersion)
     } finally {
       conn.close()
@@ -46,8 +56,12 @@ class ConnectionPoolTest extends FunSuite with Matchers with RedisStandaloneEnv 
     val conn1 = ConnectionPool.connect(endpoint)
     val conn2 = ConnectionPool.connect(endpoint)
     try {
-      // Verify from conn1's perspective
+      // One call covers both connections: they share a pool to a single server, so the
+      // presence of the lib-* fields is a property of that server, not of either connection.
       val clientList1 = conn1.clientList()
+      assumeServerReportsClientLibraryInfo(clientList1)
+
+      // Verify from conn1's perspective
       clientList1 should include("lib-name=" + RedisClientLibraryInfo.libName)
       clientList1 should include("lib-ver=" + RedisClientLibraryInfo.libVersion)
 

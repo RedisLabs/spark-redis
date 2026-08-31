@@ -2,7 +2,7 @@ package com.redislabs.provider.redis
 
 import com.redislabs.provider.redis.util.Logging
 import org.apache.commons.pool2.PooledObject
-import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.exceptions.{JedisConnectionException, JedisDataException}
 import redis.clients.jedis.{Jedis, JedisFactory, JedisPool, JedisPoolConfig, Protocol}
 
 import java.time.Duration
@@ -39,7 +39,8 @@ object ConnectionPool extends Logging {
         jedis.sendCommand(Protocol.Command.CLIENT, "SETINFO", "LIB-NAME", RedisClientLibraryInfo.libName)
         jedis.sendCommand(Protocol.Command.CLIENT, "SETINFO", "LIB-VER", RedisClientLibraryInfo.libVersion)
       } catch {
-        case e: Exception =>
+        // An error reply means the server refused the command (pre-7.2, or CLIENT|SETINFO denied)
+        case e: JedisDataException =>
           logDebug(s"CLIENT SETINFO not supported (requires Redis 7.2+): ${e.getMessage}")
       }
       pooledObject
