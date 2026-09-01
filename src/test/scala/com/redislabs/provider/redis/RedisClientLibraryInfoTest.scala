@@ -12,16 +12,31 @@ class RedisClientLibraryInfoTest extends FunSuite with Matchers {
     RedisClientLibraryInfo.sparkRedisVersion should not be null
   }
 
-  test("sparkRedisVersion should not be empty") {
-    RedisClientLibraryInfo.sparkRedisVersion should not be empty
-  }
-
   test("jedisVersion should return a non-null value") {
     RedisClientLibraryInfo.jedisVersion should not be null
   }
 
-  test("jedisVersion should not be empty") {
-    RedisClientLibraryInfo.jedisVersion should not be empty
+  test("libVersion should return a non-null value") {
+    RedisClientLibraryInfo.libVersion should not be null
+  }
+
+  test("a missing version is empty rather than the literal 'unknown'") {
+    RedisClientLibraryInfo.sparkRedisVersion should not be "unknown"
+    RedisClientLibraryInfo.jedisVersion should not be "unknown"
+    RedisClientLibraryInfo.libVersion should not be "unknown"
+  }
+
+  test("libName is empty in the version substring when the version is missing") {
+    if (RedisClientLibraryInfo.sparkRedisVersion.isEmpty) {
+      RedisClientLibraryInfo.libName shouldBe "jedis(spark-redis)"
+    } else {
+      RedisClientLibraryInfo.libName shouldBe
+        s"jedis(spark-redis_v${RedisClientLibraryInfo.sparkRedisVersion})"
+    }
+  }
+
+  test("libName never leaves a stray '_v' separator") {
+    RedisClientLibraryInfo.libName should not include "_v)"
   }
 
   test("libName should contain spark-redis identifier") {
@@ -29,17 +44,12 @@ class RedisClientLibraryInfoTest extends FunSuite with Matchers {
   }
 
   test("libName should have expected format with jedis prefix") {
-    // Format: jedis(spark-redis_v{version})
-    RedisClientLibraryInfo.libName should startWith("jedis(spark-redis_v")
+    // Format: jedis(spark-redis) or jedis(spark-redis_v{version})
+    RedisClientLibraryInfo.libName should startWith("jedis(spark-redis")
     RedisClientLibraryInfo.libName should endWith(")")
   }
 
   test("libVersion should match jedisVersion") {
     RedisClientLibraryInfo.libVersion shouldBe RedisClientLibraryInfo.jedisVersion
   }
-
-  test("libVersion should not be empty") {
-    RedisClientLibraryInfo.libVersion should not be empty
-  }
 }
-
