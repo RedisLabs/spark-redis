@@ -345,6 +345,7 @@ root
 | port                   | overrides `spark.redis.port` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `Int`                 | `6379`         |
 | user                   | overrides `spark.redis.user` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
 | auth                   | overrides `spark.redis.auth` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
+| ssl                    | overrides `spark.redis.ssl ` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `Boolean`             | `false`        |
 | dbNum                  | overrides `spark.redis.db` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                  | `Int`                 | `0`            |
 | timeout                | overrides `spark.redis.timeout` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                             | `Int`                 | `2000`         |
 
