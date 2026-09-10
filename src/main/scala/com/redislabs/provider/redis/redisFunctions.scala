@@ -5,6 +5,8 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import redis.clients.jedis.StreamEntryID
+
 import scala.collection.JavaConversions.mapAsJavaMap
 
 /**
@@ -382,6 +384,18 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
                        readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
     vs.foreachPartition(partition => setFixedList(listName, listSize, partition, redisConfig, readWriteConfig))
   }
+
+  /**
+    * Write RDD of (stream name, hash KVs)
+    *
+    * @param kvs RDD of tuples (hash name, Map(hash field name, hash field value))
+    */
+  def toRedisSTREAMs(kvs: RDD[(String, StreamEntryID, Map[String, String])])
+                   (implicit
+                    redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                    readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    kvs.foreachPartition(partition => setStream(partition, redisConfig, readWriteConfig))
+  }
 }
 
 
@@ -611,6 +625,31 @@ object RedisContext extends Serializable {
     pipeline.sync()
     conn.close()
   }
+
+  /**
+    * @param streams streamName: hashes to be saved in the target host
+    */
+  def setStream(streams: Iterator[(String, StreamEntryID, Map[String, String])],
+                redisConfig: RedisConfig,
+                readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    streams
+      .map { case (key, entryId, hash) =>
+        (redisConfig.getHost(key), (key, entryId, hash))
+      }
+      .toArray
+      .groupBy(_._1)
+      .foreach { case (node, arr) =>
+        withConnection(node.endpoint.connect()) { conn =>
+          foreachWithPipeline(conn, arr) { (pipeline, a) =>
+            val (key, entryId, hash) = a._2
+            pipeline.xadd(key, entryId, hash)
+          }
+        }
+      }
+  }
+
 }
 
 trait RedisFunctions {
