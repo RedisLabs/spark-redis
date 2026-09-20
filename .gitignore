@@ -22,6 +22,9 @@ target/
 *.pyc
 sbt/*.jar
 
+# test artifacts
+checkpoint-test
+
 # sbt specific
 .cache/
 .history/

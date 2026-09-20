@@ -7,7 +7,7 @@ import redis.clients.jedis.{Jedis, JedisFactory, JedisPool, JedisPoolConfig, Pro
 
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.JavaConversions._
+import scala.jdk.CollectionConverters._
 
 
 object ConnectionPool extends Logging {
@@ -48,7 +48,8 @@ object ConnectionPool extends Logging {
   }
 
   def connect(re: RedisEndpoint): Jedis = {
-    val pool = pools.getOrElseUpdate(re,
+
+    val pool = pools.asScala.getOrElseUpdate(re,
       {
         val poolConfig: JedisPoolConfig = new JedisPoolConfig()
         poolConfig.setMaxTotal(250)
@@ -56,7 +57,7 @@ object ConnectionPool extends Logging {
         poolConfig.setTestOnBorrow(false)
         poolConfig.setTestOnReturn(false)
         poolConfig.setTestWhileIdle(false)
-        poolConfig.setSoftMinEvictableIdleTime(Duration.ofMinutes(1))
+        poolConfig.setSoftMinEvictableIdleDuration(Duration.ofMinutes(1))
         poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(30))
         poolConfig.setNumTestsPerEvictionRun(-1)
 
@@ -74,10 +75,9 @@ object ConnectionPool extends Logging {
       }
       catch {
         case e: JedisConnectionException if e.getCause.toString.
-          contains("ERR max number of clients reached") => {
+          contains("ERR max number of clients reached") =>
           if (sleepTime < 500) sleepTime *= 2
           Thread.sleep(sleepTime)
-        }
         case e: Exception => throw e
       }
     }

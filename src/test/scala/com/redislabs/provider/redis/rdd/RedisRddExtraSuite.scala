@@ -4,9 +4,9 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import org.scalatest.Matchers
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.util.TestUtils
-import redis.clients.jedis.exceptions.JedisConnectionException
+import redis.clients.jedis.exceptions.JedisAccessControlException
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
  * More RDD tests
@@ -65,7 +65,12 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
       ("hash1", map1),
       ("hash2", map2)
     )
-    val hashesBytes = hashes.map { case (k, hash) => (k.getBytes, hash.map { case (mapKey, mapVal) => (mapKey.getBytes, mapVal.getBytes) }) }
+    val hashesBytes = hashes.map {
+      case (k, hash) => (k.getBytes, hash.map {
+        case (mapKey, mapVal) => (mapKey.getBytes, mapVal.getBytes)
+      })
+    }
+
     val rdd = sc.parallelize(hashesBytes)
     sc.toRedisByteHASHes(rdd)
 
@@ -74,7 +79,7 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
   }
 
   test("connection fails with incorrect user/pass") {
-    assertThrows[JedisConnectionException] {
+    assertThrows[JedisAccessControlException] {
       new RedisConfig(RedisEndpoint(
         host = redisHost,
         port = redisPort,

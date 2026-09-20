@@ -23,7 +23,9 @@ trait SparkRedisSuite extends FunSuite with Env with Keys with BeforeAndAfterAll
 
   object TestSqlImplicits extends SQLImplicits {
 
-    override protected def _sqlContext: SQLContext = spark.sqlContext
+    protected def _sqlContext: SQLContext = spark.sqlContext
+
+    override protected def session: SparkSession = spark
   }
 
 }

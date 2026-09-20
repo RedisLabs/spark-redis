@@ -5,7 +5,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO}
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.StreamEntryID
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
   * @author The Viet Nguyen

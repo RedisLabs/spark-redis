@@ -5,7 +5,9 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import scala.collection.JavaConversions.mapAsJavaMap
+
+import scala.jdk.CollectionConverters._
+import scala.language.implicitConversions
 
 /**
   * RedisContext extends sparkContext's functionality with redis functions
@@ -447,7 +449,7 @@ object RedisContext extends Serializable {
         withConnection(node.endpoint.connect()) { conn =>
           foreachWithPipeline(conn, arr) { (pipeline, a) =>
             val (key, hashFields) = a._2
-            pipeline.hmset(key, hashFields)
+            pipeline.hmset(key, hashFields.asJava)
             if (ttl > 0) pipeline.expire(key, ttl.toLong)
           }
         }
@@ -477,7 +479,7 @@ object RedisContext extends Serializable {
             withConnection(node.endpoint.connect()) { conn =>
               foreachWithPipeline(conn, arr) { (pipeline, a) =>
                 val (key, hashFields) = a._2
-                pipeline.hmset(key, hashFields)
+                pipeline.hmset(key, hashFields.asJava)
                 if (ttl > 0) pipeline.expire(key, ttl.toLong)
               }
             }

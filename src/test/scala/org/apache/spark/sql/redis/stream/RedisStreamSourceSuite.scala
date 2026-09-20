@@ -2,7 +2,6 @@ package org.apache.spark.sql.redis.stream
 
 import java.io.File
 import java.util.UUID
-
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
@@ -14,8 +13,9 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.StreamEntryID
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.DurationLong
+import scala.language.postfixOps
 
 /**
   * @author The Viet Nguyen
