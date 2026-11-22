@@ -73,6 +73,31 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyHash("hash2", map2)
   }
 
+  test("toRedisByteKV") {
+    val binaryKeyValue1 = ("binary-key1".getBytes, "binary-value1".getBytes)
+    val binaryKeyValue2 = ("binary-key2".getBytes, "binary-value2".getBytes)
+    val keyValueBytes = Seq(binaryKeyValue1, binaryKeyValue2)
+    val rdd = sc.parallelize(keyValueBytes)
+    sc.toRedisByteKV(rdd)
+
+    verifyBytes(binaryKeyValue1._1, binaryKeyValue1._2)
+    verifyBytes(binaryKeyValue2._1, binaryKeyValue2._2)
+  }
+
+  test("toRedisByteKV with ttl") {
+    val key = "binary-key-ttl".getBytes
+    val value = "binary-value-ttl".getBytes
+    val ttl = 1000
+    sc.toRedisByteKV(sc.parallelize(Seq((key, value))), ttl)
+
+    verifyBytes(key, value)
+    withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
+      val actualTtl: Long = conn.ttl(key)
+      actualTtl should be > 0L
+      actualTtl should be <= ttl.toLong
+    }
+  }
+
   // grouping size 2 splits a 5-element partition into batches of 2, 2 and 1;
   // pipeline size 1 forces a sync after every command
   private val smallBatchConfig = ReadWriteConfig(ReadWriteConfig.ScanCountDefault, 1, 2)
@@ -146,4 +171,9 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     }
   }
 
+  def verifyBytes(key: Array[Byte], value: Array[Byte]): Unit = {
+    withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
+      conn.get(key) should be(value)
+    }
+  }
 }

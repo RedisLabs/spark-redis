@@ -123,6 +123,18 @@ sc.toRedisKV(stringRDD, ttl)
 
 By default, Strings won't have any expiry set.
 
+Use the following to store an RDD of binary key-value pairs as Redis Strings:
+
+```scala
+sc.toRedisByteKV(byteKVRDD)
+```
+
+The `byteKVRDD` is an RDD of tuples (`key`, `value`) represented as byte arrays, e.g. serialized protobufs. Expiry can be set the same way:
+
+```scala
+sc.toRedisByteKV(byteKVRDD, ttl)
+```
+
 #### Hashes
 To store a Redis Hash, the RDD should consist of its field-value pairs. If the RDD is called `hashRDD`, the following should be used for storing it in the key name specified by `hashName`:
 
