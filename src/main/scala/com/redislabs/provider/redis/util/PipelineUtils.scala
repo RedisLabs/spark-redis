@@ -5,7 +5,7 @@ import java.util.{List => JList}
 import com.redislabs.provider.redis.ReadWriteConfig
 import redis.clients.jedis.{Jedis, Pipeline}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.{TraversableOnce, mutable}
 
 object PipelineUtils {
@@ -22,7 +22,7 @@ object PipelineUtils {
     * @param f               function to applied for each item in the sequence
     * @return response from the server
     */
-  def mapWithPipeline[A](conn: Jedis, items: TraversableOnce[A])(f: (Pipeline, A) => Unit)
+  def mapWithPipeline[A](conn: Jedis, items: IterableOnce[A])(f: (Pipeline, A) => Unit)
                         (implicit readWriteConfig: ReadWriteConfig): Seq[AnyRef] = {
     val totalResp = mutable.ListBuffer[JList[AnyRef]]()
 
@@ -45,7 +45,7 @@ object PipelineUtils {
       totalResp += resp
     }
 
-    totalResp.flatMap(_.asScala)
+    totalResp.flatMap(_.asScala).toSeq
   }
 
   /**

@@ -1,16 +1,16 @@
 package com.redislabs.provider.redis.util
 
-import scala.collection.IterableLike
-import scala.collection.generic.CanBuildFrom
+import scala.collection.IterableOps
+import scala.collection.BuildFrom
 
 /**
   * @author The Viet Nguyen
   */
 object CollectionUtils {
 
-  implicit class RichCollection[A, Repr](val xs: IterableLike[A, Repr]) extends AnyVal {
+  implicit class RichCollection[A, Repr](val xs: IterableOps[A, Iterable, Repr]) extends AnyVal {
 
-    def distinctBy[B, That](f: A => B)(implicit cbf: CanBuildFrom[Repr, A, That]): That = {
+    def distinctBy[B, That](f: A => B)(implicit cbf: BuildFrom[Repr, A, That]): That = {
       val builder = cbf(xs.repr)
       val iterator = xs.iterator
       var set = Set[B]()
