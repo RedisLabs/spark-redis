@@ -110,11 +110,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       // truncate the table
       sc.fromRedisKeyPattern(dataKeyPattern).foreachPartition { partition =>
         groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
-          val conn = node.connect()
-          foreachWithPipeline(conn, keys) { (pipeline, key) =>
-            (pipeline: PipelineBase).del(key) // fix ambiguous reference to overloaded definition
+          withConnection(node.connect()) { conn =>
+            foreachWithPipeline(conn, keys) { (pipeline, key) =>
+              (pipeline: PipelineBase).del(key) // fix ambiguous reference to overloaded definition
+            }
           }
-          conn.close()
         }
       }
     }
@@ -126,13 +126,13 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         // the following can be optimized to not create a map
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-          val conn = node.connect()
-          foreachWithPipeline(conn, keys) { (pipeline, key) =>
-            val row = rowsWithKey(key)
-            val encodedRow = persistence.encodeRow(keyName, row)
-            persistence.save(pipeline, key, encodedRow, ttl)
+          withConnection(node.connect()) { conn =>
+            foreachWithPipeline(conn, keys) { (pipeline, key) =>
+              val row = rowsWithKey(key)
+              val encodedRow = persistence.encodeRow(keyName, row)
+              persistence.save(pipeline, key, encodedRow, ttl)
+            }
           }
-          conn.close()
         }
       }
     }
@@ -237,10 +237,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val key = schemaKey(tableName())
     logInfo(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
-    val conn = schemaNode.connect()
     val schemaBytes = SerializationUtils.serialize(schema)
-    conn.set(key.getBytes, schemaBytes)
-    conn.close()
+    withConnection(schemaNode.connect()) { conn =>
+      conn.set(key.getBytes, schemaBytes)
+    }
     schema
   }
 
