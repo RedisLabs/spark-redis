@@ -393,19 +393,29 @@ object RedisContext extends Serializable {
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
-      mapValues(a => a.map(p => p._2)).foreach { x =>
-      val conn = x._1.endpoint.connect()
-      foreachWithPipeline(conn, x._2) { case (pipeline, (k, v)) =>
-        if (ttl <= 0) {
-          pipeline.set(k, v)
-        }
-        else {
-          pipeline.setex(k, ttl.toLong, v)
-        }
+
+    arr
+      .map { case (key, value) =>
+        (redisConfig.getHost(key), (key, value))
       }
-      conn.close()
-    }
+      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
+      .foreach { batch =>
+        batch
+          .toArray
+          .groupBy(_._1)
+          .foreach { case (node, nodeKVs) =>
+            withConnection(node.endpoint.connect()) { conn =>
+              foreachWithPipeline(conn, nodeKVs) { case (pipeline, (_, (k, v))) =>
+                if (ttl <= 0) {
+                  pipeline.set(k, v)
+                }
+                else {
+                  pipeline.setex(k, ttl.toLong, v)
+                }
+              }
+            }
+          }
+      }
   }
 
 

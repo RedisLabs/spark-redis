@@ -73,6 +73,34 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyHash("hash2", map2)
   }
 
+  // grouping size 2 splits a 5-element partition into batches of 2, 2 and 1;
+  // pipeline size 1 forces a sync after every command
+  private val smallBatchConfig = ReadWriteConfig(ReadWriteConfig.ScanCountDefault, 1, 2)
+
+  test("toRedisKV writes every key when a partition spans several batches") {
+    val prefix = TestUtils.generateRandomKey()
+    val kvs = (1 to 5).map(i => (s"$prefix:kv$i", s"value$i"))
+    sc.toRedisKV(sc.parallelize(kvs, 1))(redisConfig, smallBatchConfig)
+
+    kvs.foreach { case (key, value) => verifyKV(key, value) }
+  }
+
+  test("toRedisKV with ttl sets an expiry on every key") {
+    val prefix = TestUtils.generateRandomKey()
+    val kvs = (1 to 5).map(i => (s"$prefix:ttl$i", s"value$i"))
+    val ttl = 100
+    sc.toRedisKV(sc.parallelize(kvs, 1), ttl)(redisConfig, smallBatchConfig)
+
+    kvs.foreach { case (key, value) =>
+      verifyKV(key, value)
+      withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
+        val remaining: Long = conn.ttl(key)
+        remaining should be > 0L
+        remaining should be <= ttl.toLong
+      }
+    }
+  }
+
   test("connection fails with incorrect user/pass") {
     assertThrows[JedisConnectionException] {
       new RedisConfig(RedisEndpoint(
@@ -103,6 +131,12 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
   def verifyList(list: String, vals: Seq[String]): Unit = {
     withConnection(redisConfig.getHost(list).endpoint.connect()) { conn =>
       conn.lrange(list, 0, vals.size).asScala should be(vals.toList)
+    }
+  }
+
+  def verifyKV(key: String, value: String): Unit = {
+    withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
+      conn.get(key) should be(value)
     }
   }
 
