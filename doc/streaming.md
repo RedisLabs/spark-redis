@@ -4,10 +4,12 @@ Spark-Redis supports streaming data from Stream and List data structures:
 
   - [Redis Stream](#redis-stream)
   - [Redis List](#redis-list)
+  - [Writing a DStream to Redis](#writing-a-dstream-to-redis)
 
 ## Redis Stream
 
-To stream data from [Redis Stream](https://redis.io/topics/streams-intro) use `createRedisXStream` method (added in Spark-Redis 2.3.1):
+To stream data from [Redis Stream](https://redis.io/topics/streams-intro) use `createRedisXStream` method (added in Spark-Redis 2.3.1).
+Redis Streams require Redis 5.0 or later.
 
 ```scala
 import com.redislabs.provider.redis.streaming._
@@ -135,4 +137,24 @@ val redisStream = ssc.createRedisStreamWithoutListname(Array("foo", "bar"), stor
 redisStream.print()
 ssc.start()
 ssc.awaitTermination()
+```
+
+## Writing a DStream to Redis
+
+There is no DStream sink, but you can write each micro-batch with the [RDD functions](rdd.md#writing-data) in `foreachRDD`.
+Use the RDD's own `SparkContext` (`rdd.sparkContext`) rather than an `sc` or `ssc` value from the enclosing scope. With
+checkpointing enabled (for example for `updateStateByKey` or `mapWithState`), Spark serializes the `foreachRDD` closure, and
+a reference to `sc` or `ssc` fails with `java.io.NotSerializableException: org.apache.spark.SparkContext` (or
+`StreamingContext`).
+
+```scala
+import com.redislabs.provider.redis._
+
+ssc.checkpoint(checkpointDir)
+
+val counts: DStream[(String, String)] = ...
+
+counts.foreachRDD { rdd =>
+  rdd.sparkContext.toRedisKV(rdd)
+}
 ```

@@ -1,6 +1,7 @@
 ### Structured Streaming
 
-Spark-Redis supports [Redis Stream](https://redis.io/topics/streams-intro) data structure as a source for [Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html):
+Spark-Redis supports [Redis Stream](https://redis.io/topics/streams-intro) data structure as a source for [Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
+Redis Streams require Redis 5.0 or later.
 
 The following example reads data from a Redis Stream `sensors` that has two fields `sensor-id` and `temperature`: 
 
@@ -89,10 +90,11 @@ Please refer to [DataFrame docs](dataframe.md) for different options (such as sp
 ### Stream Offset
 
 By default it pulls messages starting from the latest message in the stream. If you need to start from the specific position in the stream, specify the `stream.offsets` parameter as a JSON string. 
-In the following example we set offset id to be `1548083485360-0`. The group name `redis-source` is a default consumer group that Spark-Redis automatically creates to read stream.
+In the following example we set offset id to be `1548083485360-0`. The group name `spark-source` is the default consumer group that Spark-Redis automatically creates to read stream
+(use your own name if you set `stream.group.name`).
 
 ```scala
-val offsets = """{"offsets":{"sensors":{"groupName":"redis-source","offset":"1548083485360-0"}}}"""
+val offsets = """{"offsets":{"sensors":{"groupName":"spark-source","offset":"1548083485360-0"}}}"""
 
 ...
 
@@ -150,9 +152,13 @@ Similarly to Dataframe API, we can override connection options on the individual
 | -----------| -------------------------------------------------------------| ---------- | ----------- |
 | host       | overrides `spark.redis.host` configured in SparkSession      | `String`   | `localhost` |
 | port       | overrides `spark.redis.port` configured in SparkSession      | `Int`      | `6379`      |
+| user       | overrides `spark.redis.user` configured in SparkSession      | `String`   | -           |
 | auth       | overrides `spark.redis.auth` configured in SparkSession      | `String`   | -           |
+| ssl        | overrides `spark.redis.ssl` configured in SparkSession       | `Boolean`  | `false`     |
 | dbNum      | overrides `spark.redis.db` configured in SparkSession        | `Int`      | `0`         |
 | timeout    | overrides `spark.redis.timeout` configured in SparkSession   | `Int`      | `2000`      |
+
+Each option overrides only its own parameter, see [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-stream-or-rdd).
 
 
 ### Other configuration
@@ -166,6 +172,32 @@ The default values are 100 items and 500 ms, respectively.
 ```scala
   .option("stream.read.batch.size", 200)   // items
   .option("stream.read.block", 1000)       // in milliseconds
+```
+
+Note that `stream.read.batch.size` is the `COUNT` of each `XREADGROUP` call, not a limit on the size of a micro-batch. At
+each trigger, Spark-Redis takes the last entry ID of the stream as the end offset and reads all the entries up to it, with
+as many `XREADGROUP` calls as needed. A micro-batch therefore contains everything that was added to the stream since the
+previous one. There is currently no option to cap the number of entries per micro-batch.
+
+### Data types
+
+Stream entry fields are strings, and they are converted according to the schema. `String`, `Byte`, `Short`, `Int`, `Long`,
+`Float`, `Double` and `Boolean` fields are supported. `Date` and `Timestamp` fields currently fail. Read them as `StringType`
+and convert them with `to_date()` or `to_timestamp()`:
+
+```scala
+import org.apache.spark.sql.functions.{col, to_timestamp}
+
+val events = spark
+  .readStream
+  .format("redis")
+  .option("stream.keys", "events")
+  .schema(StructType(Array(
+    StructField("time", StringType),
+    StructField("event", StringType)
+  )))
+  .load()
+  .withColumn("time", to_timestamp(col("time")))
 ```
 
 ### Fault Tolerance Semantics
