@@ -254,6 +254,19 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
   }
 
   /**
+    * Write RDD of binary key-value pairs to Redis String
+    *
+    * @param kvs Pair RDD of K/V as byte arrays
+    * @param ttl time to live
+    */
+  def toRedisByteKV(kvs: RDD[(Array[Byte], Array[Byte])], ttl: Int = 0)
+                   (implicit
+                    redisConfig: RedisConfig = RedisConfig.fromSparkConf(sc.getConf),
+                    readWriteConfig: ReadWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)) {
+    kvs.foreachPartition(partition => setByteKVs(partition, ttl, redisConfig, readWriteConfig))
+  }
+
+  /**
     * @param kvs      Pair RDD of K/V
     * @param hashName target hash's name which hold all the kvs
     * @param ttl      time to live
@@ -408,6 +421,35 @@ object RedisContext extends Serializable {
     }
   }
 
+  /**
+    * Save KVs as byte arrays.
+    *
+    * @param arr k/v which should be saved in the target host as bytes
+    * @param ttl time to live
+    */
+  def setByteKVs(arr: Iterator[(Array[Byte], Array[Byte])], ttl: Int, redisConfig: RedisConfig,
+                 readWriteConfig: ReadWriteConfig) {
+    implicit val rwConf: ReadWriteConfig = readWriteConfig
+
+    arr
+      .map(kv => (redisConfig.getHost(kv._1), kv))
+      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
+      .foreach { batch =>
+        batch
+          .groupBy(_._1)
+          .foreach { case (node, nodeKvs) =>
+            withConnection(node.endpoint.connect()) { conn =>
+              foreachWithPipeline(conn, nodeKvs.map(_._2)) { case (pipeline, (k, v)) =>
+                if (ttl <= 0) {
+                  pipeline.set(k, v)
+                } else {
+                  pipeline.setex(k, ttl.toLong, v)
+                }
+              }
+            }
+          }
+      }
+  }
 
   /**
     * @param hashName
