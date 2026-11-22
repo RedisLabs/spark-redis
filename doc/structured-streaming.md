@@ -181,9 +181,15 @@ previous one. There is currently no option to cap the number of entries per micr
 
 ### Data types
 
-Stream entry fields are strings, and they are converted according to the schema. `String`, `Byte`, `Short`, `Int`, `Long`,
-`Float`, `Double` and `Boolean` fields are supported. `Date` and `Timestamp` fields currently fail. Read them as `StringType`
-and convert them with `to_date()` or `to_timestamp()`:
+Stream entry fields are strings, and they are converted according to the schema. The following types are supported:
+`String`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Boolean`, `Date` (`yyyy-mm-dd`) and `Timestamp`.
+
+A `Timestamp` field accepts `yyyy-mm-dd hh:mm:ss[.fffffffff]`, an ISO-8601 local date-time such as
+`2022-10-14T13:33:15.012345`, or an ISO-8601 date-time with an offset such as `2022-10-14T13:33:15Z` or
+`2022-10-14T13:33:15+02:00`. Values without an offset are interpreted in the JVM default time zone, not in
+`spark.sql.session.timeZone`.
+
+For other formats, read the field as `StringType` and convert it with `to_date()` or `to_timestamp()`:
 
 ```scala
 import org.apache.spark.sql.functions.{col, to_timestamp}
@@ -197,7 +203,7 @@ val events = spark
     StructField("event", StringType)
   )))
   .load()
-  .withColumn("time", to_timestamp(col("time")))
+  .withColumn("time", to_timestamp(col("time"), "dd/MM/yyyy HH:mm:ss"))
 ```
 
 ### Fault Tolerance Semantics
