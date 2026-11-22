@@ -26,6 +26,7 @@ The master branch contains the recent development for the next release.
 | Spark-Redis                                                               | Spark | Redis            | Supported Scala Versions | 
 |---------------------------------------------------------------------------|-------| ---------------- | ------------------------ |
 | [master](https://github.com/RedisLabs/spark-redis/)                       | 3.2.x | >=2.9.0          | 2.12                     | 
+| [3.1](https://github.com/RedisLabs/spark-redis/tree/v3.1.0)               | 3.2.x | >=2.9.0          | 2.12                     | 
 | [3.0](https://github.com/RedisLabs/spark-redis/tree/branch-3.0)           | 3.0.x | >=2.9.0          | 2.12                     | 
 | [2.4, 2.5, 2.6](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x | >=2.9.0          | 2.11, 2.12               | 
 | [2.3](https://github.com/RedisLabs/spark-redis/tree/branch-2.3)           | 2.3.x | >=2.9.0          | 2.11                     | 
@@ -34,7 +35,11 @@ The master branch contains the recent development for the next release.
 
 ## Known limitations
 
-* Java, Python and R API bindings are not provided at this time
+* The API is written in Scala. Java can use it through Scala/Java interoperability, see [Java](doc/java.md).
+* Python supports the DataFrame API, Spark SQL and Structured Streaming only. The RDD and DStream functions are not available from Python, see [Python](doc/python.md).
+* There is no R API.
+* Redis Sentinel is not supported, see [Redis server requirements](doc/configuration.md#redis-server-requirements).
+* Redis Streams (DStream and Structured Streaming sources) require Redis 5.0 or later.
 
 ## Additional considerations
 This library is a work in progress so the API may change before the official release.
@@ -52,6 +57,7 @@ Please make sure you use documentation from the correct branch ([2.4](https://gi
   - [Java](doc/java.md)
   - [Python](doc/python.md)
   - [Configuration](doc/configuration.md)
+  - [Troubleshooting](doc/troubleshooting.md)
   - [Dev environment](doc/dev.md)
 
 ## Contributing

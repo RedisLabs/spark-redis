@@ -2,6 +2,9 @@
 
   - [Writing](#writing)
   - [Reading](#reading)
+  - [Filters and reading specific keys](#filters-and-reading-specific-keys)
+  - [Deleting a table](#deleting-a-table)
+  - [Writing a DataFrame as Redis Strings](#writing-a-dataframe-as-redis-strings)
   - [DataFrame Options](#dataframe-options)
   - [Known limitations](#known-limitations)
 
@@ -113,12 +116,51 @@ val df = spark.read
   .load()
 ```
 
+The values of the key column must be unique. Rows with the same key column value are written to the same Redis key, so
+only one of them is kept, and fewer keys than rows end up in Redis.
+
 ### Save Modes
 
-Spark-Redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-programming-guide.html#save-modes)'s: `Append`, 
-`Overwrite`, `ErrorIfExists` and `Ignore`.
+Spark-Redis supports all DataFrame [SaveMode](https://spark.apache.org/docs/latest/sql-data-sources-load-save-functions.html#save-modes)s.
+The table's rows are the keys that match `<table>:*`.
 
-Please note, when key collision happens and `SaveMode.Append` is set, the former row is replaced with a new one. 
+| Save mode                   | Behavior                                                                                                                                                                                         |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ErrorIfExists` (default)   | scans for the table's keys and fails with `SaveMode is set to ErrorIfExists and dataframe already exists in Redis and contains data` if there are any; otherwise writes the rows                 |
+| `Append`                    | writes the rows without checking for existing data                                                                                                                                              |
+| `Overwrite`                 | deletes all the table's keys, then writes the rows                                                                                                                                              |
+| `Ignore`                    | scans for the table's keys and writes the rows only if there are none                                                                                                                           |
+
+Please note:
+
+* With `SaveMode.Append`, when a row's key already exists, the new row is merged into the existing Redis hash with `HMSET`.
+  Fields of the new row replace the existing fields, but fields that exist only in Redis are kept, for example a column that
+  isn't in the new DataFrame or a value that is `null` in the new row (see [Null values](#null-values)). To replace whole
+  rows, use `SaveMode.Overwrite` or delete the keys first.
+* `SaveMode.Overwrite` isn't atomic: the existing keys are deleted first and the new rows are written afterwards, so readers
+  can see an empty or partially written table while the job runs. If the job fails after the delete, the table stays
+  incomplete. To switch to new data without a gap, write it to a new table name and switch the readers to it.
+* `ErrorIfExists`, `Ignore` and `Overwrite` scan the whole keyspace for `<table>:*` keys before writing, which can take a
+  long time on a large database. Use `SaveMode.Append` when you don't need these checks, and see
+  [Tuning reads and writes](configuration.md#tuning-reads-and-writes).
+
+### Null values
+
+With the Hash model, `null` values are not written: the field is left out of the row's Redis hash. When you read the table
+back with the `table` option, the stored schema is used and missing fields are returned as `null`. When you read Redis
+hashes with `infer.schema`, the columns are taken from one random hash, so a column that is `null` in that row is missing
+from the DataFrame. Provide the schema explicitly in that case, see [Reading Redis Hashes](#reading-redis-hashes).
+
+### Data types
+
+With the Hash model, every value is stored as a string. When reading, the values are converted back according to the
+schema. The following types are supported: `String`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Boolean`,
+`Date` (stored as `yyyy-mm-dd`) and `Timestamp` (stored as `yyyy-mm-dd hh:mm:ss[.fffffffff]`).
+
+Other types, such as arrays, maps, nested structs or binary columns, are written with their `toString()` value (for example
+`WrappedArray(a, b)` or `[B@6d06d69c`) and can't be read back. Convert them first, for example with `to_json()` or
+`base64()`, or use the [Binary persistence model](#persistence-model). To store raw bytes that other clients can read, use
+the RDD functions `toRedisByteKV`, `toRedisByteHASHes` or `toRedisByteLISTs`, see [RDD](rdd.md#writing-data).
 
 ### Spark SQL
 
@@ -138,6 +180,16 @@ spark.sql(
         |       ('Peter', 45)
       """.stripMargin)
 ```
+
+The `OPTIONS` clause accepts the same options as the DataFrame API, including the
+[connection options](#dataframe-options), without the `spark.redis.` prefix:
+
+```sql
+CREATE TEMPORARY VIEW person (name STRING, age INT)
+    USING org.apache.spark.sql.redis OPTIONS (table 'person', key.column 'name', host '10.0.0.1', port '6379')
+```
+
+`INSERT INTO` appends rows (see [Save Modes](#save-modes)) and `INSERT OVERWRITE` replaces the table.
 
 ### Time to live
 
@@ -202,7 +254,7 @@ object DataFrameExample {
           .config("spark.redis.port", "6379")
           .getOrCreate()
 
-    val personSeq = Seq(Person("John", 30), Person("Peter", 45)
+    val personSeq = Seq(Person("John", 30), Person("Peter", 45))
     val df = spark.createDataFrame(personSeq)
 
     df.write
@@ -327,6 +379,77 @@ root
  |-- _id: string (nullable = true)
 ```
 
+### Filters and reading specific keys
+
+With the Hash model only the selected columns are fetched from Redis (with `HMGET`), but filters such as `WHERE` clauses
+or `df.filter(...)` are not pushed down: Spark-Redis scans all the keys of the table or pattern, loads the rows and Spark
+filters them afterwards. For selective lookups on large data, design the Redis keys around the value you look up by and
+read those keys directly (see below), or use [Redis Query Engine](https://redis.io/docs/latest/develop/interact/search-and-query/)
+outside of Spark.
+
+`keys.pattern` can be a single key without wildcards. In that case Spark-Redis reads that key directly, without `SCAN`:
+
+```scala
+val df = spark.read
+  .format("org.apache.spark.sql.redis")
+  .schema(schema)
+  .option("keys.pattern", "person:John")
+  .load()
+```
+
+To read a list of known keys, see [Running custom commands](rdd.md#running-custom-commands) in the RDD documentation.
+
+### Deleting a table
+
+There is no API to drop a table. The table's data is the set of keys that match `<table>:*`, plus the schema key
+`_spark:<table>:schema`. You can delete them with the RDD API:
+
+```scala
+import com.redislabs.provider.redis._
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
+import redis.clients.jedis.PipelineBase
+
+val redisConfig = RedisConfig.fromSparkConf(sc.getConf)
+val readWriteConfig = ReadWriteConfig.fromSparkConf(sc.getConf)
+val table = "person"
+
+sc.fromRedisKeyPattern(s"$table:*", partitionNum = 12).foreachPartition { keys =>
+  implicit val rwConf: ReadWriteConfig = readWriteConfig
+  keys.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach { batch =>
+    // send each key to the node that owns it
+    batch.groupBy(key => redisConfig.getHost(key)).foreach { case (node, nodeKeys) =>
+      withConnection(node.endpoint.connect()) { conn =>
+        foreachWithPipeline(conn, nodeKeys) { (pipeline, key) =>
+          (pipeline: PipelineBase).del(key)
+        }
+      }
+    }
+  }
+}
+
+val schemaKey = s"_spark:$table:schema"
+withConnection(redisConfig.connectionForKey(schemaKey)) { conn =>
+  conn.del(schemaKey)
+}
+```
+
+Raise `spark.redis.scan.count` and `spark.redis.max.pipeline.size` to speed it up, see
+[Tuning reads and writes](configuration.md#tuning-reads-and-writes). If you need to drop tables regularly, for example one
+table per day, consider writing them with the `ttl` option so that Redis expires the keys.
+
+### Writing a DataFrame as Redis Strings
+
+The DataFrame API writes rows as Redis hashes (or as serialized rows with the Binary model). To store one column as the
+value of a Redis String, convert the DataFrame to a key-value RDD and use `toRedisKV`:
+
+```scala
+import com.redislabs.provider.redis._
+
+val kvRdd = df.select("id", "label").rdd.map(row => (row.get(0).toString, row.get(1).toString))
+sc.toRedisKV(kvRdd)
+```
+
 
 ## DataFrame options
 
@@ -340,15 +463,25 @@ root
 | infer.schema           | infer schema from random row, all columns will have `String` type                                                                                           | `Boolean`             | `false` |
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                                                                                            | `Int`                 | 100     |
 | scan.count             | count option of SCAN command (used to iterate over keys)                                                                                                    | `Int`                 | 100     |
-| iterator.grouping.size | the number of items to be grouped when iterating over underlying RDD partition                                                                              | `Int`                 | 1000    |
-| host                   | overrides `spark.redis.host` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | `localhost`    |
-| port                   | overrides `spark.redis.port` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `Int`                 | `6379`         |
-| user                   | overrides `spark.redis.user` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
-| auth                   | overrides `spark.redis.auth` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                | `String`              | -              |
-| dbNum                  | overrides `spark.redis.db` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                                  | `Int`                 | `0`            |
-| timeout                | overrides `spark.redis.timeout` configured in SparkSession (if set, any other connection setting from SparkSession is ignored )                             | `Int`                 | `2000`         |
+| iterator.grouping.size | the number of rows processed together when reading or writing a partition                                                                                  | `Int`                 | 1000    |
+| host                   | overrides `spark.redis.host`                                                                                                                                | `String`              | `localhost`    |
+| port                   | overrides `spark.redis.port`                                                                                                                                | `Int`                 | `6379`         |
+| user                   | overrides `spark.redis.user`                                                                                                                                | `String`              | -              |
+| auth                   | overrides `spark.redis.auth`                                                                                                                                | `String`              | -              |
+| ssl                    | overrides `spark.redis.ssl`                                                                                                                                 | `Boolean`             | `false`        |
+| dbNum                  | overrides `spark.redis.db`                                                                                                                                  | `Int`                 | `0`            |
+| timeout                | overrides `spark.redis.timeout`                                                                                                                             | `Int`                 | `2000`         |
+
+`max.pipeline.size`, `scan.count` and `iterator.grouping.size` are explained in
+[Tuning reads and writes](configuration.md#tuning-reads-and-writes).
+
+Each connection option (`host`, `port`, `user`, `auth`, `ssl`, `dbNum`, `timeout`) overrides only its own `spark.redis.*`
+parameter. The others still come from the Spark configuration. The option names don't have the `spark.redis.` prefix,
+see [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-stream-or-rdd).
 
 
 ## Known limitations
 
  - Nested DataFrame fields are not currently supported with Hash model. Consider making DataFrame schema flat or using Binary persistence model.
+ - Filters are not pushed down to Redis, see [Filters and reading specific keys](#filters-and-reading-specific-keys).
+ - Errors that Redis returns for individual write commands (for example when `maxmemory` is reached) are not reported and don't fail the job.
