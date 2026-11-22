@@ -7,7 +7,6 @@ import redis.clients.jedis.{Jedis, JedisFactory, JedisPool, JedisPoolConfig, Pro
 
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.JavaConversions._
 
 
 object ConnectionPool extends Logging {
@@ -47,25 +46,39 @@ object ConnectionPool extends Logging {
     }
   }
 
-  def connect(re: RedisEndpoint): Jedis = {
-    val pool = pools.getOrElseUpdate(re,
-      {
-        val poolConfig: JedisPoolConfig = new JedisPoolConfig()
-        poolConfig.setMaxTotal(250)
-        poolConfig.setMaxIdle(32)
-        poolConfig.setTestOnBorrow(false)
-        poolConfig.setTestOnReturn(false)
-        poolConfig.setTestWhileIdle(false)
-        poolConfig.setSoftMinEvictableIdleTime(Duration.ofMinutes(1))
-        poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(30))
-        poolConfig.setNumTestsPerEvictionRun(-1)
+  /**
+    * Returns the pool for this endpoint, creating it on first use.
+    *
+    * `computeIfAbsent` runs `createPool` at most once per endpoint, even when several tasks in the
+    * same executor reach a new endpoint at once. Scala's `getOrElseUpdate` on a wrapped map does
+    * not: it runs the factory in every racing caller and keeps one result, and the pools it drops
+    * are never closed (issue #90). The `get` first keeps the common case lock-free, because on
+    * Java 8 `computeIfAbsent` locks the bin even when the key is present.
+    */
+  private[redis] def poolFor(re: RedisEndpoint): JedisPool = {
+    val pool = pools.get(re)
+    if (pool != null) pool else pools.computeIfAbsent(re, (endpoint: RedisEndpoint) => createPool(endpoint))
+  }
 
-        val factory = new SparkRedisJedisFactory(
-          re.host, re.port, re.timeout, re.timeout, re.user, re.auth, re.dbNum, re.ssl
-        )
-        new JedisPool(poolConfig, factory)
-      }
+  private def createPool(re: RedisEndpoint): JedisPool = {
+    val poolConfig: JedisPoolConfig = new JedisPoolConfig()
+    poolConfig.setMaxTotal(250)
+    poolConfig.setMaxIdle(32)
+    poolConfig.setTestOnBorrow(false)
+    poolConfig.setTestOnReturn(false)
+    poolConfig.setTestWhileIdle(false)
+    poolConfig.setSoftMinEvictableIdleTime(Duration.ofMinutes(1))
+    poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(30))
+    poolConfig.setNumTestsPerEvictionRun(-1)
+
+    val factory = new SparkRedisJedisFactory(
+      re.host, re.port, re.timeout, re.timeout, re.user, re.auth, re.dbNum, re.ssl
     )
+    new JedisPool(poolConfig, factory)
+  }
+
+  def connect(re: RedisEndpoint): Jedis = {
+    val pool = poolFor(re)
     var sleepTime: Int = 4
     var conn: Jedis = null
     while (conn == null) {
