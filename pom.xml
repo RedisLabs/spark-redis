@@ -72,10 +72,16 @@
 						<goals>
 							<goal>prepare-agent</goal>
 						</goals>
+						<configuration>
+							<!-- scalatest-maven-plugin sets its own argLine, which would replace the default
+							     'argLine' property; expose the agent under its own name and reference it there -->
+							<propertyName>jacocoArgLine</propertyName>
+						</configuration>
 					</execution>
 					<execution>
 						<id>report</id>
-						<phase>test</phase>
+						<!-- must run after scalatest (bound to 'test') has written target/jacoco.exec -->
+						<phase>verify</phase>
 						<goals>
 							<goal>report</goal>
 						</goals>
@@ -241,7 +247,7 @@
 					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
 					<junitxml>.</junitxml>
 					<filereports>WDF TestSuite.txt</filereports>
-					<argLine>-XX:MaxPermSize=256m -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
+					<argLine>${jacocoArgLine} -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
 					<tagsToExclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToExclude>
 				</configuration>
 				<executions>
