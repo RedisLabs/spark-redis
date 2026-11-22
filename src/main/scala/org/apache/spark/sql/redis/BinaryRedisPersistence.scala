@@ -2,6 +2,7 @@ package org.apache.spark.sql.redis
 
 import java.nio.charset.StandardCharsets.UTF_8
 
+import com.redislabs.provider.redis.util.SparkUtils
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -34,6 +35,10 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
   override def decodeRow(keyMap: (String, String), value: Array[Byte], schema: StructType,
                          requiredColumns: Seq[String]): Row = {
     val valuesArray: Array[Any] = SerializationUtils.deserialize(value)
-    new GenericRowWithSchema(valuesArray, schema)
+    // Aligning column positions with what Catalyst expecting
+    val alignedSchema = SparkUtils.alignSchemaWithCatalyst(schema, requiredColumns)
+    val names = schema.fieldNames
+    val alignedValuesArray = requiredColumns.toArray.map(f => valuesArray(names.indexOf(f)))
+    new GenericRowWithSchema(alignedValuesArray, alignedSchema)
   }
 }
