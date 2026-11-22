@@ -27,7 +27,7 @@ class HashRedisPersistence extends RedisPersistence[Any] {
     pipeline.hmget(key, requiredColumns: _*)
   }
 
-  override def encodeRow(keyName: String, value: Row): Map[String, String] = {
+  override def encodeRow(keyName: String, value: Row, ttlColumn: Option[String] = None): Map[String, String] = {
     val fields = value.schema.fields.map(_.name)
     val kvMap = value.getValuesMap[Any](fields)
     kvMap
@@ -38,6 +38,13 @@ class HashRedisPersistence extends RedisPersistence[Any] {
       .filter { case (k, _) =>
         // don't store key values
         k != keyName
+      }
+      .filter { case (k, _) =>
+        // don't store TTLs
+        ttlColumn match {
+          case Some(ttl) => k != ttl
+          case None => true
+        }
       }
       .map { case (k, v) =>
         k -> String.valueOf(v)
