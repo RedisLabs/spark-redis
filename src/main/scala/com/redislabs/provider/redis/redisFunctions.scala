@@ -5,7 +5,6 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
 import scala.collection.JavaConversions.mapAsJavaMap
 
 /**
@@ -423,7 +422,7 @@ object RedisContext extends Serializable {
   }
 
   /**
-    * Save KVs as byte arrys.
+    * Save KVs as byte arrays.
     *
     * @param arr k/v which should be saved in the target host as bytes
     * @param ttl time to live
@@ -431,18 +430,24 @@ object RedisContext extends Serializable {
   def setByteKVs(arr: Iterator[(Array[Byte], Array[Byte])], ttl: Int, redisConfig: RedisConfig,
                  readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    arr.map(kv => (redisConfig.getHost(kv._1), kv)).toArray.groupBy(_._1).
-      mapValues(a => a.map(p => p._2)).foreach { x =>
-        val conn = x._1.endpoint.connect()
-        foreachWithPipeline(conn, x._2) { case (pipeline, (k, v)) =>
-          if (ttl <= 0) {
-            pipeline.set(k, v)
+
+    arr
+      .map(kv => (redisConfig.getHost(kv._1), kv))
+      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
+      .foreach { batch =>
+        batch
+          .groupBy(_._1)
+          .foreach { case (node, nodeKvs) =>
+            withConnection(node.endpoint.connect()) { conn =>
+              foreachWithPipeline(conn, nodeKvs.map(_._2)) { case (pipeline, (k, v)) =>
+                if (ttl <= 0) {
+                  pipeline.set(k, v)
+                } else {
+                  pipeline.setex(k, ttl.toLong, v)
+                }
+              }
+            }
           }
-          else {
-            pipeline.setex(k, ttl.toLong, v)
-          }
-        }
-        conn.close()
       }
   }
 

@@ -84,6 +84,20 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
     verifyBytes(binaryKeyValue2._1, binaryKeyValue2._2)
   }
 
+  test("toRedisByteKV with ttl") {
+    val key = "binary-key-ttl".getBytes
+    val value = "binary-value-ttl".getBytes
+    val ttl = 1000
+    sc.toRedisByteKV(sc.parallelize(Seq((key, value))), ttl)
+
+    verifyBytes(key, value)
+    withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
+      val actualTtl: Long = conn.ttl(key)
+      actualTtl should be > 0L
+      actualTtl should be <= ttl.toLong
+    }
+  }
+
   test("connection fails with incorrect user/pass") {
     assertThrows[JedisConnectionException] {
       new RedisConfig(RedisEndpoint(
@@ -122,7 +136,7 @@ trait RedisRddExtraSuite extends SparkRedisSuite with Keys with Matchers {
       conn.hgetAll(hash).asScala should be(vals)
     }
   }
-  
+
   def verifyBytes(key: Array[Byte], value: Array[Byte]): Unit = {
     withConnection(redisConfig.getHost(key).endpoint.connect()) { conn =>
       conn.get(key) should be(value)
