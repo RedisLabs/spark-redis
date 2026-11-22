@@ -121,7 +121,8 @@ test:
 	make start
 	# with --batch-mode maven doesn't print 'Progress: 125/150kB', the progress lines take up 90% of the log and causes
 	# Travis build to fail with 'The job exceeded the maximum log length, and has been terminated'
-	mvn clean test -B  -DargLine="-Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks"
+	# 'verify' (not 'test') so the JaCoCo report runs after the tests; the truststore JVM options come from the pom.
+	mvn clean verify -B
 	make stop
 
 benchmark:
