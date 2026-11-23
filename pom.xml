@@ -54,6 +54,11 @@
 		<!-- the latest Spark 3.x; CI also tests older Spark versions, see .github/workflows/integration.yml -->
 		<spark.version>3.5.10</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
+		<!-- Test Redis: the image RedisContainers runs (Redis 7.4 or later), and whether it runs containers at all.
+		     Override on the command line, for example -Dredis.image=redis:8.6. Forwarded to the test JVM below. -->
+		<redis.image>redis:7.4</redis.image>
+		<redis.containers>true</redis.containers>
 	</properties>
 
 	<distributionManagement>
@@ -255,6 +260,11 @@
 					<filereports>WDF TestSuite.txt</filereports>
 					<argLine>${jacocoArgLine} -Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
 					<tagsToExclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToExclude>
+					<!-- The plugin does not pass Maven's -D properties to the forked test JVM, so forward them here. -->
+					<systemProperties>
+						<redis.image>${redis.image}</redis.image>
+						<redis.containers>${redis.containers}</redis.containers>
+					</systemProperties>
 				</configuration>
 				<executions>
 					<execution>
@@ -328,6 +338,14 @@
 			<version>3.0.8</version>
 			<scope>test</scope>
 		</dependency>
+		<!-- Runs the Redis servers the test suites need in Docker (src/test/scala/.../env/RedisContainers.scala).
+		     Testcontainers 1.x still supports Java 8, which this 3.x build targets. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
+		</dependency>
     </dependencies>
     <profiles>
 		<profile>
@@ -340,6 +358,12 @@
 						<version>${plugins.scalatest.version}</version>
 						<configuration combine.self="override">
 							<tagsToInclude>com.redislabs.provider.redis.util.BenchmarkTest</tagsToInclude>
+							<!-- This profile replaces the whole plugin configuration, so repeat what the tests need. -->
+							<argLine>-Xmx2g -Djavax.net.ssl.trustStorePassword=password -Djavax.net.ssl.trustStore=./src/test/resources/tls/clientkeystore -Djavax.net.ssl.trustStoreType=jceks</argLine>
+							<systemProperties>
+								<redis.image>${redis.image}</redis.image>
+								<redis.containers>${redis.containers}</redis.containers>
+							</systemProperties>
 						</configuration>
 					</plugin>
 				</plugins>

@@ -1,0 +1,2 @@
+user default on nopass ~* &* +@all
+user alice on >p1pp0 ~* &* +@all

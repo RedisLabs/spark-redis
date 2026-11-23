@@ -7,8 +7,7 @@ import org.apache.spark.SparkConf
  * Cluster with user/password authentication
  */
 trait RedisClusterAclEnv extends Env {
-
-  override val redisPort = 7379
+  override def redisPort: Int = RedisContainers.clusterPort
 
   override val conf: SparkConf = new SparkConf()
     .setMaster("local[*]").setAppName(getClass.getName)

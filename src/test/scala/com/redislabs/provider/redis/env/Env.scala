@@ -13,7 +13,8 @@ trait Env {
   var ssc: StreamingContext = _
 
   val redisHost = "127.0.0.1"
-  val redisPort = 6379
+  /** The port of this environment's Docker Redis, chosen at run time (see RedisContainers). */
+  def redisPort: Int = RedisContainers.standalonePort
   val redisAuth = "passwd" // password for 'default' user (AUTH <password>)
 
   // user credentials
