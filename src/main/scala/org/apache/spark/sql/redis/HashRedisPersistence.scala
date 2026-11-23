@@ -36,11 +36,10 @@ class HashRedisPersistence(replace: Boolean) extends RedisPersistence[Any] {
 
   /**
     * The `merge` commands: `HSET` of the row's fields, then `EXPIRE` when `ttl` is given. A row with no non-null
-    * fields sends no `HSET`, which Redis would reject. A `replace` is one `MULTI`/`EXEC`, so it isn't split into
-    * commands: [[save]] sends it.
+    * fields sends no `HSET`, which Redis would reject. A `replace` is one `MULTI`/`EXEC`: see [[replaceCommands]].
     */
   override def saveCommands(key: String, value: Any, ttl: Int): List[WriteCommand] = {
-    require(!replace, "write.mode = replace writes each row in one MULTI/EXEC, which save sends")
+    require(!replace, "write.mode = replace writes each row in one MULTI/EXEC: use replaceCommands")
     val fields = value.asInstanceOf[Map[String, String]]
     val set: List[WriteCommand] =
       if (fields.nonEmpty) List((pipeline: Pipeline) => pipeline.hset(key, fields.asJava)) else Nil
@@ -50,16 +49,27 @@ class HashRedisPersistence(replace: Boolean) extends RedisPersistence[Any] {
   }
 
   private def saveReplacing(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
-    val fields = value.asInstanceOf[Map[String, String]]
     pipeline.multi()
-    (pipeline: PipelineBase).unlink(key) // fix ambiguous reference to overloaded definition
-    if (fields.nonEmpty) {
-      pipeline.hset(key, fields.asJava)
-      if (ttl > 0) {
-        pipeline.expire(key, ttl.toLong)
-      }
-    }
+    replaceCommands(key, value, ttl).foreach(command => command(pipeline))
     pipeline.exec()
+  }
+
+  /**
+    * The `replace` commands, which run in one `MULTI`/`EXEC`: `UNLINK` the key, `HSET` the row's fields, and
+    * `EXPIRE` when `ttl` is given. A row with no non-null fields only unlinks the key.
+    */
+  def replaceCommands(key: String, value: Any, ttl: Int): List[WriteCommand] = {
+    val fields = value.asInstanceOf[Map[String, String]]
+    // the type ascription fixes an ambiguous reference to an overloaded definition
+    val unlink: WriteCommand = (pipeline: Pipeline) => (pipeline: PipelineBase).unlink(key)
+    if (fields.isEmpty) {
+      List(unlink)
+    } else {
+      val set: WriteCommand = (pipeline: Pipeline) => pipeline.hset(key, fields.asJava)
+      val expire: List[WriteCommand] =
+        if (ttl > 0) List((pipeline: Pipeline) => pipeline.expire(key, ttl.toLong)) else Nil
+      unlink :: set :: expire
+    }
   }
 
   override def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit = {

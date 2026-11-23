@@ -157,7 +157,93 @@ object PipelineUtils {
     * @param readWriteConfig read/write config
     */
   def writeWithRedirects[A](items: Seq[(RedisEndpoint, A)])(commands: A => Seq[WriteCommand])(
-      implicit readWriteConfig: ReadWriteConfig): Unit = {
+      implicit readWriteConfig: ReadWriteConfig): Unit =
+    redirectRounds(items) { (target, group) =>
+      send(target, group, commands).flatMap { case (item, responses) =>
+        nextTarget(target, responses).map(next => (next, item))
+      }
+    }
+
+  /**
+    * Like [[writeWithRedirects]], but each item's commands run in one `MULTI`/`EXEC` transaction, so a reader sees all
+    * of them applied or none. All of an item's commands must be for keys in one hash slot.
+    *
+    * Redis checks each command of a transaction when it is queued. A command it refuses there (`MOVED`, `ASK`,
+    * `NOPERM`, ...) gets the error as its own reply, and `EXEC` then aborts the whole transaction with `EXECABORT`, so
+    * none of the item is applied. An item refused with `MOVED` or `ASK` is sent again whole, as in
+    * [[writeWithRedirects]]; for `ASK`, `ASKING` goes before `MULTI` and holds until `EXEC`. Any other error, when a
+    * command is queued or inside the `EXEC` reply, fails the write.
+    *
+    * @param items           items, each paired with the endpoint that owns its keys in the cached topology
+    * @param commands        the commands for an item, which run in one transaction, in this order
+    * @param readWriteConfig read/write config
+    */
+  def writeTransactionsWithRedirects[A](items: Seq[(RedisEndpoint, A)])(commands: A => Seq[WriteCommand])(
+      implicit readWriteConfig: ReadWriteConfig): Unit =
+    redirectRounds(items) { (target, group) =>
+      withConnection(target.endpoint.connect()) { conn =>
+        // ASKING holds for the one transaction that follows it, so with ASKING each item goes on its own
+        val batches = if (target.asking) group.map(Seq(_)) else group.grouped(readWriteConfig.maxPipelineSize).toList
+        batches.flatMap { batch =>
+          if (target.asking) conn.asking()
+          val pipeline = conn.pipelined()
+          val counts = batch.map { item =>
+            pipeline.multi()
+            val itemCommands = commands(item).toList
+            itemCommands.foreach(command => command(pipeline))
+            pipeline.exec()
+            itemCommands.size
+          }
+          // Every reply in order: per item, MULTI's, one for each queued command, and EXEC's. The queued commands'
+          // own Responses only fill in from the EXEC reply, so they can't show a refusal at queue time.
+          var replies = pipeline.syncAndReturnAll().asScala.toList
+          batch.zip(counts).flatMap { case (item, count) =>
+            val (itemReplies, rest) = replies.splitAt(count + 2)
+            replies = rest
+            transactionNextTarget(target, itemReplies).map(next => (next, item))
+          }
+        }
+      }
+    }
+
+  /**
+    * Like [[writeWithRedirects]], for items whose one command writes several keys of one hash slot, such as `MSETEX`.
+    *
+    * Redis can't run such a command while the slot is being migrated. The old owner answers `ASK` if it holds none
+    * of the keys, and `TRYAGAIN` if it holds some; the new owner answers `TRYAGAIN` for keys it doesn't hold yet. So an
+    * item answered with `ASK` or `TRYAGAIN` is split with `split` into single-key items, which [[writeWithRedirects]]
+    * then writes with `singleCommands`, following each one's `ASK`. An item answered with `MOVED` is sent whole to the
+    * slot's new owner. Any other error fails the write.
+    *
+    * @param items           items, each paired with the endpoint that owns its keys in the cached topology
+    * @param commands        the commands for an item, all for keys in its one hash slot
+    * @param split           the single-key items an item breaks into
+    * @param singleCommands  the commands for a single-key item
+    * @param readWriteConfig read/write config
+    */
+  def writeMultiKeyWithRedirects[A, B](items: Seq[(RedisEndpoint, A)])(commands: A => Seq[WriteCommand])(
+      split: A => Seq[B], singleCommands: B => Seq[WriteCommand])(implicit readWriteConfig: ReadWriteConfig): Unit = {
+    val singles = mutable.ListBuffer[(RedisEndpoint, B)]()
+    redirectRounds(items) { (target, group) =>
+      send(target, group, commands).flatMap { case (item, responses) =>
+        if (errorsOf(responses).exists(isMigrating)) {
+          singles ++= split(item).map(single => (target.endpoint, single))
+          None
+        } else {
+          nextTarget(target, responses).map(next => (next, item))
+        }
+      }
+    }
+    writeWithRedirects(singles.toList)(singleCommands)
+  }
+
+  /**
+    * Sends `items` round by round, each to its target, until none is redirected. `write` sends one round's items for
+    * one target and returns those the server redirected, each with its next target. Each item follows at most
+    * [[MaxRedirects]] redirects.
+    */
+  private def redirectRounds[A](items: Seq[(RedisEndpoint, A)])(
+      write: (WriteTarget, List[A]) => Seq[(WriteTarget, A)]): Unit = {
     // Strict collections throughout: a lazy one could send its writes after the connection is closed.
     var pending: List[(WriteTarget, A)] = items.toList.map { case (endpoint, item) =>
       (WriteTarget(endpoint, asking = false), item)
@@ -169,16 +255,14 @@ object PipelineUtils {
           s"${pending.size} writes were still redirected after $MaxRedirects redirects")
       }
       // groupBy keeps each group's items in their original order
-      pending = pending.groupBy(_._1).toList.flatMap { case (target, group) =>
-        writeTo(target, group.map(_._2), commands)
-      }
+      pending = pending.groupBy(_._1).toList.flatMap { case (target, group) => write(target, group.map(_._2)) }
       redirects += 1
     }
   }
 
-  /** Writes `items` to `target`, and returns the items the server redirected, each with its next target. */
-  private def writeTo[A](target: WriteTarget, items: Seq[A], commands: A => Seq[WriteCommand])(
-      implicit readWriteConfig: ReadWriteConfig): Seq[(WriteTarget, A)] = {
+  /** Sends each item's commands to `target`, and returns each item with its commands' responses. */
+  private def send[A](target: WriteTarget, items: Seq[A], commands: A => Seq[WriteCommand])(
+      implicit readWriteConfig: ReadWriteConfig): Seq[(A, List[Response[_]])] = {
     withConnection(target.endpoint.connect()) { conn =>
       val responses: Seq[(A, List[Response[_]])] = if (target.asking) {
         // ASKING applies only to the command that follows it, so each command goes on its own, after ASKING.
@@ -200,7 +284,7 @@ object PipelineUtils {
           batchResponses
         }
       }
-      responses.flatMap { case (item, itemResponses) => nextTarget(target, itemResponses).map(next => (next, item)) }
+      responses
     }
   }
 
@@ -208,8 +292,12 @@ object PipelineUtils {
     * Where an item goes next: nowhere if every reply succeeded, or the node a `MOVED` or `ASK` reply names. Any other
     * error reply fails the write.
     */
-  private def nextTarget(target: WriteTarget, responses: List[Response[_]]): Option[WriteTarget] = {
-    val errors = responses.flatMap { response =>
+  private def nextTarget(target: WriteTarget, responses: List[Response[_]]): Option[WriteTarget] =
+    redirectTarget(target, errorsOf(responses))
+
+  /** The error replies among `responses`. */
+  private def errorsOf(responses: List[Response[_]]): List[JedisDataException] =
+    responses.flatMap { response =>
       try {
         response.get
         None
@@ -217,17 +305,44 @@ object PipelineUtils {
         case e: JedisDataException => Some(e)
       }
     }
-    errors.find(e => !e.isInstanceOf[JedisRedirectionException]).foreach { e =>
-      // Only host and port: the endpoint's toString would include its password.
-      val node = s"${target.endpoint.host}:${target.endpoint.port}"
-      throw new JedisDataException(s"Write to $node failed: ${e.getMessage}", e)
-    }
+
+  /** The node a `MOVED` or `ASK` among `errors` names, if any. Any other error fails the write. */
+  private def redirectTarget(target: WriteTarget, errors: List[JedisDataException]): Option[WriteTarget] = {
+    errors.find(e => !e.isInstanceOf[JedisRedirectionException]).foreach(e => failWrite(target, e))
     errors.collectFirst { case e: JedisMovedDataException =>
       WriteTarget(redirected(target.endpoint, e), asking = false)
     }
       .orElse(errors.collectFirst { case e: JedisAskDataException =>
         WriteTarget(redirected(target.endpoint, e), asking = true)
       })
+  }
+
+  /**
+    * Where a transaction goes next, from its replies: MULTI's, one for each queued command, and EXEC's. A queued
+    * command refused with `MOVED` or `ASK` redirects the whole transaction, which `EXEC` aborted. Any other error, or
+    * an error inside the `EXEC` reply, fails the write.
+    */
+  private def transactionNextTarget(target: WriteTarget, replies: List[AnyRef]): Option[WriteTarget] = {
+    val queued = replies.init.collect { case e: JedisDataException => e }
+    redirectTarget(target, queued).orElse {
+      replies.last match {
+        case results: JList[_] =>
+          results.asScala.collectFirst { case e: JedisDataException => e }.foreach(e => failWrite(target, e))
+          None
+        case e: JedisDataException => failWrite(target, e)
+        case other => failWrite(target, new JedisDataException(s"EXEC replied $other"))
+      }
+    }
+  }
+
+  /** `ASK`, or `TRYAGAIN`: the key's slot is being migrated, so a command on several of its keys can't run. */
+  private def isMigrating(e: JedisDataException): Boolean =
+    e.isInstanceOf[JedisAskDataException] || String.valueOf(e.getMessage).startsWith("TRYAGAIN")
+
+  private def failWrite(target: WriteTarget, e: JedisDataException): Nothing = {
+    // Only host and port: the endpoint's toString would include its password.
+    val node = s"${target.endpoint.host}:${target.endpoint.port}"
+    throw new JedisDataException(s"Write to $node failed: ${e.getMessage}", e)
   }
 
   /** The endpoint a redirect names, with the same user, password, timeout and TLS settings as `from`. */

@@ -17,7 +17,6 @@ import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types.{DataType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import redis.clients.jedis.exceptions.JedisDataException
 import redis.clients.jedis.{Pipeline, PipelineBase, Protocol}
 
 import scala.collection.JavaConverters._
@@ -70,8 +69,10 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val writeMode = parseWriteMode(parameters)
   /** `write.mode = replace` on the hash model. A binary-model row is one value, which a write always replaces. */
   private val replaceHashes = writeMode == SqlOptionWriteModeReplace && persistenceModel != SqlOptionModelBinary
-  private val persistence =
-    if (replaceHashes) new HashRedisPersistence(replace = true) else RedisPersistence(persistenceModel)
+  /** The hash model's persistence for `write.mode = replace`, if that's how this relation writes. */
+  private val replacingHashes: Option[HashRedisPersistence] =
+    if (replaceHashes) Some(new HashRedisPersistence(replace = true)) else None
+  private val persistence = replacingHashes.getOrElse(RedisPersistence(persistenceModel))
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -156,27 +157,25 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     }
   }
 
-  /** Writes the rows of `keys`, which the relation's topology puts on `node`. */
+  /**
+    * Writes the rows of `keys`, which the relation's topology puts on `node`. Every write follows `MOVED` and `ASK` to
+    * each key's current owner, since that topology can be out of date, and fails on any other error reply instead of
+    * dropping the row (#347).
+    */
   private def saveRows(node: RedisNode, keys: Array[String], rowsWithKey: Map[String, Row],
                        binaryTtlWrite: Option[(BinaryRedisPersistence, WriteCapabilities)]): Unit =
-    binaryTtlWrite match {
-      case Some((binary, capabilities)) =>
-        // one MSETEX per batch (per slot on a cluster), or SET ... EX per row; a rejected write fails the task
-        withConnection(node.connect()) { conn =>
-          val encodedRows = keys.map(key => key -> binary.encodeRow(keyName, rowsWithKey(key)))
-          binary.saveWithTtl(conn, encodedRows, ttl, capabilities)
+    (binaryTtlWrite, replacingHashes) match {
+      case (Some((binary, capabilities)), _) =>
+        // MSETEX per slot where every primary has it, or SET ... EX per row
+        val encodedRows = keys.toList.map(key => (node.endpoint, (key, binary.encodeRow(keyName, rowsWithKey(key)))))
+        binary.saveWithTtl(encodedRows, ttl, capabilities)
+      case (None, Some(hash)) =>
+        // one MULTI/EXEC per row, so a reader sees the old row or the new one
+        val encodedRows = keys.toList.map(key => (node.endpoint, (key, hash.encodeRow(keyName, rowsWithKey(key)))))
+        writeTransactionsWithRedirects(encodedRows) { case (key, encodedRow) =>
+          hash.replaceCommands(key, encodedRow, ttl)
         }
-      case None if replaceHashes =>
-        // A replace that Redis refused fails the task instead of leaving the old row in place silently. Unlike
-        // foreachWithPipeline, this also sees the errors inside each EXEC reply.
-        withConnection(node.connect()) { conn =>
-          val save = (pipeline: Pipeline, key: String) =>
-            persistence.save(pipeline, key, persistence.encodeRow(keyName, rowsWithKey(key)), ttl)
-          failOnErrorReplies(mapWithPipeline(conn, keys)(save))
-        }
-      case None =>
-        // Follows MOVED and ASK to each key's current owner, since the relation's topology can be out of date, and
-        // fails on any other error reply instead of dropping the row (#347).
+      case (None, None) =>
         val encodedRows = keys.toList.map { key =>
           (node.endpoint, (key, persistence.encodeRow(keyName, rowsWithKey(key))))
         }
@@ -420,25 +419,6 @@ object RedisSourceRelation {
         s"Use '$SqlOptionWriteModeMerge' (the default) or '$SqlOptionWriteModeReplace'.")
     }
     mode
-  }
-
-  /**
-    * Fails when a pipelined reply is an error, so a write that Redis refused is not dropped silently. Inside
-    * `MULTI`/`EXEC`, a command that fails when queued (`MOVED`, `NOPERM`, ...) gets the error as its own reply and
-    * `EXEC` then replies `EXECABORT`. A command that fails while `EXEC` runs has its error inside `EXEC`'s reply.
-    */
-  def failOnErrorReplies(replies: Seq[AnyRef]): Unit = {
-    val errors = replies.flatMap {
-      case e: JedisDataException => Seq(e)
-      case execReplies: JList[_] => execReplies.asScala.collect { case e: JedisDataException => e }
-      case _ => Nil
-    }
-    if (errors.nonEmpty) {
-      // EXECABORT says only that the transaction was discarded. The error before it says why.
-      val cause = errors.find(e => !String.valueOf(e.getMessage).startsWith("EXECABORT")).getOrElse(errors.head)
-      throw new IllegalStateException(
-        s"Redis refused a write with $SqlOptionWriteMode '$SqlOptionWriteModeReplace': ${cause.getMessage}", cause)
-    }
   }
 
   def tableKey(keysPrefixPattern: String, redisKey: String): String = {
