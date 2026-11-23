@@ -17,6 +17,9 @@ object ConnectionPool extends Logging {
     * Custom JedisFactory that sends CLIENT SETINFO commands when a new connection is created.
     * This ensures CLIENT SETINFO is sent only once per connection (at creation time),
     * not every time a connection is borrowed from the pool.
+    *
+    * A non-null clientName is set by Jedis itself (CLIENT SETNAME, after AUTH and SELECT) on every new connection.
+    * A refused SETNAME fails the connection, as a refused AUTH does: the name was asked for, so it is not optional.
     */
   private class SparkRedisJedisFactory(
       host: String,
@@ -26,9 +29,10 @@ object ConnectionPool extends Logging {
       user: String,
       password: String,
       database: Int,
+      clientName: String,
       ssl: Boolean
   ) extends JedisFactory(
-      host, port, connectionTimeout, soTimeout, user, password, database, null, ssl, null, null, null
+      host, port, connectionTimeout, soTimeout, user, password, database, clientName, ssl, null, null, null
   ) {
 
     override def makeObject(): PooledObject[Jedis] = {
@@ -72,7 +76,8 @@ object ConnectionPool extends Logging {
     poolConfig.setNumTestsPerEvictionRun(-1)
 
     val factory = new SparkRedisJedisFactory(
-      re.host, re.port, re.timeout, re.timeout, re.user, re.auth, re.dbNum, re.ssl
+      re.host, re.port, re.timeout, re.timeout, re.user, re.auth, re.dbNum,
+      RedisConfig.clientNameOrNull(re.clientName), re.ssl
     )
     new JedisPool(poolConfig, factory)
   }

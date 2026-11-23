@@ -27,7 +27,7 @@ also tests it with Spark 3.2, 3.3 and 3.4. Like Spark 3.x, it is built for Scala
 
 | Spark-Redis                                                               | Spark | Redis            | Supported Scala Versions | 
 |---------------------------------------------------------------------------|-------| ---------------- | ------------------------ |
-| [master](https://github.com/RedisLabs/spark-redis/)                       | 3.2.x - 3.5.x (built with 3.5.x) | >=2.9.0          | 2.12, 2.13               | 
+| [master](https://github.com/RedisLabs/spark-redis/)                       | 3.2.x - 3.5.x (built with 3.5.x) | >=7.4            | 2.12, 2.13               | 
 | [3.1](https://github.com/RedisLabs/spark-redis/tree/v3.1.0)               | 3.2.x | >=2.9.0          | 2.12                     | 
 | [3.0](https://github.com/RedisLabs/spark-redis/tree/branch-3.0)           | 3.0.x | >=2.9.0          | 2.12                     | 
 | [2.4, 2.5, 2.6](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x | >=2.9.0          | 2.11, 2.12               | 
@@ -41,7 +41,8 @@ also tests it with Spark 3.2, 3.3 and 3.4. Like Spark 3.x, it is built for Scala
 * Python supports the DataFrame API, Spark SQL and Structured Streaming only. The RDD and DStream functions are not available from Python, see [Python](doc/python.md).
 * There is no R API.
 * Redis Sentinel is not supported, see [Redis server requirements](doc/configuration.md#redis-server-requirements).
-* Redis Streams (DStream and Structured Streaming sources) require Redis 5.0 or later.
+* `master` requires Redis 7.4 or later; CI tests 7.4 and 8.6. Earlier releases (see the table above) work with older
+  Redis versions.
 
 ## Additional considerations
 This library is a work in progress so the API may change before the official release.

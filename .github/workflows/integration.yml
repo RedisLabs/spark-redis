@@ -18,7 +18,7 @@ on:
 jobs:
 
   build:
-    name: Build and Test (Spark ${{ matrix.spark }}, Scala ${{ matrix.scala-binary }})
+    name: Build and Test (Spark ${{ matrix.spark }}, Scala ${{ matrix.scala-binary }}, Redis ${{ matrix.redis }})
     # Not ubuntu-latest: since November 2026 that is Ubuntu 26.04, which has no Java 8, so every job downloaded the
     # newest Temurin 8 from GitHub releases, and the jdk8u514-b01 download fails its checksum. Ubuntu 24.04 has
     # Temurin 8 in its tool cache, which setup-java uses without downloading anything.
@@ -35,32 +35,48 @@ jobs:
           - spark: '3.5.10'
             scala-binary: '2.12'
             scala: '2.12.18'
+            redis: '7.4'
             coverage: true
           - spark: '3.5.10'
             scala-binary: '2.13'
             scala: '2.13.8'
+            redis: '7.4'
+          # the newest Redis line, on the released build. Every entry names its Redis version: an entry that only added
+          # a key would be merged into the entry above instead of becoming a job of its own
+          - spark: '3.5.10'
+            scala-binary: '2.12'
+            scala: '2.12.18'
+            redis: '8.6'
           # older Spark lines that the library supports
           - spark: '3.2.1'
             scala-binary: '2.12'
             scala: '2.12.15'
+            redis: '7.4'
           - spark: '3.2.1'
             scala-binary: '2.13'
             scala: '2.13.5'
+            redis: '7.4'
           - spark: '3.3.3'
             scala-binary: '2.12'
             scala: '2.12.15'
+            redis: '7.4'
           - spark: '3.3.3'
             scala-binary: '2.13'
             scala: '2.13.8'
+            redis: '7.4'
           - spark: '3.4.2'
             scala-binary: '2.12'
             scala: '2.12.17'
+            redis: '7.4'
           - spark: '3.4.2'
             scala-binary: '2.13'
             scala: '2.13.8'
+            redis: '7.4'
     env:
       MVN_ARGS: -Dspark.version=${{ matrix.spark }} -Dscala.complete.version=${{ matrix.scala }}
-      REDIS_VERSION: '6.0.10'
+      # The tests start Redis in Docker with Testcontainers (src/test/scala/.../env/RedisContainers.scala). 7.4 is the
+      # oldest Redis version the library supports.
+      REDIS_IMAGE: redis:${{ matrix.redis }}
     steps:
       - name: Checkout project
         uses: actions/checkout@v7
@@ -87,34 +103,13 @@ jobs:
         # the same script the release uses, so that the spark-redis_2.13 build is tested as it is published
         if: matrix.scala-binary != '2.12'
         run: dev/change-scala-version.sh ${{ matrix.scala-binary }}
-      - name: Get the runner image
-        # ImageOS (e.g. ubuntu24) is set on the runner, not in the env context of the workflow
-        id: runner-image
-        run: echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
-      - name: Cache Redis build
-        id: redis-cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            redis-${{ env.REDIS_VERSION }}/src/redis-server
-            redis-${{ env.REDIS_VERSION }}/src/redis-cli
-          # the binaries link to the system OpenSSL, so the key includes the runner image
-          key: redis-${{ env.REDIS_VERSION }}-tls-${{ runner.os }}-${{ steps.runner-image.outputs.os }}
-      - name: Build Redis
-        if: steps.redis-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt update
-          sudo apt install -y libssl-dev
-          wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
-          tar -xzvf redis-$REDIS_VERSION.tar.gz
-          make -C redis-$REDIS_VERSION -j`nproc` BUILD_TLS=yes
+      - name: Show the Redis version under test
+        run: docker run --rm "$REDIS_IMAGE" redis-server --version
       - name: Maven offline
         run: |
           mvn -q dependency:go-offline $MVN_ARGS
       - name: Run tests
-        run: |
-          export PATH=$PWD/redis-$REDIS_VERSION/src:$PATH
-          make test MVN_ARGS="$MVN_ARGS"
+        run: make test REDIS_IMAGE="$REDIS_IMAGE" MVN_ARGS="$MVN_ARGS"
         env:
           JVM_OPTS: -Xmx3200m
           TERM: dumb
