@@ -6,7 +6,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 has Temurin 8 in its tool cache; ubuntu-latest (Ubuntu 26.04) has no Java 8, so setup-java would
+    # download it from GitHub releases, and the jdk8u514-b01 download fails its checksum.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
