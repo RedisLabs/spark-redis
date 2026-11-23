@@ -17,7 +17,8 @@ $ ./bin/pyspark --packages com.redislabs:spark-redis_2.12:3.1.0
 PySpark installed with `pip` and the default Spark 3.x download use Scala 2.12. With a Scala 2.13 Spark distribution, use
 `spark-redis_2.13` instead.
 
-or with a JAR file that you built:
+or with a JAR file that includes the dependencies, from a [GitHub release](getting-started.md#github-releases) or from
+your own build. 3.1.1 is published only as a GitHub release, not on Maven Central:
 
 ```bash
 $ ./bin/pyspark --jars <path-to>/spark-redis_2.12-<version>-jar-with-dependencies.jar
@@ -26,8 +27,11 @@ $ ./bin/pyspark --jars <path-to>/spark-redis_2.12-<version>-jar-with-dependencie
 By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
 
 ```bash
-$ ./bin/pyspark --packages com.redislabs:spark-redis_2.12:3.1.0 --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.password=passwd"
+$ ./bin/pyspark --jars <path-to>/spark-redis_2.12-3.1.1-jar-with-dependencies.jar --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.password=passwd"
 ```
+
+Spark-Redis 3.1.0 and earlier don't read `spark.redis.password`; they read `spark.redis.auth`, which Spark doesn't hide.
+See [Keeping the password out of the Spark UI and logs](configuration.md#keeping-the-password-out-of-the-spark-ui-and-logs).
 
 2. Read DataFrame from JSON, write/read from Redis:
 ```python
