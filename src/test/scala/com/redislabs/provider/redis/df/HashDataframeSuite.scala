@@ -383,6 +383,44 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging 
     err.getMessage should include("WRONGTYPE")
   }
 
+  test("a value that can't be parsed names the key, the field, the value and the type (#358)") {
+    val tableName = generateTableName("person")
+    saveMap(tableName, "John", Map("birthday" -> "2022/10/14"))
+    val schema = StructType(Array(StructField("name", StringType), StructField("birthday", DateType)))
+    val e = interceptSparkErr[SparkException] {
+      spark.read.format(RedisFormat)
+        .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+        .option(SqlOptionKeyColumn, "name")
+        .schema(schema)
+        .load()
+        .collect()
+    }
+    val parseError = findCause[IllegalArgumentException](e)
+    parseError.getMessage should include(s"'$tableName:John'")
+    parseError.getMessage should include("'birthday'")
+    parseError.getMessage should include("'2022/10/14'")
+    parseError.getMessage should include("date")
+  }
+
+  test("a key column that can't be parsed names the key, the field, the value and the type (#358)") {
+    val tableName = generateTableName("person")
+    saveMap(tableName, "John", Map("age" -> "30"))
+    val schema = StructType(Array(StructField("person_id", IntegerType), StructField("age", IntegerType)))
+    val e = interceptSparkErr[SparkException] {
+      spark.read.format(RedisFormat)
+        .option(SqlOptionKeysPattern, tableDataKeyPattern(tableName))
+        .option(SqlOptionKeyColumn, "person_id")
+        .schema(schema)
+        .load()
+        .collect()
+    }
+    val parseError = findCause[NumberFormatException](e)
+    parseError.getMessage should include(s"'$tableName:John'")
+    parseError.getMessage should include("'person_id'")
+    parseError.getMessage should include("'John'")
+    parseError.getMessage should include("integer")
+  }
+
   def saveMap(tableName: String): Unit = {
     Person.dataMaps.foreach { person =>
       saveMap(tableName, person("name"), person)

@@ -4,7 +4,7 @@ import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist, nextEntryId,
   resetConsumerGroup}
-import com.redislabs.provider.redis.util.{Logging, ParseUtils}
+import com.redislabs.provider.redis.util.{FieldParseException, Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource._
@@ -96,15 +96,19 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
     // the batch is read from its offset ranges, the consumer groups only record the progress
     setConsumerGroupsToEnd(end)
 
-    // read data
+    // read data. Partition i of RedisSourceRdd reads offsetRanges(i).
+    val streamKeys = offsetRanges.map(_.config.streamKey)
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
-      .mapPartitions { entries =>
+      .mapPartitionsWithIndex { case (partition, entries) =>
+        val streamKey = streamKeys(partition)
         // ParseUtils returns external values (String, java.sql.Date, java.sql.Timestamp, ...), but an
         // InternalRow must hold Catalyst's internal representation (UTF8String, Int days, Long micros)
         val toCatalyst = CatalystTypeConverters.createToCatalystConverter(localSchema)
         entries.map { case (id, fields) =>
           val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
-          val values = ParseUtils.parseFields(fieldMap, localSchema)
+          val values = FieldParseException.withKey(streamKey, Some(id.toString)) {
+            ParseUtils.parseFields(fieldMap, localSchema)
+          }
           toCatalyst(Row.fromSeq(values)).asInstanceOf[InternalRow]
         }
       }

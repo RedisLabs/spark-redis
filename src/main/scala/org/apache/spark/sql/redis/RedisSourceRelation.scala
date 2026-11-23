@@ -7,7 +7,7 @@ import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.Logging
+import com.redislabs.provider.redis.util.{FieldParseException, Logging}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.{SerializationException, SerializationUtils}
@@ -298,7 +298,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 
       filteredKeysAndValues.map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
-        persistence.decodeRow(keyMap, value, schema, requiredColumns)
+        FieldParseException.withKey(key) {
+          persistence.decodeRow(keyMap, value, schema, requiredColumns)
+        }
       }
     }
   }

@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.TestUtils.{findCause, interceptSparkErr}
 import com.redislabs.provider.redis.util.{Logging, Person}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.redis._
@@ -92,7 +93,6 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   test("read with offset option 0-0") {
     val streamKey = Person.generatePersonStreamKey()
     withConnection(streamKey) { conn =>
-
       // read first time
       readStream(streamKey) { spark =>
         (1 to 749).foreach { i =>
@@ -175,7 +175,6 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
       checkCount(spark, 10)
     }
   }
-
 
   test("read stream source (generated entry ids)") {
     val streamKey = Person.generatePersonStreamKey()
@@ -339,6 +338,25 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     } finally {
       query.stop()
       spark.stop()
+    }
+  }
+
+  test("a value that can't be parsed names the stream key, the entry, the field, the value and the type (#358)") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(streamKey) { conn =>
+      readStream(streamKey) { spark =>
+        conn.xadd(streamKey, new StreamEntryID(7, 3), (Person.dataMaps.head + ("age" -> "thirty")).asJava)
+        val query = spark.streams.active.head
+        val e = interceptSparkErr[StreamingQueryException] {
+          query.awaitTermination(10000)
+        }
+        val parseError = findCause[NumberFormatException](e)
+        parseError.getMessage should include(s"'$streamKey'")
+        parseError.getMessage should include("7-3")
+        parseError.getMessage should include("'age'")
+        parseError.getMessage should include("'thirty'")
+        parseError.getMessage should include("integer")
+      }
     }
   }
 

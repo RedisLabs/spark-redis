@@ -35,5 +35,13 @@ object TestUtils {
     interceptRes
   }
 
-
+  /**
+    * The first exception of type T in the chain of causes of e, starting with e itself. Fails the test if there is
+    * none.
+    */
+  def findCause[T <: Throwable](e: Throwable)(implicit manifest: Manifest[T]): T =
+    Iterator.iterate(e)(_.getCause)
+      .takeWhile(_ != null)
+      .collectFirst { case t if manifest.runtimeClass.isInstance(t) => t.asInstanceOf[T] }
+      .getOrElse(Assertions.fail(s"No ${manifest.runtimeClass.getName} among the causes of $e"))
 }
