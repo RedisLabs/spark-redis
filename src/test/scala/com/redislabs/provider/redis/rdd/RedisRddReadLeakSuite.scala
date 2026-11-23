@@ -1,10 +1,14 @@
 package com.redislabs.provider.redis.rdd
 
+import java.util.concurrent.ConcurrentHashMap
+
 import com.redislabs.provider.redis._
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.TestUtils
 import com.redislabs.provider.redis.util.TestUtils.interceptSparkErr
 import org.apache.spark.SparkException
+import org.apache.spark.scheduler.{SparkListener, SparkListenerJobEnd, SparkListenerJobStart, SparkListenerTaskEnd,
+  SparkListenerTaskStart}
 import org.apache.spark.sql.redis.{RedisFormat, RedisSourceRelation}
 import org.scalatest.Matchers
 import org.scalatest.concurrent.Eventually._
@@ -29,12 +33,35 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
   private val readCommands = Seq("get", "hgetall", "smembers", "lrange", "zrange", "zrangebyscore", "scan")
   private val repetitions = 3
 
-  // when a task fails, Spark cancels the other tasks of the job, but they keep their connection until their current
-  // command returns; a leaked connection never goes back to the pool
   implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(10000, Millis)))
+
+  /**
+    * The jobs and tasks of this suite that started and haven't ended yet.
+    *
+    * When a task fails, Spark fails the job and cancels its other tasks, but those run on, holding their connection,
+    * until their current command returns. `SparkStatusTracker`'s running-task count doesn't include them, so it can't
+    * tell when they are done. Spark reports every task start of a job before the job's end, so once no job and no
+    * task is left here, no task of a failed read can still hold a connection.
+    */
+  private object RunningWork extends SparkListener {
+    private val jobs = ConcurrentHashMap.newKeySet[Int]()
+    private val tasks = ConcurrentHashMap.newKeySet[Long]()
+
+    override def onJobStart(event: SparkListenerJobStart): Unit = jobs.add(event.jobId)
+    override def onJobEnd(event: SparkListenerJobEnd): Unit = jobs.remove(event.jobId)
+    override def onTaskStart(event: SparkListenerTaskStart): Unit = tasks.add(event.taskInfo.taskId)
+    override def onTaskEnd(event: SparkListenerTaskEnd): Unit = tasks.remove(event.taskInfo.taskId)
+
+    def awaitNone(): Unit = eventually {
+      withClue(s"jobs still running: $jobs, tasks still running: $tasks") {
+        (jobs.isEmpty && tasks.isEmpty) shouldBe true
+      }
+    }
+  }
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    sc.addSparkListener(RunningWork)
     forEachMaster { conn =>
       val common = Seq("reset", "on", s">$testUserPassword", "~*", "+@all")
       conn.aclSetUser(noReadUser, common ++ readCommands.map(c => s"-$c"): _*)
@@ -62,16 +89,20 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
   private def activeConnections(endpoints: Seq[RedisEndpoint]): Int =
     endpoints.map(ConnectionPool.poolFor(_).getNumActive).sum
 
+  /**
+    * Counts the connections only when no task of this suite is running, before and after the reads. A cancelled task
+    * returns its connection when it ends, so any connection still active then has leaked.
+    */
   private def assertReadFailsWithoutLeak(read: => Any): Unit = {
     val endpoints = noReadConfig.hosts.map(_.endpoint).toSeq
+    RunningWork.awaitNone()
     val before = activeConnections(endpoints)
     (1 to repetitions).foreach { _ =>
       val e = interceptSparkErr[SparkException](read)
       e.getMessage should include("NOPERM")
     }
-    eventually {
-      activeConnections(endpoints) shouldBe before
-    }
+    RunningWork.awaitNone()
+    activeConnections(endpoints) shouldBe before
   }
 
   private val keys = Array.fill(20)(TestUtils.generateRandomKey())
