@@ -24,6 +24,14 @@ package object redis {
   val SqlOptionInferSchema = "infer.schema"
   val SqlOptionKeyColumn = "key.column"
   val SqlOptionTTL = "ttl"
+  /**
+    * What a hash-model write does to a hash already stored under the row's key. `merge` (the default) keeps the
+    * fields the new row doesn't have. `replace` makes the stored hash exactly the new row. The binary model stores
+    * a row as one value, so it always replaces.
+    */
+  val SqlOptionWriteMode = "write.mode"
+  val SqlOptionWriteModeMerge = "merge"
+  val SqlOptionWriteModeReplace = "replace"
 
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
   val SqlOptionScanCount = "scan.count"
