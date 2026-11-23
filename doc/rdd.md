@@ -117,7 +117,7 @@ Using `fromRedisZRangeByScore` will store in `zsetRDD: RDD[String]`, an RDD that
 To write data to Redis from Spark, you'll need to prepare the appropriate RDD depending on the type of data you want to write.
 
 The write functions add to the data that already exists in Redis: Strings are overwritten (`SET`), Hashes are updated field
-by field (`HSET`/`HMSET`), Lists are appended to (`RPUSH`), and Sets and Sorted Sets get new members (`SADD`/`ZADD`).
+by field (`HSET`), Lists are appended to (`RPUSH`), and Sets and Sorted Sets get new members (`SADD`/`ZADD`).
 Existing fields, elements and members are not removed, so writing the same RDD twice into a List duplicates its elements.
 To replace the content of a key, delete it first, for example as shown in [Deleting a table](dataframe.md#deleting-a-table).
 

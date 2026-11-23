@@ -139,7 +139,7 @@ The table's rows are the keys that match `<table>:*`.
 
 Please note:
 
-* With `SaveMode.Append`, when a row's key already exists, the new row is merged into the existing Redis hash with `HMSET`
+* With `SaveMode.Append`, when a row's key already exists, the new row is merged into the existing Redis hash with `HSET`
   by default. Fields of the new row replace the existing fields, but fields that exist only in Redis are kept, for example a
   column that isn't in the new DataFrame or a value that is `null` in the new row (see [Null values](#null-values)). To
   replace whole rows, set `write.mode` to `replace` (see [Write mode](#write-mode)), or use `SaveMode.Overwrite`.
