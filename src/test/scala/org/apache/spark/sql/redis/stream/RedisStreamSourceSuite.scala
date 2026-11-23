@@ -3,14 +3,15 @@ package org.apache.spark.sql.redis.stream
 import java.io.File
 import java.sql.{Date, Timestamp}
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 
 import com.redislabs.provider.redis.RedisConfig
 import com.redislabs.provider.redis.env.Env
-import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.{Logging, Person}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.redis._
-import org.apache.spark.sql.streaming.StreamingQuery
+import org.apache.spark.sql.streaming.{StreamingQuery, StreamingQueryException}
 import org.apache.spark.sql.types._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
@@ -254,6 +255,93 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     }
   }
 
+  Seq(1, 3).foreach { parallelism =>
+    test(s"batch has the same entries every time it is evaluated (parallelism = $parallelism)") {
+      val streamKey = Person.generatePersonStreamKey()
+      val counts = new ConcurrentLinkedQueue[Long]()
+      val ids = new ConcurrentLinkedQueue[String]()
+      val options = Map(StreamOptionParallelism -> parallelism.toString)
+      foreachBatchStream(streamKey, options) { (batch, _) =>
+        // the batch is evaluated twice, e.g. to log its size and then write it
+        counts.add(batch.count())
+        batch.collect().foreach(row => ids.add(row.getAs[String]("_id")))
+      } { _ =>
+        withConnection(streamKey) { conn =>
+          (1 to 500).foreach { i =>
+            conn.xadd(streamKey, new StreamEntryID(i, 0), Person.dataMaps.head.asJava)
+          }
+        }
+        eventually(timeout(10 seconds)) {
+          counts.asScala.sum shouldBe 500
+          ids.size shouldBe 500
+        }
+        ids.asScala.toSet shouldBe (1 to 500).map(i => s"$i-0").toSet
+      }
+    }
+  }
+
+  test("first batch is read again when the query is restarted after a failure") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(streamKey) { conn =>
+      // consumer group of a previous query, the first batch starts at its last delivered id
+      conn.xgroupCreate(streamKey, "spark-source", new StreamEntryID(0, 0), true)
+      (1 to 50).foreach { i =>
+        conn.xadd(streamKey, new StreamEntryID(0, i), Person.dataMaps.head.asJava)
+      }
+    }
+    val checkpointLocation = s"${new File("target").getAbsolutePath}/checkpoint-test/${UUID.randomUUID()}"
+    val writeOptions = Map("checkpointLocation" -> checkpointLocation)
+
+    // the query fails in the first batch
+    foreachBatchStream(streamKey, extraWriteOptions = writeOptions) { (batch, _) =>
+      batch.collect()
+      throw new IllegalStateException("failure in the first batch")
+    } { query =>
+      intercept[StreamingQueryException](query.awaitTermination(10000))
+    }
+
+    // the restarted query executes the first batch again
+    val ids = new ConcurrentLinkedQueue[String]()
+    foreachBatchStream(streamKey, extraWriteOptions = writeOptions) { (batch, _) =>
+      batch.collect().foreach(row => ids.add(row.getAs[String]("_id")))
+    } { _ =>
+      eventually(timeout(10 seconds)) {
+        ids.size shouldBe 50
+      }
+      ids.asScala.toSet shouldBe (1 to 50).map(i => s"0-$i").toSet
+    }
+  }
+
+  def foreachBatchStream(streamKey: String,
+                         extraReadOptions: Map[String, String] = Map(),
+                         extraWriteOptions: Map[String, String] = Map())
+                        (processBatch: (DataFrame, Long) => Unit)
+                        (body: StreamingQuery => Unit): Unit = {
+    val spark = SparkSession
+      .builder
+      .config(conf)
+      .getOrCreate()
+
+    val readerBase = spark.readStream
+      .format("redis")
+      .schema(Person.fullSchema)
+      .option(StreamOptionStreamKeys, streamKey)
+    val reader = extraReadOptions.foldLeft(readerBase) { case (r, (k, v)) => r.option(k, v) }
+
+    val writerBase = reader.load().writeStream.foreachBatch(processBatch)
+    val writer = extraWriteOptions.foldLeft(writerBase) { case (w, (k, v)) => w.option(k, v) }
+
+    val query = writer.start()
+    // give some time for spark query to start
+    Thread.sleep(2000)
+    try {
+      body(query)
+    } finally {
+      query.stop()
+      spark.stop()
+    }
+  }
+
   def readStream(streamKey: String,
                  extraReadOptions: Map[String, String] = Map(),
                  extraWriteOptions: Map[String, String] = Map(),
@@ -306,8 +394,9 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   def checkLastDeliveredId(streamKey: String, lastDeliveredId: String): Unit = {
     eventually(timeout(5 seconds)) {
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-        val groups = conn.xinfo(XINFO.SubCommandGroups, streamKey)
-        groups("spark-source").asInstanceOf[Map[String, Any]](XINFO.LastDeliveredId) shouldBe lastDeliveredId
+        // Jedis parses the nil entries-read that Redis 7+ returns after XGROUP SETID
+        val group = conn.xinfoGroup(streamKey).asScala.find(_.getName == "spark-source")
+        group.map(_.getLastDeliveredId.toString) shouldBe Some(lastDeliveredId)
       }
     }
   }
