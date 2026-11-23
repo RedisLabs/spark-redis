@@ -9,10 +9,11 @@ import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import redis.clients.jedis.{Jedis, ScanParams}
-import redis.clients.jedis.util.JedisClusterCRC16
+import redis.clients.jedis.{BuilderFactory, Jedis, Protocol, ScanParams}
+import redis.clients.jedis.util.{JedisClusterCRC16, SafeEncoder}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
 import scala.util.{Failure, Success, Try}
 
@@ -90,12 +91,28 @@ class RedisListRDD(prev: RDD[String],
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
       withConnection(node.endpoint.connect()) { conn =>
         val res: Iterator[String] = nodeKeys.flatMap{k =>
-          ignoreJedisWrongTypeException(Try(conn.smembers(k).asScala.toSet)).get
+          ignoreJedisWrongTypeException(Try(setMembers(conn, k))).get
         }.flatten
           .iterator
         res
       }
     }
+  }
+
+  /**
+    * A set's members, read with `SSCAN` in pages of `scanCount`, so that a large set doesn't block the server the way
+    * one `SMEMBERS` does. `SSCAN` can return a member more than once, so the members are collected in a set.
+    */
+  private def setMembers(conn: Jedis, key: String): Set[String] = {
+    val params = new ScanParams().count(readWriteConfig.scanCount)
+    val members = mutable.Set[String]()
+    var cursor = ScanParams.SCAN_POINTER_START
+    do {
+      val page = conn.sscan(key, cursor, params)
+      members ++= page.getResult.asScala
+      cursor = page.getCursor
+    } while (cursor != ScanParams.SCAN_POINTER_START)
+    members.toSet
   }
 
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
@@ -168,19 +185,33 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
       withConnection(node.endpoint.connect()) { conn =>
         if (classTag[T] == classTag[(String, Double)]) {
           nodeKeys.flatMap{k =>
-            ignoreJedisWrongTypeException(Try(conn.zrangeByScoreWithScores(k, startScore, endScore).asScala)).get
+            val reply = Try(zrangeByScore(conn, k, startScore, endScore, withScores = true))
+            ignoreJedisWrongTypeException(reply.map(r => BuilderFactory.TUPLE_ZSET.build(r).asScala)).get
           }.
             flatten
             .map(tup => (tup.getElement, tup.getScore)).iterator
         } else if (classTag[T] == classTag[String]) {
           nodeKeys.flatMap{ k =>
-            ignoreJedisWrongTypeException(Try(conn.zrangeByScore(k, startScore, endScore).asScala)).get
+            val reply = Try(zrangeByScore(conn, k, startScore, endScore, withScores = false))
+            ignoreJedisWrongTypeException(reply.map(r => BuilderFactory.STRING_ZSET.build(r).asScala)).get
           }.flatten.iterator
         } else {
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
       }
     }.asInstanceOf[Iterator[T]]
+  }
+
+  /**
+    * `ZRANGE key min max BYSCORE [WITHSCORES]`, the members with scores in `[min, max]`, lowest score first. It
+    * replaces `ZRANGEBYSCORE`, deprecated since Redis 6.2. Jedis 3 has no method for it, so it goes as a raw command;
+    * the reply is the same as `ZRANGEBYSCORE`'s, and Jedis's own builders parse it.
+    */
+  private def zrangeByScore(conn: Jedis, key: String, min: Double, max: Double, withScores: Boolean): AnyRef = {
+    val args = Seq(SafeEncoder.encode(key), Protocol.toByteArray(min), Protocol.toByteArray(max),
+      SafeEncoder.encode("BYSCORE")) ++
+      (if (withScores) Seq(Protocol.Keyword.WITHSCORES.raw) else Nil)
+    conn.sendCommand(Protocol.Command.ZRANGE, args: _*)
   }
 }
 
