@@ -2,7 +2,7 @@ package com.redislabs.provider.redis.stream
 
 import com.redislabs.provider.redis.streaming._
 import com.redislabs.provider.redis.util.TestUtils
-import com.redislabs.provider.redis.{ConnectionPool, SparkStreamingRedisSuite}
+import com.redislabs.provider.redis.{ConnectionPool, RedisConfig, SparkStreamingRedisSuite}
 import org.apache.spark.storage.StorageLevel
 import org.scalatest.Matchers
 import org.scalatest.concurrent.Eventually._
@@ -18,8 +18,12 @@ trait RedisReceiverConnectionLeakSuite extends SparkStreamingRedisSuite with Mat
   // the List receiver blocks in BLPOP for up to 2 seconds before it notices that it was stopped
   implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(10000, Millis)))
 
+  // Pools are per endpoint, and the timeout is part of the endpoint. A timeout that no other suite uses gives these
+  // tests a pool of their own: receivers of the previous suite can still be returning connections to the shared pool.
+  private lazy val isolatedConfig: RedisConfig = new RedisConfig(redisConfig.initialHost.copy(timeout = 2345))
+
   private def activeConnections(key: String): Int =
-    ConnectionPool.poolFor(redisConfig.getHost(key).endpoint).getNumActive
+    ConnectionPool.poolFor(isolatedConfig.getHost(key).endpoint).getNumActive
 
   test("createRedisXStream returns its connections when the stream stops") {
     val streamKey = TestUtils.generateRandomKey()
@@ -28,7 +32,7 @@ trait RedisReceiverConnectionLeakSuite extends SparkStreamingRedisSuite with Mat
     val stream = ssc.createRedisXStream(Seq(
       ConsumerConfig(streamKey, "g1", "c1", Earliest, block = 100),
       ConsumerConfig(streamKey, "g1", "c2", Earliest, block = 100)
-    ), StorageLevel.MEMORY_ONLY)
+    ), StorageLevel.MEMORY_ONLY)(isolatedConfig)
     stream.foreachRDD(_ => ())
     ssc.start()
 
@@ -45,7 +49,7 @@ trait RedisReceiverConnectionLeakSuite extends SparkStreamingRedisSuite with Mat
     val listKey = TestUtils.generateRandomKey()
     val before = activeConnections(listKey)
 
-    val stream = ssc.createRedisStream(Array(listKey), StorageLevel.MEMORY_ONLY)
+    val stream = ssc.createRedisStream(Array(listKey), StorageLevel.MEMORY_ONLY)(isolatedConfig)
     stream.foreachRDD(_ => ())
     ssc.start()
 

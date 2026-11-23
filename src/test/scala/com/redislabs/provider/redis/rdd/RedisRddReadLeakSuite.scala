@@ -118,10 +118,16 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
 
   test("reading a DataFrame without a stored schema returns the connection") {
     val table = TestUtils.generateTableName("no-schema")
-    val endpoints = Seq(redisConfig.getHost(RedisSourceRelation.schemaKey(table)).endpoint)
+    // a timeout that no other suite uses gives the read a pool of its own (pools are per endpoint), so connections that
+    // other suites are still returning to the shared pool don't change the count
+    val timeout = 2345
+    val isolatedConfig = new RedisConfig(redisConfig.initialHost.copy(timeout = timeout))
+    val endpoints = Seq(isolatedConfig.getHost(RedisSourceRelation.schemaKey(table)).endpoint)
     val before = activeConnections(endpoints)
     (1 to repetitions).foreach { _ =>
-      val e = intercept[IllegalStateException](spark.read.format(RedisFormat).option("table", table).load())
+      val e = intercept[IllegalStateException] {
+        spark.read.format(RedisFormat).option("table", table).option("timeout", timeout).load()
+      }
       e.getMessage should include("Unable to read dataframe schema")
     }
     activeConnections(endpoints) shouldBe before

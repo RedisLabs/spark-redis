@@ -18,17 +18,38 @@ on:
 jobs:
 
   build:
-    name: Build and Test
+    name: Build and Test (Spark ${{ matrix.spark }})
     runs-on: ubuntu-latest
+    strategy:
+      # run every Spark version even if one of them fails
+      fail-fast: false
+      matrix:
+        # Each Spark version is paired with the Scala version it is built with: scala-library is only backward
+        # compatible, so an older one can miss methods that Spark calls.
+        include:
+          # the version the library is built and released with (spark.version in pom.xml)
+          - spark: '3.5.10'
+            scala: '2.12.18'
+            coverage: true
+          # older Spark lines that the library supports
+          - spark: '3.2.1'
+            scala: '2.12.15'
+          - spark: '3.3.3'
+            scala: '2.12.15'
+          - spark: '3.4.2'
+            scala: '2.12.17'
+    env:
+      MVN_ARGS: -Dspark.version=${{ matrix.spark }} -Dscala.complete.version=${{ matrix.scala }}
+      REDIS_VERSION: '6.0.10'
     steps:
       - name: Checkout project
         uses: actions/checkout@v7
       - name: Set Java up in the runner
+        # no Maven cache here: the Setup Maven step caches ~/.m2/repository per Spark version
         uses: actions/setup-java@v6
         with:
           java-version: '8'
           distribution: 'temurin'
-          cache: 'maven'
       - name: Setup Maven
         uses: s4u/setup-maven-action@v1.22.0
         with:
@@ -39,24 +60,43 @@ jobs:
           java-version: '8'
           java-distribution: 'temurin'
           maven-version: '3.9.2'
-      - name: Install missing dependencies to container
+          # one Maven cache per Spark version: the cache key is otherwise only based on pom.xml, so all the
+          # matrix jobs would share one entry that holds the dependencies of a single Spark version
+          cache-prefix: spark-${{ matrix.spark }}-
+      - name: Get the runner image
+        # ImageOS (e.g. ubuntu24) is set on the runner, not in the env context of the workflow
+        id: runner-image
+        run: echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+      - name: Cache Redis build
+        id: redis-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            redis-${{ env.REDIS_VERSION }}/src/redis-server
+            redis-${{ env.REDIS_VERSION }}/src/redis-cli
+          # the binaries link to the system OpenSSL, so the key includes the runner image
+          key: redis-${{ env.REDIS_VERSION }}-tls-${{ runner.os }}-${{ steps.runner-image.outputs.os }}
+      - name: Build Redis
+        if: steps.redis-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt update
           sudo apt install -y libssl-dev
-          wget http://download.redis.io/releases/redis-6.0.10.tar.gz
-          tar -xzvf redis-6.0.10.tar.gz
-          make -C redis-6.0.10 -j`nproc` BUILD_TLS=yes
+          wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+          tar -xzvf redis-$REDIS_VERSION.tar.gz
+          make -C redis-$REDIS_VERSION -j`nproc` BUILD_TLS=yes
       - name: Maven offline
         run: |
-          mvn -q dependency:go-offline
+          mvn -q dependency:go-offline $MVN_ARGS
       - name: Run tests
         run: |
-          export PATH=$PWD/redis-6.0.10/src:$PATH
-          make test
+          export PATH=$PWD/redis-$REDIS_VERSION/src:$PATH
+          make test MVN_ARGS="$MVN_ARGS"
         env:
           JVM_OPTS: -Xmx3200m
           TERM: dumb
       - name: Upload coverage reports to Codecov
+        # once, from the build of the released Spark version
+        if: matrix.coverage
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

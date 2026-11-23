@@ -1,3 +1,7 @@
+# extra Maven arguments for 'make test', e.g. to test against another Spark version:
+#   make test MVN_ARGS="-Dspark.version=3.3.3 -Dscala.complete.version=2.12.15"
+MVN_ARGS ?=
+
 # user
 USER_ACL = user alice on >p1pp0 ~* +@all
 
@@ -122,7 +126,7 @@ test:
 	# with --batch-mode maven doesn't print 'Progress: 125/150kB', the progress lines take up 90% of the log and causes
 	# Travis build to fail with 'The job exceeded the maximum log length, and has been terminated'
 	# 'verify' (not 'test') so the JaCoCo report runs after the tests; the truststore JVM options come from the pom.
-	mvn clean verify -B
+	mvn clean verify -B $(MVN_ARGS)
 	make stop
 
 benchmark:
