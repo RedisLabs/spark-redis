@@ -36,12 +36,25 @@ jobs:
           cat <(echo -e "${{ secrets.OSSH_GPG_SECRET_KEY }}") | gpg --batch --import
           gpg --list-secret-keys --keyid-format LONG
 
-      - name: Publish
+      - name: Publish for Scala 2.12 (spark-redis_2.12)
         run: |
           mvn --no-transfer-progress \
             --batch-mode \
             -Dgpg.passphrase='${{ secrets.OSSH_GPG_SECRET_KEY_PASSWORD }}' \
             -DskipTests deploy -P release
+        env:
+          MAVEN_USERNAME: ${{secrets.OSSH_USERNAME}}
+          MAVEN_PASSWORD: ${{secrets.OSSH_TOKEN}}
+
+      - name: Publish for Scala 2.13 (spark-redis_2.13)
+        # Like Spark 3.x, the same release is also published for Scala 2.13. 'clean' so that no class compiled
+        # for Scala 2.12 by the previous step ends up in the Scala 2.13 jar.
+        run: |
+          dev/change-scala-version.sh 2.13
+          mvn --no-transfer-progress \
+            --batch-mode \
+            -Dgpg.passphrase='${{ secrets.OSSH_GPG_SECRET_KEY_PASSWORD }}' \
+            -DskipTests clean deploy -P release
         env:
           MAVEN_USERNAME: ${{secrets.OSSH_USERNAME}}
           MAVEN_PASSWORD: ${{secrets.OSSH_TOKEN}}
