@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import org.apache.commons.lang3.{SerializationException, SerializationUtils}
 import org.apache.spark.SPARK_VERSION
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{IntegerType, ObjectType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{IntegerType, MetadataBuilder, ObjectType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
@@ -151,6 +151,31 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     e.getMessage should include(s"${bytes.length} bytes")
   }
 
+  test("a long array fails if the value can't hold 8 bytes for each of its elements") {
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+    // as many elements as the value has bytes: they fit as bytes, not as longs
+    val bytes = rowDeclaringLongArray(SerializationUtils.serialize(Array[Any]("John", Array.emptyLongArray)).length)
+    val e = the[ValueRejectedException] thrownBy decode(bytes)
+    // the row's two-element array takes at least 2 more
+    e.getMessage should include(s"take at least ${8L * bytes.length + 2} bytes to write, more than its ${bytes.length}")
+  }
+
+  test("long, double and boolean arrays, which take exactly their bytes, still read back") {
+    val metadata = new MetadataBuilder().putLongArray("l", Array.tabulate(10000)(_.toLong))
+      .putDoubleArray("d", Array.fill(10000)(0.5)).putBooleanArray("b", Array.fill(10000)(true)).build()
+    val schema = StructType(Seq(StructField("f", StringType, nullable = true, metadata)))
+    RedisSourceRelation.decodeSchema("_spark:arrays:schema", SerializationUtils.serialize(schema)) shouldBe schema
+  }
+
+  test("an array that declares a negative length fails as a rejected value") {
+    Seq(-1, -5).foreach { length =>
+      withClue(length) {
+        val e = the[ValueRejectedException] thrownBy decode(rowDeclaringLongArray(length))
+        e.getMessage should include("negative length")
+      }
+    }
+  }
+
   test("arrays that each fit in the value, but not all together, fail before the one that goes over is allocated") {
     assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
     val bytes = nestedArrays(depth = 3)
@@ -277,10 +302,13 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
 object RestrictedDeserializationTest {
 
   /** A row whose last value is a long array that declares Int.MaxValue - 8 elements and holds none. */
-  def hugeArrayRow: Array[Byte] = {
+  def hugeArrayRow: Array[Byte] = rowDeclaringLongArray(Int.MaxValue - 8)
+
+  /** A row whose last value is a long array that declares `length` elements and holds none. */
+  def rowDeclaringLongArray(length: Int): Array[Byte] = {
     // the empty array's length is the stream's last 4 bytes
     val bytes = SerializationUtils.serialize(Array[Any]("John", Array.emptyLongArray))
-    ByteBuffer.wrap(bytes).putInt(bytes.length - 4, Int.MaxValue - 8)
+    ByteBuffer.wrap(bytes).putInt(bytes.length - 4, length)
     bytes
   }
 
