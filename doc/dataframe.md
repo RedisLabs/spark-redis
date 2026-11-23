@@ -68,13 +68,19 @@ Each row of DataFrame is written as a [Redis Hash](https://redislabs.com/ebook/p
 4) "45"
 ```
 
-Spark-Redis also writes serialized DataFrame schema:
+Spark-Redis also writes the DataFrame schema:
 ```bash
 127.0.0.1:6379> keys _spark:person:schema
 1) "_spark:person:schema"
 ``` 
 
-It is used by Spark-Redis internally when reading DataFrame back to Spark memory.
+It is used by Spark-Redis internally when reading DataFrame back to Spark memory. The schema is stored as Spark's
+schema JSON (`StructType.json`), so any Spark and Scala version can read the table back.
+
+Earlier versions of Spark-Redis stored a Java-serialized `StructType` instead. Those schemas can only be read with the
+Spark minor version and the Scala version that wrote them: reading one with another version fails with an error that
+names the schema key. To read such a table, pass the schema with `.schema(...)`, or read it with the versions that wrote
+it. Saving the table again stores its schema as JSON.
 
 ### Specifying Redis key
 

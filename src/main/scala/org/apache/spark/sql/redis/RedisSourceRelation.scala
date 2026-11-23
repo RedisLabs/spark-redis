@@ -1,5 +1,7 @@
 package org.apache.spark.sql.redis
 
+import java.io.InvalidClassException
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.util.{List => JList}
 
@@ -8,16 +10,17 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Logging
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
-import org.apache.commons.lang3.SerializationUtils
+import org.apache.commons.lang3.{SerializationException, SerializationUtils}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.{PipelineBase, Protocol}
 
 import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
 
 class RedisSourceRelation(override val sqlContext: SQLContext,
                           parameters: Map[String, String],
@@ -236,7 +239,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val key = schemaKey(tableName())
     logInfo(s"saving schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
-    val schemaBytes = SerializationUtils.serialize(schema)
+    val schemaBytes = encodeSchema(schema)
     withConnection(schemaNode.connect()) { conn =>
       conn.set(key.getBytes, schemaBytes)
     }
@@ -258,7 +261,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() " +
         s"or use 'infer.schema' option. ")
     }
-    SerializationUtils.deserialize[StructType](schemaBytes)
+    decodeSchema(key, schemaBytes)
   }
 
   /**
@@ -304,6 +307,54 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
 object RedisSourceRelation {
 
   def schemaKey(tableName: String): String = s"_spark:$tableName:schema"
+
+  /**
+    * A table's schema, as it is stored in its schema key: Spark's schema JSON (`StructType.json`), which every Spark
+    * version reads.
+    *
+    * Earlier versions stored a Java-serialized `StructType`. Those bytes can only be read with the Spark minor version
+    * and the Scala version that wrote them: `StructType` doesn't declare a `serialVersionUID`, and the one the JVM
+    * computes differs between Spark 3.2, 3.3, 3.4 and 3.5, and a schema's metadata holds Scala collection classes.
+    * [[decodeSchema]] still reads them.
+    */
+  private[redis] def encodeSchema(schema: StructType): Array[Byte] = schema.json.getBytes(UTF_8)
+
+  /**
+    * Reads a schema stored by [[encodeSchema]], or a Java-serialized one written by an earlier version of the
+    * library.
+    *
+    * @param key   the schema key, for error messages
+    * @param bytes the key's value
+    * @throws IllegalStateException if the value is a Java-serialized schema from another Spark version, or isn't a
+    *                               schema at all
+    */
+  private[redis] def decodeSchema(key: String, bytes: Array[Byte]): StructType =
+    if (isJavaSerialized(bytes)) {
+      try {
+        SerializationUtils.deserialize[StructType](bytes)
+      } catch {
+        case e: SerializationException if e.getCause.isInstanceOf[InvalidClassException] =>
+          throw new IllegalStateException(s"The schema in '$key' was written by an earlier version of spark-redis " +
+            "with another Spark or Scala version, and can't be read with this one. Read the table with an explicit " +
+            ".schema(), or with the Spark and Scala versions that wrote it; saving the table again stores its " +
+            "schema in a format every version reads.", e)
+      }
+    } else {
+      val parsed = try DataType.fromJson(new String(bytes, UTF_8)) catch {
+        case NonFatal(e) =>
+          throw new IllegalStateException(
+            s"The value of '$key' is neither a schema JSON nor a Java-serialized schema", e)
+      }
+      parsed match {
+        case struct: StructType => struct
+        case dataType: DataType =>
+          throw new IllegalStateException(s"The value of '$key' is a ${dataType.typeName} type, not a table schema")
+      }
+    }
+
+  /** Java serialization streams start with the magic number 0xACED (`java.io.ObjectStreamConstants`). */
+  private def isJavaSerialized(bytes: Array[Byte]): Boolean =
+    bytes.length >= 2 && bytes(0) == 0xAC.toByte && bytes(1) == 0xED.toByte
 
   def dataKey(tableName: String, id: String = uuid()): String = {
     s"$tableName:$id"
