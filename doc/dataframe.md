@@ -486,4 +486,5 @@ see [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-s
 
  - Nested DataFrame fields are not currently supported with Hash model. Consider making DataFrame schema flat or using Binary persistence model.
  - Filters are not pushed down to Redis, see [Filters and reading specific keys](#filters-and-reading-specific-keys).
- - Errors that Redis returns for individual write commands (for example when `maxmemory` is reached) are not reported and don't fail the job.
+ - Writes are not transactional. If Redis rejects a write (for example when `maxmemory` is reached), the task fails, but the
+   rows written before the error stay in Redis. See [Redis rejected N of M pipelined commands](troubleshooting.md#redis-rejected-n-of-m-pipelined-commands).

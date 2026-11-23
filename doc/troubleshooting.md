@@ -9,6 +9,7 @@
   - [NoSuchMethodError: scala.Predef$...](#nosuchmethoderror-scalapredef)
   - [NotSerializableException: SparkContext or StreamingContext](#notserializableexception-sparkcontext-or-streamingcontext)
   - [The job succeeds but data is missing in Redis](#the-job-succeeds-but-data-is-missing-in-redis)
+  - [Redis rejected N of M pipelined commands](#redis-rejected-n-of-m-pipelined-commands)
 
 ## JedisConnectionException: Could not get a resource from the pool
 
@@ -105,6 +106,19 @@ See [Writing a DStream to Redis](streaming.md#writing-a-dstream-to-redis).
   and the last one wins. Check the number of distinct key values in your DataFrame.
 * **Null values** are not written to Redis hashes, see [Null values](dataframe.md#null-values).
 * **`ttl`**: if you set the `ttl` option or argument, the keys expire after that many seconds.
-* **Errors returned by Redis inside a pipeline are not reported.** Spark-Redis writes in pipelines and doesn't check the
-  individual replies, so a command that Redis rejects, for example with `OOM command not allowed when used memory > 'maxmemory'`,
-  doesn't fail the Spark job. Monitor the Redis memory usage, or count the written keys after the job.
+
+## Redis rejected N of M pipelined commands
+
+Spark-Redis sends writes in pipelines and checks every reply. If Redis rejects a command, the task fails with
+`JedisDataException: Redis rejected N of M pipelined commands; first error: ...`, followed by the error from Redis, for example:
+
+* `OOM command not allowed when used memory > 'maxmemory'`: Redis is full. Increase `maxmemory`, free memory, or set a `ttl`.
+* `WRONGTYPE Operation against a key holding the wrong kind of value`: the key already exists with another data type, for
+  example writing a List onto a String key. Delete the key or write to another name.
+* `READONLY You can't write against a read only replica`: the node became a replica, for example after a failover while
+  the job was running. Spark-Redis reads the topology when the connection configuration is created, so restart the job.
+
+Pipelines are not transactions: the commands that Redis accepted before the error stay written. When Spark retries the
+task, it writes the partition again.
+
+Spark-Redis 3.1.0 and earlier ignored these errors, so a job could succeed while data was missing.

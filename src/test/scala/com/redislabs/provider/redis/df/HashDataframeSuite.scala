@@ -8,8 +8,8 @@ import com.redislabs.provider.redis.util.Person.{data, _}
 import com.redislabs.provider.redis.util.TestUtils._
 import com.redislabs.provider.redis.util.{EntityId, Logging, Person}
 import org.apache.spark.SparkException
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
+import org.apache.spark.sql.{DataFrame, Row, SaveMode}
+import org.apache.spark.sql.redis.RedisSourceRelation.{dataKey, tableDataKeyPattern}
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types.{StructField, _}
 import org.scalatest.Matchers
@@ -337,6 +337,20 @@ trait HashDataframeSuite extends RedisDataframeSuite with Matchers with Logging 
 
     df.show()
     df.count() should be (0)
+  }
+
+  test("save fails when a row's key holds a non-hash value") {
+    val tableName = generateTableName(TableNamePrefix)
+    // HMSET on a String answers WRONGTYPE; the write must fail rather than drop the row (issue #33)
+    sc.toRedisKV(sc.parallelize(Seq((dataKey(tableName, "John"), "a string"))))
+    val err = interceptSparkErr[SparkException] {
+      spark.createDataFrame(data).write.format(RedisFormat)
+        .mode(SaveMode.Append)
+        .option(SqlOptionTableName, tableName)
+        .option(SqlOptionKeyColumn, "name")
+        .save()
+    }
+    err.getMessage should include("WRONGTYPE")
   }
 
   def saveMap(tableName: String): Unit = {

@@ -3,6 +3,7 @@ package com.redislabs.provider.redis.util
 import java.util.{List => JList}
 
 import com.redislabs.provider.redis.ReadWriteConfig
+import redis.clients.jedis.exceptions.JedisDataException
 import redis.clients.jedis.{Jedis, Pipeline}
 
 import scala.collection.JavaConverters._
@@ -58,6 +59,7 @@ object PipelineUtils {
     * @param readWriteConfig read/write config
     * @param items           a sequence of elements (typically keys)
     * @param f               function to applied for each item in the sequence
+    * @throws JedisDataException if Redis replies with an error to any of the commands, see [[syncAndCheck]]
     */
   def foreachWithPipeline[A](conn: Jedis, items: TraversableOnce[A])(f: (Pipeline, A) => Unit)
                             (implicit readWriteConfig: ReadWriteConfig): Unit = {
@@ -68,14 +70,14 @@ object PipelineUtils {
       f(pipeline, x)
       i = i + 1
       if (i % readWriteConfig.maxPipelineSize == 0) {
-        pipeline.sync()
+        syncAndCheck(pipeline)
         pipeline = conn.pipelined()
       }
     }
 
     // sync remaining items
     if (i % readWriteConfig.maxPipelineSize != 0) {
-      pipeline.sync()
+      syncAndCheck(pipeline)
     }
   }
 
@@ -92,6 +94,8 @@ object PipelineUtils {
     * @param items           a sequence of elements (typically keys)
     * @param f               function to applied for each item in the sequence
     * @return the last pipeline
+    * @throws JedisDataException if Redis replies with an error to any of the commands synced so far,
+    *                            see [[syncAndCheck]]
     */
   def foreachWithPipelineNoLastSync[A](conn: Jedis, items: TraversableOnce[A])(f: (Pipeline, A) => Unit)
                                       (implicit readWriteConfig: ReadWriteConfig): Pipeline = {
@@ -102,13 +106,35 @@ object PipelineUtils {
       f(pipeline, x)
       i = i + 1
       if (i % readWriteConfig.maxPipelineSize == 0) {
-        pipeline.sync()
+        syncAndCheck(pipeline)
         pipeline = conn.pipelined()
       }
     }
 
-    // return pipeline, the client should sync pipeline
+    // return pipeline, the client should sync pipeline with syncAndCheck
     pipeline
+  }
+
+  /**
+    * Sends the pipelined commands, reads all their replies and fails if Redis replied with an error to any of them.
+    *
+    * `Pipeline.sync()` reads the replies but keeps error replies (e.g. OOM or WRONGTYPE) inside the discarded
+    * `Response` objects, so a write that Redis rejected would go unnoticed. All the replies are read before
+    * throwing, so the connection can still be used, or returned to the pool, afterwards.
+    *
+    * The pipeline is not a transaction: the commands that Redis accepted stay applied.
+    *
+    * @param pipeline pipeline to sync
+    * @throws JedisDataException with the number of failed commands and the first Redis error message
+    */
+  def syncAndCheck(pipeline: Pipeline): Unit = {
+    val replies = pipeline.syncAndReturnAll().asScala
+    val errors = replies.collect { case e: JedisDataException => e }
+    if (errors.nonEmpty) {
+      throw new JedisDataException(
+        s"Redis rejected ${errors.size} of ${replies.size} pipelined commands; first error: ${errors.head.getMessage}",
+        errors.head)
+    }
   }
 
 }
