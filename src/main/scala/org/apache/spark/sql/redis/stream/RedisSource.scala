@@ -1,12 +1,12 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.RedisConfig
-import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
-import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
+import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist, nextEntryId,
+  resetConsumerGroup}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
-import org.apache.spark.sql.execution.streaming.{Offset, Source}
+import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -27,6 +27,8 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   implicit private val redisConfig: RedisConfig = RedisConfig.fromSparkConfAndParameters(sc.getConf, parameters)
 
   private val sourceConfig = RedisSourceConfig.fromMap(parameters)
+
+  private val streamGroups = sourceConfig.consumerConfigs.map(c => c.streamKey -> c.groupName).distinct
 
   private val currentSchema = userDefinedSchema.getOrElse {
     throw new IllegalArgumentException("Please specify schema")
@@ -88,10 +90,11 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
       """.stripMargin
     }
     val localSchema = currentSchema
-    val offsetRanges = getOffsetRanges(start, end, sourceConfig.consumerConfigs)
+    val batchStart = start.orElse(Some(firstBatchStart))
+    val offsetRanges = getOffsetRanges(batchStart, end, sourceConfig.consumerConfigs, firstEntryIds(batchStart, end))
 
-    // if 'start' is set, reset consumer group offset to read this batch
-    resetConsumerGroupsIfHasOffset(offsetRanges)
+    // the batch is read from its offset ranges, the consumer groups only record the progress
+    setConsumerGroupsToEnd(end)
 
     // read data
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
@@ -118,21 +121,62 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
   override def stop(): Unit = {
   }
 
-  private def resetConsumerGroupsIfHasOffset(offsetRanges: Seq[RedisSourceOffsetRange]): Unit = {
-    forEachOffsetRangeWithStreamConnection(offsetRanges) { case (conn, offsetRange) =>
-      offsetRange.start.map(new StreamEntryID(_)).foreach { start =>
-        val config = offsetRange.config
-        resetConsumerGroup(conn, config.streamKey, config.groupName, start)
-      }
+  /**
+    * The start of the first batch, for which Spark passes no start offset: the positions of the consumer groups
+    * when the query runs for the first time with its checkpoint. It is saved in the checkpoint (`metadataPath`),
+    * so that the first batch reads the same entries if it is executed again after a failure.
+    */
+  private lazy val firstBatchStart: RedisSourceOffset = {
+    val metadataLog = new HDFSMetadataLog[RedisSourceOffset](sqlContext.sparkSession, metadataPath)
+    metadataLog.get(0).getOrElse {
+      val offset = consumerGroupOffsets()
+      metadataLog.add(0, offset)
+      offset
     }
   }
 
-  private def forEachOffsetRangeWithStreamConnection(offsetRanges: Seq[RedisSourceOffsetRange])
-                                                    (op: (Jedis, RedisSourceOffsetRange) => Unit): Unit = {
-    offsetRanges.groupBy(_.config.streamKey).foreach { case (streamKey, subRanges) =>
+  /**
+    * The last delivered ids of the consumer groups.
+    */
+  private def consumerGroupOffsets(): RedisSourceOffset = {
+    val offsets = streamGroups.map { case (streamKey, groupName) =>
       withConnection(streamKey) { conn =>
-        subRanges.distinctBy(_.config.groupName).foreach { offsetRange =>
-          op(conn, offsetRange)
+        val group = conn.xinfoGroup(streamKey).asScala.find(_.getName == groupName).getOrElse {
+          throw new IllegalStateException(s"Consumer group $groupName of stream $streamKey doesn't exist")
+        }
+        streamKey -> RedisConsumerOffset(groupName, group.getLastDeliveredId.toString)
+      }
+    }
+    RedisSourceOffset(offsets.toMap)
+  }
+
+  /**
+    * The ids of the first entries of the batch, for the streams read by several consumers.
+    */
+  private def firstEntryIds(start: Option[Offset], end: Offset): Map[String, String] = {
+    val offsetStarts = start.map(RedisSourceOffset.fromOffset).map(_.offsets).getOrElse(Map())
+    val parallelStreamKeys = sourceConfig.consumerConfigs.groupBy(_.streamKey).filter(_._2.size > 1).keySet
+    RedisSourceOffset.fromOffset(end).offsets
+      .filter { case (streamKey, _) => parallelStreamKeys(streamKey) }
+      .flatMap { case (streamKey, offsetEnd) =>
+        val after = offsetStarts.get(streamKey).map(o => new StreamEntryID(o.offset)).getOrElse(EntryIdEarliest)
+        withConnection(streamKey) { conn =>
+          conn.xrange(streamKey, nextEntryId(after), new StreamEntryID(offsetEnd.offset), 1).asScala
+            .headOption.map(entry => streamKey -> entry.getID.toString)
+        }
+      }
+  }
+
+  /**
+    * Sets the consumer groups to the end of the batch, so that their last delivered id shows the progress
+    * of the query, and a query started without checkpoint continues from there.
+    */
+  private def setConsumerGroupsToEnd(end: Offset): Unit = {
+    val offsetEnds = RedisSourceOffset.fromOffset(end).offsets
+    streamGroups.foreach { case (streamKey, groupName) =>
+      offsetEnds.get(streamKey).foreach { offsetEnd =>
+        withConnection(streamKey) { conn =>
+          resetConsumerGroup(conn, streamKey, groupName, new StreamEntryID(offsetEnd.offset))
         }
       }
     }
@@ -142,8 +186,14 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
 object RedisSource {
 
+  /**
+    * The offset ranges to read, one per consumer. The consumers of a stream read consecutive parts of its range.
+    *
+    * @param firstEntryIds ids of the first entries of the batch by stream key (if known), see [[splitOffsetRange]]
+    */
   def getOffsetRanges(start: Option[Offset], end: Offset,
-                      consumerConfigs: Seq[RedisConsumerConfig]): Seq[RedisSourceOffsetRange] = {
+                      consumerConfigs: Seq[RedisConsumerConfig],
+                      firstEntryIds: Map[String, String] = Map()): Seq[RedisSourceOffsetRange] = {
 
     val offsetStarts = start.map(RedisSourceOffset.fromOffset).map(_.offsets).getOrElse(Map())
     val offsetEnds = RedisSourceOffset.fromOffset(end)
@@ -152,8 +202,31 @@ object RedisSource {
     offsetEnds.offsets.flatMap { case (streamKey, offsetEnd) =>
       val offsetStart = offsetStarts.get(streamKey).map(_.offset)
       val configs = configsByStreamKey(streamKey)
-      configs.map { c => RedisSourceOffsetRange(offsetStart, offsetEnd.offset, c) }
+      val ranges = splitOffsetRange(offsetStart, offsetEnd.offset, configs.size, firstEntryIds.get(streamKey))
+      configs.zip(ranges).map { case (c, (rangeStart, rangeEnd)) => RedisSourceOffsetRange(rangeStart, rangeEnd, c) }
     }.toSeq
+  }
+
+  /**
+    * Splits the range (start, end] of a stream into `n` consecutive ranges, at evenly spaced times between the
+    * first entry of the range (or the start if it is not known) and the end.
+    */
+  def splitOffsetRange(start: Option[String], end: String, n: Int,
+                       firstEntryId: Option[String] = None): Seq[(Option[String], String)] = {
+    start match {
+      case Some(startOffset) if n > 1 =>
+        val startId = new StreamEntryID(startOffset)
+        val endId = new StreamEntryID(end)
+        val fromTime = firstEntryId.map(new StreamEntryID(_)).getOrElse(startId).getTime
+        val bounds = (1 until n).map { i =>
+          val bound = new StreamEntryID(fromTime + (endId.getTime - fromTime) * i / n, 0)
+          if (bound.compareTo(startId) < 0) startId else if (bound.compareTo(endId) > 0) endId else bound
+        }
+        (startId +: bounds :+ endId).sliding(2).map { ids => Some(ids.head.toString) -> ids.last.toString }.toSeq
+      case _ =>
+        // the first consumer reads the whole range
+        (start -> end) +: Seq.fill(n - 1)(Some(end) -> end)
+    }
   }
 
   def streamLastId(conn: Jedis, streamKey: String): String = {

@@ -19,7 +19,7 @@ class RedisSourceRdd(sc: SparkContext, redisConfig: RedisConfig,
     val partition = split.asInstanceOf[RedisSourceRddPartition]
     val offsetRange = partition.offsetRange
     val streamReader = new RedisStreamReader(redisConfig)
-    streamReader.unreadStreamEntries(offsetRange)
+    streamReader.streamEntries(offsetRange)
   }
 
   override protected def getPartitions: Array[Partition] = {
