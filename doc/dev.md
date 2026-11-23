@@ -5,7 +5,8 @@ file wraps the common commands.
 
 Build with JDK 8, the version the CI uses. Building with JDK 11 or newer is known to fail with the Scala and plugin versions
 the project uses (for example with `NoClassDefFoundError: javax/tools/ToolProvider`), so if you have several JDKs installed,
-point `JAVA_HOME` to a JDK 8 and check the Java version reported by `mvn -version`.
+point `JAVA_HOME` to a JDK 8 and check the Java version reported by `mvn -version`. The tests run on the same JDK, whatever
+`java` comes first on your `PATH`.
 
 You need:
 
