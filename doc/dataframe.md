@@ -479,11 +479,12 @@ sc.toRedisKV(kvRdd)
 | ssl                    | overrides `spark.redis.ssl`                                                                                                                                 | `Boolean`             | `false`        |
 | dbNum                  | overrides `spark.redis.db`                                                                                                                                  | `Int`                 | `0`            |
 | timeout                | overrides `spark.redis.timeout`                                                                                                                             | `Int`                 | `2000`         |
+| client.name            | overrides `spark.redis.client.name`: the name this source's connections set with `CLIENT SETNAME`. Empty means no name | `String`              | -              |
 
 `max.pipeline.size`, `scan.count` and `iterator.grouping.size` are explained in
 [Tuning reads and writes](configuration.md#tuning-reads-and-writes).
 
-Each connection option (`host`, `port`, `user`, `auth`, `ssl`, `dbNum`, `timeout`) overrides only its own `spark.redis.*`
+Each connection option (`host`, `port`, `user`, `auth`, `ssl`, `dbNum`, `timeout`, `client.name`) overrides only its own `spark.redis.*`
 parameter. The others still come from the Spark configuration. The option names don't have the `spark.redis.` prefix,
 see [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-stream-or-rdd).
 
