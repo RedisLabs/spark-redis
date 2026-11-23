@@ -1,8 +1,10 @@
 package com.redislabs.provider.redis
 
 import java.net.URI
+import java.util.concurrent.atomic.AtomicBoolean
 
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
+import com.redislabs.provider.redis.util.Logging
 import org.apache.spark.SparkConf
 import redis.clients.jedis.util.{JedisClusterCRC16, JedisURIHelper, SafeEncoder}
 import redis.clients.jedis.{Jedis, Protocol}
@@ -17,7 +19,8 @@ import scala.collection.JavaConverters._
   * @param host  the redis host or ip
   * @param port  the redis port
   * @param user  the authentication username
-  * @param auth  the authentication password
+  * @param auth  the authentication password, or null to send no `AUTH`. Set from `spark.redis.password` (or the
+  *              deprecated `spark.redis.auth`). [[toString]] never shows it.
   * @param dbNum database number (should be avoided in general)
   * @param ssl true to enable SSL connection. Defaults to false
   * @param clientName the name every connection to this endpoint sets with CLIENT SETNAME, or null (the default)
@@ -39,8 +42,9 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       s"${RedisConfig.ClientNameOption} option): use printable ASCII characters only, with no spaces")
 
   /**
-    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.auth, spark.redis.db,
-    * spark.redis.ssl and spark.redis.client.name
+    * Constructor from spark config. set params with spark.redis.host, spark.redis.port, spark.redis.user,
+    * spark.redis.password (or the deprecated spark.redis.auth), spark.redis.db, spark.redis.timeout, spark.redis.ssl
+    * and spark.redis.client.name
     *
     * @param conf spark context config
     */
@@ -49,7 +53,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       conf.get("spark.redis.host", Protocol.DEFAULT_HOST),
       conf.getInt("spark.redis.port", Protocol.DEFAULT_PORT),
       conf.get("spark.redis.user", null),
-      conf.get("spark.redis.auth", null),
+      RedisConfig.passwordOrNull(conf),
       conf.getInt("spark.redis.db", Protocol.DEFAULT_DATABASE),
       conf.getInt("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT),
       conf.getBoolean("spark.redis.ssl", false),
@@ -69,7 +73,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
       parameters.getOrElse("host", conf.get("spark.redis.host", Protocol.DEFAULT_HOST)),
       parameters.getOrElse("port", conf.get("spark.redis.port", Protocol.DEFAULT_PORT.toString)).toInt,
       parameters.getOrElse("user", conf.get("spark.redis.user", null)),
-      parameters.getOrElse("auth", conf.get("spark.redis.auth", null)),
+      RedisConfig.passwordOrNull(conf, parameters),
       parameters.getOrElse("dbNum", conf.get("spark.redis.db", Protocol.DEFAULT_DATABASE.toString)).toInt,
       parameters.getOrElse("timeout", conf.get("spark.redis.timeout", Protocol.DEFAULT_TIMEOUT.toString)).toInt,
       parameters.getOrElse("ssl", conf.get("spark.redis.ssl", false.toString)).toBoolean,
@@ -113,6 +117,15 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   def maskPassword(): RedisEndpoint = {
     this.copy(auth = "")
   }
+
+  /**
+    * The case class's own format, with the password replaced: endpoints are logged, and end up in error messages and
+    * in the toString of the classes that hold them, such as [[RedisNode]].
+    */
+  override def toString: String = {
+    val shown = if (auth == null) this else copy(auth = RedisConfig.RedactedPassword)
+    shown.productIterator.mkString(productPrefix + "(", ",", ")")
+  }
 }
 
 case class RedisNode(endpoint: RedisEndpoint,
@@ -154,7 +167,65 @@ object ReadWriteConfig {
   }
 }
 
-object RedisConfig {
+object RedisConfig extends Logging {
+
+  /**
+    * Spark setting: the password sent with AUTH. Spark hides its value in the Spark UI, the History Server and event
+    * logs, because the name matches the default `spark.redaction.regex`.
+    */
+  val PasswordConfKey = "spark.redis.password"
+
+  /**
+    * Deprecated name of [[PasswordConfKey]], still read when [[PasswordConfKey]] is unset. Spark's default
+    * `spark.redaction.regex` doesn't match it, so its value shows in clear text in the Spark UI, the History Server and
+    * event logs (GHSA-wmm3-vmjq-7mmc).
+    */
+  val AuthConfKey = "spark.redis.auth"
+
+  /** DataFrame and stream option that overrides [[PasswordConfKey]]. Spark redacts it where it shows options. */
+  val PasswordOption = "password"
+
+  /** Deprecated name of [[PasswordOption]], still read when [[PasswordOption]] is unset. Spark doesn't redact it. */
+  val AuthOption = "auth"
+
+  /** What [[RedisEndpoint.toString]] shows instead of a password: the text Spark itself puts in place of a secret. */
+  private[redis] val RedactedPassword = "*********(redacted)"
+
+  // Endpoints are built for every RDD call and every DataFrame, so each deprecation warning is logged once per JVM.
+  private val authConfWarned = new AtomicBoolean(false)
+  private val authOptionWarned = new AtomicBoolean(false)
+
+  /** The password in the Spark settings: [[PasswordConfKey]], else [[AuthConfKey]], else null for no AUTH. */
+  private[redis] def passwordOrNull(conf: SparkConf): String = {
+    if (conf.contains(AuthConfKey) && authConfWarned.compareAndSet(false, true)) {
+      val fix = if (conf.contains(PasswordConfKey)) {
+        s"$PasswordConfKey is set too and is used, so remove $AuthConfKey"
+      } else {
+        s"set $PasswordConfKey instead"
+      }
+      logWarning(s"$AuthConfKey is deprecated and Spark does not redact it, so the Redis password shows in clear " +
+        s"text in the Spark UI, the History Server and event logs. To hide it, $fix. Consider rotating the password.")
+    }
+    conf.getOption(PasswordConfKey).orElse(conf.getOption(AuthConfKey)).orNull
+  }
+
+  /**
+    * The password for a DataFrame or stream: the [[PasswordOption]] option, else the [[AuthOption]] option, else the
+    * Spark settings.
+    */
+  private[redis] def passwordOrNull(conf: SparkConf, parameters: Map[String, String]): String = {
+    if (parameters.contains(AuthOption) && authOptionWarned.compareAndSet(false, true)) {
+      val fix = if (parameters.contains(PasswordOption)) {
+        s"the '$PasswordOption' option is set too and is used, so remove '$AuthOption'"
+      } else {
+        s"use the '$PasswordOption' option instead"
+      }
+      logWarning(s"The '$AuthOption' option is deprecated and Spark does not redact it, so the Redis password can " +
+        s"show in clear text in query plans, in the Spark UI's SQL tab and in event logs. To hide it, $fix.")
+    }
+    val fromConf = passwordOrNull(conf)
+    parameters.get(PasswordOption).orElse(parameters.get(AuthOption)).getOrElse(fromConf)
+  }
 
   /** Spark setting: the name every connection the connector opens sets with CLIENT SETNAME (#398). */
   val ClientNameConfKey = "spark.redis.client.name"

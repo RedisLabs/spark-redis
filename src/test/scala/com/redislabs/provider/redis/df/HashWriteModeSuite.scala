@@ -136,7 +136,7 @@ trait HashWriteModeSuite extends RedisDataframeSuite with Matchers {
     try {
       val e = interceptSparkErr[SparkException] {
         write(t, IdAC, Seq(Row("1", "a1-new", "c1")),
-          Map(WriteMode -> "replace", "user" -> refused, "auth" -> userPassword))
+          Map(WriteMode -> "replace", "user" -> refused, "password" -> userPassword))
       }
       e.getMessage should include("NOPERM")
     } finally {

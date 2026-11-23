@@ -11,7 +11,7 @@ trait RedisStandaloneEnv extends Env {
     .setMaster("local[*]").setAppName(getClass.getName)
     .set("spark.redis.host", redisHost)
     .set("spark.redis.port", s"$redisPort")
-    .set("spark.redis.auth", redisAuth)
+    .set("spark.redis.password", redisAuth)
     .set("spark.streaming.stopGracefullyOnShutdown", "true")
     .set("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true")
     .set("spark.driver.bindAddress", "127.0.0.1")

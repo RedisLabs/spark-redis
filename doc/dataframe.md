@@ -507,7 +507,8 @@ sc.toRedisKV(kvRdd)
 | host                   | overrides `spark.redis.host`                                                                                                                                | `String`              | `localhost`    |
 | port                   | overrides `spark.redis.port`                                                                                                                                | `Int`                 | `6379`         |
 | user                   | overrides `spark.redis.user`                                                                                                                                | `String`              | -              |
-| auth                   | overrides `spark.redis.auth`                                                                                                                                | `String`              | -              |
+| password               | overrides `spark.redis.password`                                                                                                                            | `String`              | -              |
+| auth                   | **deprecated**, use `password`. Read only when `password` is unset. Spark doesn't hide it in query plans                                                  | `String`              | -              |
 | ssl                    | overrides `spark.redis.ssl`                                                                                                                                 | `Boolean`             | `false`        |
 | dbNum                  | overrides `spark.redis.db`                                                                                                                                  | `Int`                 | `0`            |
 | timeout                | overrides `spark.redis.timeout`                                                                                                                             | `Int`                 | `2000`         |
@@ -516,7 +517,7 @@ sc.toRedisKV(kvRdd)
 `max.pipeline.size`, `scan.count` and `iterator.grouping.size` are explained in
 [Tuning reads and writes](configuration.md#tuning-reads-and-writes).
 
-Each connection option (`host`, `port`, `user`, `auth`, `ssl`, `dbNum`, `timeout`, `client.name`) overrides only its own `spark.redis.*`
+Each connection option (`host`, `port`, `user`, `password`, `ssl`, `dbNum`, `timeout`, `client.name`) overrides only its own `spark.redis.*`
 parameter. The others still come from the Spark configuration. The option names don't have the `spark.redis.` prefix,
 see [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-stream-or-rdd).
 
