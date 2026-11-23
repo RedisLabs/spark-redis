@@ -7,6 +7,8 @@ import com.redislabs.provider.redis.util.TestUtils.interceptSparkErr
 import org.apache.spark.SparkException
 import org.apache.spark.sql.redis.{RedisFormat, RedisSourceRelation}
 import org.scalatest.Matchers
+import org.scalatest.concurrent.Eventually._
+import org.scalatest.time.{Millis, Span}
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.exceptions.JedisDataException
 
@@ -26,6 +28,10 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
   private val testUserPassword = "leak-test-pw"
   private val readCommands = Seq("get", "hgetall", "smembers", "lrange", "zrange", "zrangebyscore", "scan")
   private val repetitions = 3
+
+  // when a task fails, Spark cancels the other tasks of the job, but they keep their connection until their current
+  // command returns; a leaked connection never goes back to the pool
+  implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(10000, Millis)))
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -63,7 +69,9 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
       val e = interceptSparkErr[SparkException](read)
       e.getMessage should include("NOPERM")
     }
-    activeConnections(endpoints) shouldBe before
+    eventually {
+      activeConnections(endpoints) shouldBe before
+    }
   }
 
   private val keys = Array.fill(20)(TestUtils.generateRandomKey())
