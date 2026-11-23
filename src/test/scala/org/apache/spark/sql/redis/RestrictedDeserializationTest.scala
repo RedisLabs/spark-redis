@@ -1,10 +1,12 @@
 package org.apache.spark.sql.redis
 
-import java.io.{ObjectInputStream, Serializable => JSerializable}
+import java.io.{ByteArrayOutputStream, DataOutputStream, ObjectInputStream, ObjectStreamClass, ObjectStreamConstants,
+  Serializable => JSerializable}
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
-import org.apache.commons.lang3.SerializationUtils
+import org.apache.commons.lang3.{SerializationException, SerializationUtils}
 import org.apache.spark.SPARK_VERSION
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.{IntegerType, ObjectType, StringType, StructField, StructType}
@@ -77,6 +79,11 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     roundTrip("SELECT named_struct('a', 1, 'b', named_struct('c', 'x', 'd', array(1), 'e', map('k', 2L))) s")
   }
 
+  test("large binary and array values read back: every element takes at least a byte of the value") {
+    roundTrip("SELECT CAST(repeat('a', 100000) AS BINARY) bin, sequence(1, 20000) ints, " +
+      "transform(sequence(1, 2000), i -> CAST(NULL AS STRING)) nulls, array_repeat(CAST(1 AS BOOLEAN), 5000) bools")
+  }
+
   test("a class that isn't allowed fails before any of its code runs") {
     Tripwire.tripped.set(false)
     val bytes = SerializationUtils.serialize(Array[Any]("John", new Tripwire))
@@ -136,6 +143,20 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     decoded.get(1) shouldBe a[Tripwire]
   }
 
+  test("a short value that declares a huge array fails without allocating it") {
+    // a row whose last value is an empty long array, whose length is the stream's last 4 bytes
+    val bytes = SerializationUtils.serialize(Array[Any]("John", Array.emptyLongArray))
+    ByteBuffer.wrap(bytes).putInt(bytes.length - 4, Int.MaxValue - 8)
+    val e = the[SerializationException] thrownBy decode(bytes)
+    e.getMessage should include(s"${bytes.length} bytes")
+  }
+
+  test("arrays that each fit in the value, but not all together, fail before the one that goes over is allocated") {
+    val bytes = nestedArrays(depth = 3)
+    val e = the[SerializationException] thrownBy decode(bytes)
+    e.getMessage should include(s"${bytes.length} bytes")
+  }
+
   test("a stream that isn't Java serialization still fails as before") {
     an[org.apache.commons.lang3.SerializationException] should be thrownBy decode("not serialized".getBytes)
   }
@@ -175,6 +196,37 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
   private def decode(bytes: Array[Byte]): Row = {
     val schema = StructType(Seq(StructField("value", IntegerType)))
     persistence.decodeRow("_id" -> "key", bytes, schema, schema.fieldNames)
+  }
+
+  /**
+    * A stream of `depth` nested `Object` arrays, each declaring as many elements as the stream has bytes, and holding
+    * only the next array. ObjectInputStream allocates each array before it reads the elements.
+    */
+  private def nestedArrays(depth: Int): Array[Byte] = {
+    import ObjectStreamConstants._
+    val descriptorBytes = 1 + 2 + "[Ljava.lang.Object;".length + 8 + 1 + 2 + 1 + 1
+    val length = 4 + (1 + descriptorBytes + 4) + (depth - 1) * (1 + 5 + 4)
+    val out = new ByteArrayOutputStream()
+    val data = new DataOutputStream(out)
+    data.writeShort(STREAM_MAGIC)
+    data.writeShort(STREAM_VERSION)
+    data.writeByte(TC_ARRAY)
+    data.writeByte(TC_CLASSDESC)
+    data.writeUTF("[Ljava.lang.Object;")
+    data.writeLong(ObjectStreamClass.lookup(classOf[Array[AnyRef]]).getSerialVersionUID)
+    data.writeByte(SC_SERIALIZABLE)
+    data.writeShort(0) // fields
+    data.writeByte(TC_ENDBLOCKDATA) // class annotations
+    data.writeByte(TC_NULL) // superclass
+    data.writeInt(length)
+    (1 until depth).foreach { _ =>
+      data.writeByte(TC_ARRAY)
+      data.writeByte(TC_REFERENCE)
+      data.writeInt(baseWireHandle) // the class descriptor above
+      data.writeInt(length)
+    }
+    data.flush()
+    out.toByteArray.ensuring(_.length == length)
   }
 
   private def sparkAtLeast(major: Int, minor: Int): Boolean = {

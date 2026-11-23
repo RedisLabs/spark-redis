@@ -2,8 +2,11 @@ package org.apache.spark.sql.redis
 
 import java.io.{ByteArrayInputStream, IOException, InputStream, InvalidClassException, ObjectInputStream,
   ObjectStreamClass}
+import java.lang.reflect.{InvocationHandler, InvocationTargetException, Method, Proxy}
 
 import org.apache.commons.lang3.SerializationException
+
+import scala.util.Try
 
 /**
   * Java deserialization of values read from Redis, limited to the classes that spark-redis itself writes there.
@@ -16,19 +19,27 @@ import org.apache.commons.lang3.SerializationException
   *
   * So every class in the stream must be allowed by a [[ClassAllowlist]], and it is checked before the class is
   * loaded, so a class that isn't allowed never runs any code. Dynamic proxies are never allowed.
+  *
+  * The arrays in the stream can't declare more elements in all than the stream has bytes, see [[ArrayLengthLimit]],
+  * so a short value can't make the read run out of memory.
   */
 private[redis] object RestrictedDeserialization {
 
   /**
     * @throws ClassNotAllowedException if the stream names a class that `allowlist` doesn't allow
     * @throws SerializationException   if the bytes can't be deserialized, for example because a class has another
-    *                                  `serialVersionUID` (cause: `InvalidClassException`) or doesn't exist
+    *                                  `serialVersionUID` (cause: `InvalidClassException`) or doesn't exist, or the
+    *                                  stream's arrays declare more elements than it has bytes
     */
   def deserialize[T](bytes: Array[Byte], allowlist: ClassAllowlist): T =
     try {
       // the constructor already reads the stream header
       val in = new AllowlistObjectInputStream(new ByteArrayInputStream(bytes), allowlist)
-      try in.readObject().asInstanceOf[T] finally in.close()
+      val arrays = ArrayLengthLimit.install(in, bytes.length)
+      try in.readObject().asInstanceOf[T] catch {
+        case e: ClassNotAllowedException => throw e
+        case e: InvalidClassException if arrays.exceeded => throw new SerializationException(arrays.message, e)
+      } finally in.close()
     } catch {
       case e: ClassNotAllowedException => throw e
       case e@(_: IOException | _: ClassNotFoundException) => throw new SerializationException(e)
@@ -51,6 +62,112 @@ private[redis] object RestrictedDeserialization {
 
     override protected def resolveProxyClass(interfaces: Array[String]): Class[_] =
       throw new ClassNotAllowedException(interfaces.mkString(", "), proxy = true)
+  }
+
+  /**
+    * Limits the elements that a stream's arrays declare, in all, to the stream's length in bytes. ObjectInputStream
+    * allocates an array as soon as it has read its length, before any element, so without a limit a value of a few
+    * bytes could declare an array of 2^31 longs, or nest arrays that each declare as many elements as the value has
+    * bytes. Allocating them runs the JVM out of memory, and Spark ends an executor that does, or the driver, which
+    * reads the schema. Every element takes at least one byte of the stream that ObjectOutputStream writes, so the
+    * limit never fails a value that spark-redis wrote.
+    *
+    * ObjectInputStream reports an array's length before allocating it only to a serialization filter, whose interface
+    * is `java.io.ObjectInputFilter` on Java 9 and later and `sun.misc.ObjectInputFilter` on Java 8 (8u121 and later).
+    * spark-redis is built for Java 8, so it implements whichever one the JVM has through reflection, and reads without
+    * the limit on a JVM that has neither. A filter that the JVM already gives the stream, such as one set with
+    * `jdk.serialFilter`, still decides everything this one doesn't reject.
+    */
+  private object ArrayLengthLimit {
+
+    /** The elements that one stream's arrays have declared so far. */
+    final class Elements private[ArrayLengthLimit](maxElements: Long) {
+      private[ArrayLengthLimit] var elements = 0L
+
+      /** Whether the stream has declared more elements than `maxElements`. The array that went over isn't allocated. */
+      def exceeded: Boolean = elements > maxElements
+
+      def message: String =
+        s"The Java-serialized value's arrays declare $elements elements, more than its $maxElements bytes can hold, " +
+          "so Spark-Redis didn't write it. It was not read, to keep it from running Spark out of memory."
+    }
+
+    /** The parts of a serialization filter API. */
+    private final case class FilterApi(filterInterface: Class[_], checkInput: Method, arrayLength: Method,
+                                       rejected: AnyRef, undecided: AnyRef,
+                                       get: ObjectInputStream => AnyRef, set: (ObjectInputStream, AnyRef) => Unit)
+
+    private def filterApi(filterInterface: String, get: Class[_] => ObjectInputStream => AnyRef,
+                          set: Class[_] => (ObjectInputStream, AnyRef) => Unit): FilterApi = {
+      val filter = Class.forName(filterInterface)
+      val info = Class.forName(filterInterface + "$FilterInfo")
+      val status = Class.forName(filterInterface + "$Status")
+      FilterApi(filter, filter.getMethod("checkInput", info), info.getMethod("arrayLength"),
+        status.getField("REJECTED").get(null), status.getField("UNDECIDED").get(null), get(filter), set(filter))
+    }
+
+    /** Java 9 and later: methods of ObjectInputStream. */
+    private def javaIoApi: FilterApi = filterApi("java.io.ObjectInputFilter",
+      _ => {
+        val getter = classOf[ObjectInputStream].getMethod("getObjectInputFilter")
+        in => getter.invoke(in)
+      },
+      filter => {
+        val setter = classOf[ObjectInputStream].getMethod("setObjectInputFilter", filter)
+        (in, f) => setter.invoke(in, f)
+      })
+
+    /** Java 8u121 and later: static methods of ObjectInputFilter.Config. */
+    private def sunMiscApi: FilterApi = filterApi("sun.misc.ObjectInputFilter",
+      _ => {
+        val getter = Class.forName("sun.misc.ObjectInputFilter$Config")
+          .getMethod("getObjectInputFilter", classOf[ObjectInputStream])
+        in => getter.invoke(null, in)
+      },
+      filter => {
+        val setter = Class.forName("sun.misc.ObjectInputFilter$Config")
+          .getMethod("setObjectInputFilter", classOf[ObjectInputStream], filter)
+        (in, f) => setter.invoke(null, in, f)
+      })
+
+    private lazy val api: Option[FilterApi] = Try(javaIoApi).orElse(Try(sunMiscApi)).toOption
+
+    /**
+      * Limits the arrays that `in` reads to `maxElements` elements in all. If the JVM has no filter API, or doesn't
+      * take the filter, `in` reads without the limit, as before the limit existed.
+      */
+    def install(in: ObjectInputStream, maxElements: Long): Elements = {
+      val arrays = new Elements(maxElements)
+      api.foreach { api =>
+        Try {
+          val previous = Option(api.get(in))
+          val handler = new InvocationHandler {
+            override def invoke(proxy: AnyRef, method: Method, args: Array[AnyRef]): AnyRef = method.getName match {
+              case "checkInput" =>
+                // the length of the array about to be allocated, or -1 for a class or a reference
+                val length = api.arrayLength.invoke(args(0)).asInstanceOf[java.lang.Long].longValue
+                if (length > 0) arrays.elements += length
+                if (arrays.exceeded) {
+                  api.rejected
+                } else {
+                  previous.map(filter => unwrapped(api.checkInput.invoke(filter, args(0)))).getOrElse(api.undecided)
+                }
+              case "equals" => java.lang.Boolean.valueOf(proxy eq args(0))
+              case "hashCode" => Integer.valueOf(System.identityHashCode(proxy))
+              case "toString" => s"spark-redis array length limit ($maxElements elements)"
+              case _ => throw new UnsupportedOperationException(method.toString)
+            }
+          }
+          api.set(in, Proxy.newProxyInstance(getClass.getClassLoader, Array(api.filterInterface), handler))
+        }
+      }
+      arrays
+    }
+
+    private def unwrapped(result: => AnyRef): AnyRef =
+      try result catch {
+        case e: InvocationTargetException => throw e.getCause
+      }
   }
 }
 

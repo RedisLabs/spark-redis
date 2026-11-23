@@ -329,7 +329,11 @@ spark.read
 ```
 
 Allow only classes whose deserialization can't do anything but restore their fields. Dynamic proxies are never allowed.
-The check stops code from running; a value crafted to be very large can still fail the read, as corrupt data can.
+
+A value's arrays also can't declare more elements in all than the value has bytes, which no value Spark-Redis wrote
+does. Without that limit, a value of a few bytes could declare an array of billions of elements, and allocating it would
+run the executor (or, for a schema, the driver) out of memory. A serialization filter that the JVM sets with
+`jdk.serialFilter` still applies.
 
 ## Reading
 
