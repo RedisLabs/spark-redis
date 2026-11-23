@@ -11,6 +11,7 @@
   - [The job succeeds but data is missing in Redis](#the-job-succeeds-but-data-is-missing-in-redis)
   - [Redis rejected N of M pipelined commands](#redis-rejected-n-of-m-pipelined-commands)
   - [ClassNotAllowedException when reading a table](#classnotallowedexception-when-reading-a-table)
+  - [ValueRejectedException when reading a table](#valuerejectedexception-when-reading-a-table)
 
 ## JedisConnectionException: Could not get a resource from the pool
 
@@ -136,3 +137,15 @@ itself. Spark-Redis refuses to deserialize it, because deserializing an arbitrar
 * Otherwise the value wasn't written by Spark-Redis. Check who else can write to the key, and delete or rewrite the value.
 
 Spark-Redis 3.1.0 and earlier deserialized every class.
+
+## ValueRejectedException when reading a table
+
+`ValueRejectedException: The Java-serialized value in key '...' was not read: ...` means a Binary model row, or a table
+schema stored by Spark-Redis 3.1.0 or earlier, declares more than a value Spark-Redis wrote can: more array elements
+than it has bytes, or more than 200 levels of nesting. Reading it could run Spark out of memory or stack, see
+[Binary model and untrusted data](dataframe.md#binary-model-and-untrusted-data). If the message says the JVM's
+serialization filter rejected it, a `jdk.serialFilter` setting did.
+
+* If the table's schema has more than about 60 levels of nested structs, its rows can go over the depth limit, which
+  can't be raised. Flatten some of the nesting.
+* Otherwise the value wasn't written by Spark-Redis. Check who else can write to the key, and delete or rewrite the value.
