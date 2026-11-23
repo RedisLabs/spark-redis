@@ -251,16 +251,15 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     val key = schemaKey(tableName())
     logInfo(s"loading schema $key")
     val schemaNode = getMasterNode(redisConfig.hosts, key)
-    val conn = schemaNode.connect()
-    val schemaBytes = conn.get(key.getBytes)
+    val schemaBytes = withConnection(schemaNode.connect()) { conn =>
+      conn.get(key.getBytes)
+    }
     if (schemaBytes == null) {
       throw new IllegalStateException(s"Unable to read dataframe schema by key '$key'. " +
         s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() " +
         s"or use 'infer.schema' option. ")
     }
-    val schema = SerializationUtils.deserialize[StructType](schemaBytes)
-    conn.close()
-    schema
+    SerializationUtils.deserialize[StructType](schemaBytes)
   }
 
   /**

@@ -2,6 +2,7 @@ package com.redislabs.provider.redis
 
 import java.net.URI
 
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import org.apache.spark.SparkConf
 import redis.clients.jedis.util.{JedisClusterCRC16, JedisURIHelper, SafeEncoder}
 import redis.clients.jedis.{Jedis, Protocol}
@@ -224,14 +225,13 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     * @return true if the target server is in cluster mode
     */
   private def clusterEnabled(initialHost: RedisEndpoint): Boolean = {
-    val conn = initialHost.connect()
-    val info = conn.info.split("\n")
+    val info = withConnection(initialHost.connect()) { conn =>
+      conn.info.split("\n")
+    }
     val version = info.filter(_.contains("redis_version:"))(0)
     val clusterEnable = info.filter(_.contains("cluster_enabled:"))
     val mainVersion = version.substring(14, version.indexOf(".")).toInt
-    val res = mainVersion > 2 && clusterEnable.length > 0 && clusterEnable(0).contains("1")
-    conn.close()
-    res
+    mainVersion > 2 && clusterEnable.length > 0 && clusterEnable(0).contains("1")
   }
 
   /**
@@ -273,10 +273,9 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     */
   private def getNonClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val master = (initialHost.host, initialHost.port)
-    val conn = initialHost.connect()
-
-    val replinfo = conn.info("Replication").split("\n")
-    conn.close()
+    val replinfo = withConnection(initialHost.connect()) { conn =>
+      conn.info("Replication").split("\n")
+    }
 
     // If  this node is a slave, we need to extract the slaves from its master
     if (replinfo.exists(_.contains("role:slave"))) {
@@ -324,8 +323,10 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     * @return list of nodes
     */
   private def getClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
-    val conn = initialHost.connect()
-    val res = conn.clusterSlots().flatMap {
+    val slots = withConnection(initialHost.connect()) { conn =>
+      conn.clusterSlots()
+    }
+    slots.flatMap {
       slotInfoObj => {
         val slotInfo = slotInfoObj.asInstanceOf[java.util.List[java.lang.Object]]
         val sPos = slotInfo.get(0).toString.toInt
@@ -355,8 +356,6 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
         })
       }
     }.toArray
-    conn.close()
-    res
   }
 
   /**

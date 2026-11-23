@@ -67,6 +67,8 @@ private class RedisReceiver[T: ClassTag](keys: Array[String],
         case NonFatal(e) =>
           restart("Error receiving data", e)
       } finally {
+        // return the connection to the pool once the receiver is stopped or restarted
+        conn.close()
         onStop()
       }
     }
