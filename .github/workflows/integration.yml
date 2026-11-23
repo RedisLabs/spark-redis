@@ -19,7 +19,10 @@ jobs:
 
   build:
     name: Build and Test (Spark ${{ matrix.spark }}, Scala ${{ matrix.scala-binary }})
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: since November 2026 that is Ubuntu 26.04, which has no Java 8, so every job downloaded the
+    # newest Temurin 8 from GitHub releases, and the jdk8u514-b01 download fails its checksum. Ubuntu 24.04 has
+    # Temurin 8 in its tool cache, which setup-java uses without downloading anything.
+    runs-on: ubuntu-24.04
     strategy:
       # run every Spark version even if one of them fails
       fail-fast: false
@@ -62,20 +65,7 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v7
       - name: Set Java up in the runner
-        id: setup-java
-        # The JDK download from GitHub releases fails now and then (a truncated file, or a checksum mismatch), and
-        # every matrix job downloads it, so a failure is retried below instead of failing the job.
         # No Maven cache here: the Setup Maven step caches ~/.m2/repository per Spark version.
-        continue-on-error: true
-        uses: actions/setup-java@v6
-        with:
-          java-version: '8'
-          distribution: 'temurin'
-      - name: Wait before retrying the Java setup
-        if: steps.setup-java.outcome == 'failure'
-        run: sleep 30
-      - name: Set Java up in the runner (retry)
-        if: steps.setup-java.outcome == 'failure'
         uses: actions/setup-java@v6
         with:
           java-version: '8'
