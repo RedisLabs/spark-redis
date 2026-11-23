@@ -21,12 +21,15 @@ jobs:
           realversion=`echo ${realversion}|cut -d '-' -f 2-2`
           echo "VERSION=$realversion" >> "$GITHUB_OUTPUT"
 
+      # Publishes through the Central Publisher Portal (central-publishing-maven-plugin in the release profile).
+      # OSSH_USERNAME and OSSH_TOKEN must hold a Portal user token, generated at https://central.sonatype.com/usertoken
+      # by an account that can publish com.redislabs. The old OSSRH (oss.sonatype.org) credentials no longer work.
       - name: Set up publishing to maven central
         uses: actions/setup-java@v6
         with:
           java-version: '8'
           distribution: 'temurin'
-          server-id: ossrh
+          server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 

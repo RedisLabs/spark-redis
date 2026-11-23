@@ -63,17 +63,6 @@
 		<redis.containers>true</redis.containers>
 	</properties>
 
-	<distributionManagement>
-		<snapshotRepository>
-			<id>ossrh</id>
-			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
-		</snapshotRepository>
-		<repository>
-		    <id>ossrh</id>
-    		<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-  		</repository>
-	</distributionManagement>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -253,17 +242,6 @@
 					</execution>
 				</executions>
 			</plugin>
-			<plugin>
-                <groupId>org.sonatype.plugins</groupId>
-                <artifactId>nexus-staging-maven-plugin</artifactId>
-                <version>1.6.7</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <serverId>ossrh</serverId>
-                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
-                </configuration>
-            </plugin>
 		</plugins>
 	</build>
 	<dependencyManagement>
@@ -411,6 +389,23 @@
                                 </goals>
                             </execution>
                         </executions>
+                    </plugin>
+
+                    <!-- 'mvn deploy' uploads to Maven Central through the Central Publisher Portal. Sonatype shut down
+                         OSSRH (oss.sonatype.org) on 2025-06-30. The 'central' server in settings.xml holds a Portal
+                         user token. autoPublish releases the deployment once it passes validation, and waitUntil
+                         makes the build fail if it doesn't reach Maven Central. -->
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.12.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <deploymentName>${project.artifactId} ${project.version}</deploymentName>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>
