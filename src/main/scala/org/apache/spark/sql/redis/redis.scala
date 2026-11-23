@@ -33,6 +33,13 @@ package object redis {
   val SqlOptionWriteModeMerge = "merge"
   val SqlOptionWriteModeReplace = "replace"
 
+  /**
+    * Classes, besides the ones spark-redis writes itself, that a read may find in a Java-serialized value: a
+    * binary-model row, or a schema that an earlier version stored Java-serialized. A comma-separated list of class
+    * names and patterns, see [[ClassAllowlist]].
+    */
+  val SqlOptionDeserializationAllowedClasses = "deserialization.allowed.classes"
+
   val SqlOptionMaxPipelineSize = "max.pipeline.size"
   val SqlOptionScanCount = "scan.count"
 

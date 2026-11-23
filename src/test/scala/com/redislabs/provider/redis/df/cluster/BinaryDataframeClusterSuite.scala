@@ -12,11 +12,11 @@ import redis.clients.jedis.{HostAndPort, JedisCluster}
   */
 class BinaryDataframeClusterSuite extends BinaryDataframeSuite with RedisClusterEnv {
 
-  override def saveMap(tableName: String, key: String, value: Map[String, String]): Unit = {
+  override def saveBytes(tableName: String, key: String, value: Array[Byte]): Unit = {
     val host = redisConfig.initialHost
     val hostAndPort = new HostAndPort(host.host, host.port)
     val conn = new JedisCluster(hostAndPort)
-    conn.set(dataKey(tableName, key).getBytes(UTF_8), serialize(value))
+    conn.set(dataKey(tableName, key).getBytes(UTF_8), value)
     conn.close()
   }
 }

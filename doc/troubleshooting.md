@@ -10,6 +10,7 @@
   - [NotSerializableException: SparkContext or StreamingContext](#notserializableexception-sparkcontext-or-streamingcontext)
   - [The job succeeds but data is missing in Redis](#the-job-succeeds-but-data-is-missing-in-redis)
   - [Redis rejected N of M pipelined commands](#redis-rejected-n-of-m-pipelined-commands)
+  - [ClassNotAllowedException when reading a table](#classnotallowedexception-when-reading-a-table)
 
 ## JedisConnectionException: Could not get a resource from the pool
 
@@ -123,3 +124,15 @@ Pipelines are not transactions: the commands that Redis accepted before the erro
 task, it writes the partition again.
 
 Spark-Redis 3.1.0 and earlier ignored these errors, so a job could succeed while data was missing.
+
+## ClassNotAllowedException when reading a table
+
+`ClassNotAllowedException: The Java-serialized value in key '...' contains class '...', which isn't allowed` means a Binary
+model row, or a table schema stored by Spark-Redis 3.1.0 or earlier, contains a class that Spark-Redis doesn't write
+itself. Spark-Redis refuses to deserialize it, because deserializing an arbitrary class can run code, see
+[Binary model and untrusted data](dataframe.md#binary-model-and-untrusted-data).
+
+* If the class is a user-defined type's (UDT), allow it with the `deserialization.allowed.classes` option.
+* Otherwise the value wasn't written by Spark-Redis. Check who else can write to the key, and delete or rewrite the value.
+
+Spark-Redis 3.1.0 and earlier deserialized every class.

@@ -10,7 +10,7 @@ import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.{FieldParseException, Logging, RedisCapabilities, WriteCapabilities}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
-import org.apache.commons.lang3.{SerializationException, SerializationUtils}
+import org.apache.commons.lang3.SerializationException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
@@ -66,13 +66,24 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val persistenceModel = parameters.getOrElse(SqlOptionModel, SqlOptionModelHash)
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
+  /** What a Java-serialized row or schema read from Redis may contain. Parsed here, so a bad pattern fails early. */
+  private val allowedClasses = parameters.get(SqlOptionDeserializationAllowedClasses)
+    .map(value => ClassAllowlist.Default ++ ClassAllowlist.parse(value))
+    .getOrElse(ClassAllowlist.Default)
   private val writeMode = parseWriteMode(parameters)
   /** `write.mode = replace` on the hash model. A binary-model row is one value, which a write always replaces. */
   private val replaceHashes = writeMode == SqlOptionWriteModeReplace && persistenceModel != SqlOptionModelBinary
   /** The hash model's persistence for `write.mode = replace`, if that's how this relation writes. */
   private val replacingHashes: Option[HashRedisPersistence] =
     if (replaceHashes) Some(new HashRedisPersistence(replace = true)) else None
-  private val persistence = replacingHashes.getOrElse(RedisPersistence(persistenceModel))
+  private val persistence: RedisPersistence[Any] = replacingHashes.getOrElse {
+    // like RedisPersistence(model), with the classes a binary-model row may contain
+    if (persistenceModel == SqlOptionModelBinary) {
+      new BinaryRedisPersistence(allowedClasses).asInstanceOf[RedisPersistence[Any]]
+    } else {
+      RedisPersistence(persistenceModel)
+    }
+  }
 
   /**
     * redis key pattern for rows, based either on the 'keys.pattern' or 'table' parameter
@@ -302,7 +313,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() " +
         s"or use 'infer.schema' option. ")
     }
-    decodeSchema(key, schemaBytes)
+    decodeSchema(key, schemaBytes, allowedClasses)
   }
 
   /**
@@ -340,7 +351,9 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       filteredKeysAndValues.map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         FieldParseException.withKey(key) {
-          persistence.decodeRow(keyMap, value, schema, requiredColumns)
+          ClassNotAllowedException.withKey(key) {
+            persistence.decodeRow(keyMap, value, schema, requiredColumns)
+          }
         }
       }
     }
@@ -358,7 +371,9 @@ object RedisSourceRelation {
     * Earlier versions stored a Java-serialized `StructType`. Those bytes can only be read with the Spark minor version
     * and the Scala version that wrote them: `StructType` doesn't declare a `serialVersionUID`, and the one the JVM
     * computes differs between Spark 3.2, 3.3, 3.4 and 3.5, and a schema's metadata holds Scala collection classes.
-    * [[decodeSchema]] still reads them on those versions, and `SchemaMigration` rewrites them as JSON on any.
+    * [[decodeSchema]] still reads them on those versions, allowing only the classes a schema is made of (see
+    * [[RestrictedDeserialization]]): anyone who can write the schema key could otherwise run code on the driver.
+    * `SchemaMigration` rewrites them as JSON on any version.
     */
   private[redis] def encodeSchema(schema: StructType): Array[Byte] = schema.json.getBytes(UTF_8)
 
@@ -366,15 +381,20 @@ object RedisSourceRelation {
     * Reads a schema stored by [[encodeSchema]], or a Java-serialized one written by an earlier version of the
     * library.
     *
-    * @param key   the schema key, for error messages
-    * @param bytes the key's value
-    * @throws IllegalStateException if the value is a Java-serialized schema from another Spark version, or isn't a
-    *                               schema at all
+    * @param key            the schema key, for error messages
+    * @param bytes          the key's value
+    * @param allowedClasses the classes a Java-serialized schema may contain
+    * @throws IllegalStateException     if the value is a Java-serialized schema from another Spark version, or isn't
+    *                                   a schema at all
+    * @throws ClassNotAllowedException if the value is Java-serialized and contains a class that isn't allowed
     */
-  private[redis] def decodeSchema(key: String, bytes: Array[Byte]): StructType =
+  private[redis] def decodeSchema(key: String, bytes: Array[Byte],
+                                  allowedClasses: ClassAllowlist = ClassAllowlist.Default): StructType =
     if (isJavaSerialized(bytes)) {
-      try {
-        SerializationUtils.deserialize[StructType](bytes)
+      val decoded = try {
+        ClassNotAllowedException.withKey(key) {
+          RestrictedDeserialization.deserialize[AnyRef](bytes, allowedClasses)
+        }
       } catch {
         // another Spark version (StructType's serialVersionUID) or another Scala version (its collection classes)
         case e: SerializationException
@@ -384,6 +404,12 @@ object RedisSourceRelation {
             "(com.redislabs.provider.redis.SchemaMigration, see doc/dataframe.md) to store it in a format every " +
             "version reads, read the table with an explicit .schema(), or read it with the Spark and Scala versions " +
             "that wrote it.", e)
+      }
+      decoded match {
+        case struct: StructType => struct
+        case other =>
+          throw new IllegalStateException(s"The value of '$key' is a Java-serialized ${other.getClass.getName}, " +
+            "not a table schema")
       }
     } else {
       val parsed = try DataType.fromJson(new String(bytes, UTF_8)) catch {

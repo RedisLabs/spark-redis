@@ -80,7 +80,8 @@ schema JSON (`StructType.json`), so any Spark and Scala version can read the tab
 Earlier versions of Spark-Redis stored a Java-serialized `StructType` instead. Those schemas can only be read with the
 Spark minor version and the Scala version that wrote them: reading one with another version fails with an error that
 names the schema key. To read such a table, pass the schema with `.schema(...)`, read it with the versions that wrote
-it, save the table again, or migrate its schema.
+it, save the table again, or migrate its schema. On the versions that wrote it, a Java-serialized schema is read
+allowing only the classes a schema is made of, the same way as [Binary model rows](#binary-model-and-untrusted-data).
 
 #### Migrating old schemas to JSON
 
@@ -298,6 +299,37 @@ df.write
 ```
 
 Note: You should read the DataFrame with the same model as it was written.
+
+### Binary model and untrusted data
+
+Reading a Binary model table deserializes values that were read from Redis. Anyone who can write to the table's keys
+could store any Java-serialized object there, and deserializing some classes runs code. So Spark-Redis only deserializes
+the classes it writes itself: Spark's values for every column type (numbers, strings, decimals, binary, dates, timestamps,
+intervals, arrays, maps and structs) and the Scala and Spark classes they are serialized with. A value that contains any
+other class fails the read with a `ClassNotAllowedException` that names the Redis key and the class, before any of that
+class's code runs.
+
+A column with a user-defined type (UDT) holds instances of the UDT's own class. Allow it with the
+`deserialization.allowed.classes` option, a comma-separated list of:
+
+| Pattern  | Allows                                                   |
+|----------|----------------------------------------------------------|
+| `a.b.C`  | the class `a.b.C` (a nested class is `a.b.Outer$Inner`)  |
+| `a.b.*`  | every class in package `a.b`                             |
+| `a.b.**` | every class in package `a.b` and its subpackages         |
+| `a.b.C*` | every class whose name starts with `a.b.C`               |
+
+```scala
+spark.read
+  .format("org.apache.spark.sql.redis")
+  .option("table", "places")
+  .option("model", "binary")
+  .option("deserialization.allowed.classes", "com.example.geo.*")
+  .load()
+```
+
+Allow only classes whose deserialization can't do anything but restore their fields. Dynamic proxies are never allowed.
+The check stops code from running; a value crafted to be very large can still fail the read, as corrupt data can.
 
 ## Reading
 
@@ -531,6 +563,7 @@ sc.toRedisKV(kvRdd)
 | ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`                                                                               | `Int`                 | `0`     |
 | write.mode             | what a hash-model write does to a hash already stored under the row's key: `merge` keeps fields the new row doesn't have, `replace` removes them, see [Write mode](#write-mode) | `enum [merge, replace]` | `merge` |
 | infer.schema           | infer schema from random row, all columns will have `String` type                                                                                           | `Boolean`             | `false` |
+| deserialization.allowed.classes | classes, besides Spark's own, that a Binary model row or an earlier version's Java-serialized schema may contain, for example a UDT's class, see [Binary model and untrusted data](#binary-model-and-untrusted-data) | `String`              | -       |
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                                                                                            | `Int`                 | 100     |
 | scan.count             | count option of SCAN command (used to iterate over keys)                                                                                                    | `Int`                 | 100     |
 | iterator.grouping.size | the number of rows processed together when reading or writing a partition                                                                                  | `Int`                 | 1000    |

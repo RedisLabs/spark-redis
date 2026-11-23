@@ -15,9 +15,13 @@ import redis.clients.jedis.util.{JedisClusterCRC16, SafeEncoder}
 import redis.clients.jedis.Pipeline
 
 /**
+  * Stores each row as one string value: the Java serialization of the row's values.
+  *
+  * @param allowedClasses the classes a row read back may contain, see [[RestrictedDeserialization]]
   * @author The Viet Nguyen
   */
-class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
+class BinaryRedisPersistence(allowedClasses: ClassAllowlist = ClassAllowlist.Default)
+  extends RedisPersistence[Array[Byte]] {
 
   import BinaryRedisPersistence._
 
@@ -72,7 +76,7 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
 
   override def decodeRow(keyMap: (String, String), value: Array[Byte], schema: StructType,
                          requiredColumns: Seq[String]): Row = {
-    val valuesArray: Array[Any] = SerializationUtils.deserialize(value)
+    val valuesArray: Array[Any] = RestrictedDeserialization.deserialize(value, allowedClasses)
     new GenericRowWithSchema(valuesArray, schema)
   }
 }

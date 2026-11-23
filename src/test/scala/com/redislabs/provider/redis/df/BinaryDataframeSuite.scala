@@ -6,7 +6,7 @@ import com.redislabs.provider.redis.util.Person._
 import com.redislabs.provider.redis.util.TestUtils._
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.SparkException
-import org.apache.spark.sql.redis.RedisSourceRelation.tableDataKeyPattern
+import org.apache.spark.sql.redis.RedisSourceRelation.{dataKey, tableDataKeyPattern}
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
 import org.scalatest.Matchers
@@ -118,10 +118,34 @@ trait BinaryDataframeSuite extends RedisDataframeSuite with Matchers {
     df.count() should be (0)
   }
 
+  test("a value someone else stored with a class the binary model doesn't write fails the read, naming the key") {
+    val tableName = generateTableName(TableNamePrefix)
+    spark.createDataFrame(data).write.format(RedisFormat)
+      .option(SqlOptionModel, SqlOptionModelBinary)
+      .option(SqlOptionTableName, tableName)
+      .save()
+    val key = RedisSourceRelation.uuid()
+    saveBytes(tableName, key, SerializationUtils.serialize(Array[Any]("Eve", new java.util.HashMap[String, String]())))
+    val e = interceptSparkErr[SparkException] {
+      spark.read.format(RedisFormat)
+        .option(SqlOptionModel, SqlOptionModelBinary)
+        .option(SqlOptionTableName, tableName)
+        .load()
+        .collect()
+    }
+    e.getMessage should include(classOf[ClassNotAllowedException].getName)
+    e.getMessage should include(s"'${dataKey(tableName, key)}'")
+    e.getMessage should include("java.util.HashMap")
+  }
+
   def serialize(value: Map[String, String]): Array[Byte] = {
     val valuesArray = value.values.toArray
     SerializationUtils.serialize(valuesArray)
   }
 
-  def saveMap(tableName: String, key: String, value: Map[String, String]): Unit
+  def saveMap(tableName: String, key: String, value: Map[String, String]): Unit =
+    saveBytes(tableName, key, serialize(value))
+
+  /** Stores `value` under the table's data key `key`, as a binary-model row is stored. */
+  def saveBytes(tableName: String, key: String, value: Array[Byte]): Unit
 }

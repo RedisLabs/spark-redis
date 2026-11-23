@@ -1,0 +1,203 @@
+package org.apache.spark.sql.redis
+
+import java.io.{ObjectInputStream, Serializable => JSerializable}
+import java.lang.reflect.{InvocationHandler, Method, Proxy}
+import java.util.concurrent.atomic.AtomicBoolean
+
+import org.apache.commons.lang3.SerializationUtils
+import org.apache.spark.SPARK_VERSION
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.types.{IntegerType, ObjectType, StringType, StructField, StructType}
+import org.apache.spark.sql.{Row, SparkSession}
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+
+import scala.collection.immutable.Queue
+
+/**
+  * A binary-model row, and a schema stored by an earlier version, are read with Java deserialization that only
+  * allows the classes spark-redis writes itself, so a value someone else stored in Redis can't run code in Spark.
+  */
+class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAndAfterAll {
+
+  import RestrictedDeserializationTest._
+
+  private var spark: SparkSession = _
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    spark = SparkSession.builder().master("local[1]").appName(getClass.getSimpleName)
+      .config("spark.ui.enabled", "false").getOrCreate()
+  }
+
+  override def afterAll(): Unit = {
+    try spark.stop() finally super.afterAll()
+  }
+
+  private val persistence = new BinaryRedisPersistence()
+
+  /** The rows Spark hands the binary model for `sql`, written and read back as the binary model does. */
+  private def roundTrip(sql: String): Unit =
+    spark.sql(sql).collect().foreach { row =>
+      val bytes = persistence.encodeRow("_id", row)
+      persistence.decodeRow("_id" -> "key", bytes, row.schema, row.schema.fieldNames) shouldBe row
+    }
+
+  test("atomic columns, nulls included, read back") {
+    roundTrip("SELECT true b, CAST(1 AS TINYINT) t, CAST(2 AS SMALLINT) s, 3 i, 4L l, CAST(5.5 AS FLOAT) f, " +
+      "6.5D d, CAST(7.25 AS DECIMAL(10,2)) dec, CAST(1 AS DECIMAL(38,18)) bigdec, 'x' str, " +
+      "CAST('ab' AS BINARY) bin, DATE'2024-01-02' dt, TIMESTAMP'2024-01-02 03:04:05.123' ts, CAST(NULL AS STRING) n")
+  }
+
+  test("interval columns read back") {
+    roundTrip("SELECT INTERVAL '1 02:03:04' DAY TO SECOND dts, INTERVAL '1-2' YEAR TO MONTH ym, " +
+      "make_interval(1, 2, 3, 4, 5, 6, 7.5) ci")
+  }
+
+  test("TIMESTAMP_NTZ columns read back") {
+    assume(sparkAtLeast(3, 4), "TIMESTAMP_NTZ is a Spark 3.4 type")
+    roundTrip("SELECT CAST(TIMESTAMP'2024-01-02 03:04:05' AS TIMESTAMP_NTZ) ntz")
+  }
+
+  test("dates and timestamps read back as java.time values too") {
+    spark.conf.set("spark.sql.datetime.java8API.enabled", "true")
+    try {
+      roundTrip("SELECT DATE'2024-01-02' dt, TIMESTAMP'2024-01-02 03:04:05.123' ts, array(DATE'2024-01-02') ad")
+    } finally {
+      spark.conf.set("spark.sql.datetime.java8API.enabled", "false")
+    }
+  }
+
+  test("array, map and struct columns read back, nested and empty ones included") {
+    roundTrip("SELECT array(1, 2) ai, array('a', 'b') astr, array() empty, array(array(1L), array(2L)) nested, " +
+      "array(named_struct('a', 1)) structs, array(1.5D) ad, array(true) ab")
+    // up to four entries Scala has a class per map size, above that a hash map
+    roundTrip("SELECT map('a', 1) m1, map('a', 1, 'b', 2) m2, map('a', 1, 'b', 2, 'c', 3) m3, " +
+      "map('a', 1, 'b', 2, 'c', 3, 'd', 4) m4, map('a', 1, 'b', 2, 'c', 3, 'd', 4, 'e', 5, 'f', 6) m6, " +
+      "map() mempty, map(1, array('x')) marr, map('k', named_struct('a', 1)) mstruct")
+    roundTrip("SELECT named_struct('a', 1, 'b', named_struct('c', 'x', 'd', array(1), 'e', map('k', 2L))) s")
+  }
+
+  test("a class that isn't allowed fails before any of its code runs") {
+    Tripwire.tripped.set(false)
+    val bytes = SerializationUtils.serialize(Array[Any]("John", new Tripwire))
+    val e = the[ClassNotAllowedException] thrownBy decode(bytes)
+    e.getMessage should include(classOf[Tripwire].getName)
+    e.getMessage should include(SqlOptionDeserializationAllowedClasses)
+    Tripwire.tripped.get shouldBe false
+  }
+
+  test("classes that gadget chains are built from aren't allowed, even nested in an allowed value") {
+    def nested(value: AnyRef): Array[Byte] = SerializationUtils.serialize(Array[Any]("John", Array[AnyRef](value)))
+    Seq(new java.util.HashMap[String, String](), new java.util.PriorityQueue[String](),
+      new java.net.URL("http://example.com/")).foreach { value =>
+      val e = the[ClassNotAllowedException] thrownBy decode(nested(value))
+      e.getMessage should include(value.getClass.getName)
+    }
+    // a Scala collection the binary model doesn't write: on Scala 2.13, its serialization proxy's factory (the Queue
+    // companion object) is rejected
+    val e = the[ClassNotAllowedException] thrownBy decode(nested(Queue(1, 2)))
+    e.getMessage should include("scala.collection.immutable.Queue")
+  }
+
+  test("the default allowlist has none of the classes known gadget chains use") {
+    Seq(
+      "scala.collection.immutable.LazyList", // CVE-2022-36944
+      "scala.collection.immutable.LazyList$SerializationProxy",
+      "scala.collection.immutable.Stream$Cons",
+      "java.lang.invoke.SerializedLambda",
+      "java.util.HashMap", "java.util.HashSet", "java.util.PriorityQueue", "java.net.URL",
+      "javax.management.BadAttributeValueExpException",
+      // sorted collections compare their elements while they're deserialized, and this ordering calls any Comparator
+      "java.util.TreeMap", "java.util.TreeSet", "scala.collection.immutable.TreeMap",
+      "scala.collection.immutable.TreeSet", "scala.math.LowPriorityOrderingImplicits$$anon$3",
+      "org.apache.commons.collections.functors.InvokerTransformer",
+      "org.apache.commons.collections4.functors.InvokerTransformer",
+      "org.apache.spark.sql.catalyst.expressions.Expression"
+    ).foreach { name =>
+      withClue(name) {
+        ClassAllowlist.Default.allows(name) shouldBe false
+      }
+    }
+  }
+
+  test("a dynamic proxy is never allowed") {
+    val proxy = Proxy.newProxyInstance(getClass.getClassLoader, Array[Class[_]](classOf[Comparable[_]]),
+      new SerializableHandler)
+    val e = the[ClassNotAllowedException] thrownBy decode(SerializationUtils.serialize(Array[Any](proxy)))
+    e.getMessage should include("dynamic proxy")
+    e.getMessage should include(classOf[Comparable[_]].getName)
+  }
+
+  test("the option allows more classes, for example a user-defined type's") {
+    val schema = StructType(Seq(StructField("name", StringType), StructField("udt", ObjectType(classOf[Tripwire]))))
+    val row = new GenericRowWithSchema(Array[Any]("John", new Tripwire), schema)
+    val allowing = new BinaryRedisPersistence(ClassAllowlist.Default ++ ClassAllowlist.parse(classOf[Tripwire].getName))
+    val decoded = allowing.decodeRow("_id" -> "key", allowing.encodeRow("_id", row), schema, schema.fieldNames)
+    decoded.get(1) shouldBe a[Tripwire]
+  }
+
+  test("a stream that isn't Java serialization still fails as before") {
+    an[org.apache.commons.lang3.SerializationException] should be thrownBy decode("not serialized".getBytes)
+  }
+
+  test("the error names the Redis key") {
+    val bytes = SerializationUtils.serialize(Array[Any](new java.util.HashMap[String, String]()))
+    val e = the[ClassNotAllowedException] thrownBy ClassNotAllowedException.withKey("person:1")(decode(bytes))
+    e.key shouldBe Some("person:1")
+    e.getMessage should include("'person:1'")
+  }
+
+  test("patterns allow a class, a package, a package and its subpackages, or a name prefix") {
+    val allowlist = ClassAllowlist.parse("a.b.C, p.*, t.**,x.y.Z*")
+    allowlist.allows("a.b.C") shouldBe true
+    allowlist.allows("a.b.Cx") shouldBe false
+    allowlist.allows("a.b.C$Inner") shouldBe false
+    allowlist.allows("p.Q") shouldBe true
+    allowlist.allows("p.Q$Inner") shouldBe true
+    allowlist.allows("p.sub.Q") shouldBe false
+    allowlist.allows("t.Q") shouldBe true
+    allowlist.allows("t.sub.deeper.Q") shouldBe true
+    allowlist.allows("tx.Q") shouldBe false
+    allowlist.allows("x.y.Zebra") shouldBe true
+    allowlist.allows("x.y.A") shouldBe false
+  }
+
+  test("a pattern that isn't a class name, package or prefix is rejected, naming the option") {
+    Seq("*", ".*", "a..b", "a.b.", "a.*.C", "a b", "!a.b.C", "a.b.C;d.E").foreach { pattern =>
+      withClue(pattern) {
+        val e = the[IllegalArgumentException] thrownBy ClassAllowlist.parse(pattern)
+        e.getMessage should include(SqlOptionDeserializationAllowedClasses)
+      }
+    }
+    ClassAllowlist.parse(" , ").patterns shouldBe empty
+  }
+
+  private def decode(bytes: Array[Byte]): Row = {
+    val schema = StructType(Seq(StructField("value", IntegerType)))
+    persistence.decodeRow("_id" -> "key", bytes, schema, schema.fieldNames)
+  }
+
+  private def sparkAtLeast(major: Int, minor: Int): Boolean = {
+    val Array(ma, mi) = SPARK_VERSION.split("[.-]").take(2).map(_.toInt)
+    ma > major || (ma == major && mi >= minor)
+  }
+}
+
+object RestrictedDeserializationTest {
+
+  /** Records that its deserialization code ran. */
+  class Tripwire extends JSerializable {
+    private def readObject(in: ObjectInputStream): Unit = {
+      in.defaultReadObject()
+      Tripwire.tripped.set(true)
+    }
+  }
+
+  object Tripwire {
+    val tripped = new AtomicBoolean(false)
+  }
+
+  class SerializableHandler extends InvocationHandler with JSerializable {
+    override def invoke(proxy: Any, method: Method, args: Array[AnyRef]): AnyRef = null
+  }
+}
