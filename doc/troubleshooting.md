@@ -82,8 +82,9 @@ Don't pass options without a value.
 ## NoSuchMethodError: scala.Predef$...
 
 Errors such as `java.lang.NoSuchMethodError: scala.Predef$.refArrayOps(...)` mean that the Spark-Redis artifact was built
-for a different Scala version than your Spark distribution. Spark 3.x is built with Scala 2.12, so use the `spark-redis_2.12`
-artifact. See [Getting the library](getting-started.md#getting-the-library).
+for a different Scala version than your Spark distribution. Use `spark-redis_2.12` with the default Spark 3.x download
+(Scala 2.12) and `spark-redis_2.13` with the Scala 2.13 download. `spark-shell` prints the Scala version at startup. See
+[Getting the library](getting-started.md#getting-the-library).
 
 ## NotSerializableException: SparkContext or StreamingContext
 
