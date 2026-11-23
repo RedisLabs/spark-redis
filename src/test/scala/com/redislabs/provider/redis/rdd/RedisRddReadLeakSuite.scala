@@ -30,7 +30,8 @@ trait RedisRddReadLeakSuite extends SparkRedisSuite with Keys with Matchers {
   private val noReadUser = "spark-redis-no-read"
   private val noInfoUser = "spark-redis-no-info"
   private val testUserPassword = "leak-test-pw"
-  private val readCommands = Seq("get", "hgetall", "smembers", "lrange", "zrange", "zrangebyscore", "scan")
+  /** The commands the RDD reads run: sets are read with SSCAN, and score ranges with ZRANGE ... BYSCORE. */
+  private val readCommands = Seq("get", "hgetall", "sscan", "lrange", "zrange", "scan")
   private val repetitions = 3
 
   implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(10000, Millis)))
