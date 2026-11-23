@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Switches the build between Scala 2.12 and 2.13, like Spark's dev/change-scala-version.sh:
+# Switches the build between Scala 2.13 (the default) and 2.12, like Spark's dev/change-scala-version.sh:
 # it sets the artifact name (spark-redis_<scala version>) and the Scala version properties in pom.xml.
 #
-#   dev/change-scala-version.sh 2.13
+#   dev/change-scala-version.sh 2.12
 #
 # The Scala patch versions themselves are the scala.2.12.version / scala.2.13.version properties in pom.xml.
 

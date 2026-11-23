@@ -39,20 +39,20 @@ mvn clean package -DskipTests
 
 ### Scala and Spark versions
 
-The build defaults to Scala 2.12 and the latest Spark 3.x (see `pom.xml`). To build and test for Scala 2.13, switch the
-build with the script below. It changes the artifact name (`spark-redis_2.13`) and the Scala version in `pom.xml`, and
-`dev/change-scala-version.sh 2.12` switches it back:
+The build defaults to Scala 2.13 and the latest Spark 3.x (see `pom.xml`). To build and test for Scala 2.12, switch the
+build with the script below. It changes the artifact name (`spark-redis_2.12`) and the Scala version in `pom.xml`, and
+`dev/change-scala-version.sh 2.13` switches it back:
 
 ```
-dev/change-scala-version.sh 2.13
+dev/change-scala-version.sh 2.12
 make test
 ```
 
 To test against another Spark version, pass it to Maven together with the Scala version that Spark release is built with
-(listed in the [CI workflow](../.github/workflows/integration.yml)):
+(listed in the [CI workflow](../.github/workflows/integration.yml)), for the Scala version the build is switched to:
 
 ```
-make test MVN_ARGS="-Dspark.version=3.3.3 -Dscala.complete.version=2.12.15"
+make test MVN_ARGS="-Dspark.version=3.3.3 -Dscala.complete.version=2.13.8"
 ```
 
 Code that is shared by both Scala versions must compile with both: use `scala.collection.JavaConverters._` with explicit

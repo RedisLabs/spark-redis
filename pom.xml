@@ -2,7 +2,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.redislabs</groupId>
-	<artifactId>spark-redis_2.12</artifactId>
+	<artifactId>spark-redis_2.13</artifactId>
 	<version>3.1.0-SNAPSHOT</version>
 	<name>Spark-Redis</name>
 	<description>A Spark library for Redis</description>
@@ -43,13 +43,13 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
-		<!-- Like Spark 3.x, the library is built for Scala 2.12 (the default) and 2.13. Keep these in line with the
+		<!-- Like Spark 3.x, the library is built for Scala 2.13 (the default) and 2.12. Keep these in line with the
 		     Scala versions that spark.version below is built with (2.12.18 and 2.13.8 for Spark 3.5.x).
 		     dev/change-scala-version.sh switches the build and the artifact name (spark-redis_<scala>) between them. -->
 		<scala.2.12.version>2.12.18</scala.2.12.version>
 		<scala.2.13.version>2.13.8</scala.2.13.version>
-		<scala.major.version>2.12</scala.major.version>
-		<scala.complete.version>${scala.2.12.version}</scala.complete.version>
+		<scala.major.version>2.13</scala.major.version>
+		<scala.complete.version>${scala.2.13.version}</scala.complete.version>
 		<jedis.version>3.9.0</jedis.version>
 		<!-- the latest Spark 3.x; CI also tests older Spark versions, see .github/workflows/integration.yml -->
 		<spark.version>3.5.10</spark.version>
