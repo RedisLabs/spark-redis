@@ -5,12 +5,11 @@ import com.redislabs.provider.redis.util.CollectionUtils.RichCollection
 import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
 import com.redislabs.provider.redis.util.StreamUtils.{createConsumerGroupIfNotExist, resetConsumerGroup}
 import com.redislabs.provider.redis.util.{Logging, ParseUtils}
-import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.redis.stream.RedisSource._
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.{StreamEntryID, Jedis}
 
 import scala.collection.JavaConverters._
@@ -96,14 +95,15 @@ class RedisSource(sqlContext: SQLContext, metadataPath: String,
 
     // read data
     val internalRdd = new RedisSourceRdd(sc, redisConfig, offsetRanges)
-      .map { case (id, fields) =>
-        val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
-        val values = ParseUtils.parseFields(fieldMap, localSchema)
-          .map {
-            case str: String => UTF8String.fromString(str)
-            case other: Any => other
-          }
-        InternalRow(values: _*)
+      .mapPartitions { entries =>
+        // ParseUtils returns external values (String, java.sql.Date, java.sql.Timestamp, ...), but an
+        // InternalRow must hold Catalyst's internal representation (UTF8String, Int days, Long micros)
+        val toCatalyst = CatalystTypeConverters.createToCatalystConverter(localSchema)
+        entries.map { case (id, fields) =>
+          val fieldMap = fields.asScala.toMap + ("_id" -> id.toString)
+          val values = ParseUtils.parseFields(fieldMap, localSchema)
+          toCatalyst(Row.fromSeq(values)).asInstanceOf[InternalRow]
+        }
       }
     sqlContext.internalCreateDataFrame(internalRdd, schema, isStreaming = true)
   }

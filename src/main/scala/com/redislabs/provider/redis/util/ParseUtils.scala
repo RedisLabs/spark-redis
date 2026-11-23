@@ -1,6 +1,8 @@
 package com.redislabs.provider.redis.util
 
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Long => JLong, Short => JShort}
+import java.sql.Timestamp
+import java.time.{LocalDateTime, OffsetDateTime}
 
 import org.apache.spark.sql.types._
 import redis.clients.jedis.exceptions.JedisDataException
@@ -38,8 +40,27 @@ object ParseUtils {
       case BooleanType => JBoolean.parseBoolean(fieldValueStr)
       case ShortType => JShort.parseShort(fieldValueStr)
       case DateType => java.sql.Date.valueOf(fieldValueStr)
-      case TimestampType => java.sql.Timestamp.valueOf(fieldValueStr)
+      case TimestampType => parseTimestamp(fieldValueStr)
       case _ => fieldValueStr
+    }
+
+  /**
+    * Parses `yyyy-[m]m-[d]d hh:mm:ss[.f...]` (the format spark-redis writes timestamps in), falling back to
+    * ISO-8601 date-times, either local (`2022-10-14T13:33:15.012345`) or with an offset
+    * (`2022-10-14T13:33:15.012345Z`, `2022-10-14T13:33:15+02:00`). Like `Timestamp.valueOf`, values
+    * without an offset are interpreted in the JVM default time zone.
+    */
+  private def parseTimestamp(str: String): Timestamp =
+    try {
+      Timestamp.valueOf(str)
+    } catch {
+      case e: IllegalArgumentException =>
+        Try(Timestamp.valueOf(LocalDateTime.parse(str)))
+          .orElse(Try(Timestamp.from(OffsetDateTime.parse(str).toInstant)))
+          .getOrElse {
+            throw new IllegalArgumentException(s"Cannot parse '$str' as a timestamp, expected " +
+              "yyyy-mm-dd hh:mm:ss[.fffffffff] or an ISO-8601 date-time such as 2022-10-14T13:33:15.012345", e)
+          }
     }
 
   private[redis] def ignoreJedisWrongTypeException[T](tried: Try[T]): Try[Option[T]] = {

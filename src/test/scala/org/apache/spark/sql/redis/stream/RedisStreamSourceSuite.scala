@@ -1,6 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import java.io.File
+import java.sql.{Date, Timestamp}
 import java.util.UUID
 
 import com.redislabs.provider.redis.RedisConfig
@@ -10,6 +11,7 @@ import com.redislabs.provider.redis.util.{Logging, Person}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.streaming.StreamingQuery
+import org.apache.spark.sql.types._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.StreamEntryID
@@ -221,12 +223,44 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     }
   }
 
+  test("read stream source with date and timestamp fields") {
+    val streamKey = Person.generatePersonStreamKey()
+    val schema = StructType(Array(
+      StructField("time", TimestampType),
+      StructField("isoTime", TimestampType),
+      StructField("date", DateType),
+      StructField("event", StringType),
+      StructField("_id", StringType)
+    ))
+    withConnection(streamKey) { conn =>
+      readStream(streamKey, schema = schema) { spark =>
+        val entry = Map(
+          "time" -> "2022-10-14 13:33:15.012345",
+          "isoTime" -> "2022-10-14T13:33:15.012345",
+          "date" -> "2022-10-14",
+          "event" -> "click")
+        conn.xadd(streamKey, new StreamEntryID(0, 1), entry.asJava)
+        eventually(timeout(5 seconds)) {
+          val result = spark.sql("select * from persons").collect()
+          result.length shouldBe 1
+          val row = result.head
+          row.getAs[Timestamp]("time") shouldBe Timestamp.valueOf("2022-10-14 13:33:15.012345")
+          row.getAs[Timestamp]("isoTime") shouldBe Timestamp.valueOf("2022-10-14 13:33:15.012345")
+          row.getAs[Date]("date") shouldBe Date.valueOf("2022-10-14")
+          row.getAs[String]("event") shouldBe "click"
+          row.getAs[String]("_id") shouldBe "0-1"
+        }
+      }
+    }
+  }
+
   def readStream(streamKey: String,
                  extraReadOptions: Map[String, String] = Map(),
                  extraWriteOptions: Map[String, String] = Map(),
-                 writeFormat: String = "memory")(body: SparkSession => Unit): Unit = {
+                 writeFormat: String = "memory",
+                 schema: StructType = Person.fullSchema)(body: SparkSession => Unit): Unit = {
 
-    val (spark, query) = readStream2(streamKey, extraReadOptions, extraWriteOptions, writeFormat)
+    val (spark, query) = readStream2(streamKey, extraReadOptions, extraWriteOptions, writeFormat, schema)
     // give some time for spark query to start
     Thread.sleep(2000)
     try {
@@ -240,7 +274,8 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   def readStream2(streamKey: String,
                   extraReadOptions: Map[String, String],
                   extraWriteOptions: Map[String, String],
-                  writeFormat: String): (SparkSession, StreamingQuery) = {
+                  writeFormat: String,
+                  schema: StructType = Person.fullSchema): (SparkSession, StreamingQuery) = {
     val spark = SparkSession
       .builder
       .config(conf)
@@ -248,7 +283,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
 
     val readerBase = spark.readStream
       .format("redis")
-      .schema(Person.fullSchema)
+      .schema(schema)
       .option(StreamOptionStreamKeys, streamKey)
 
     // apply extra reader options

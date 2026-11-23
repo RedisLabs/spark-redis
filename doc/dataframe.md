@@ -155,7 +155,9 @@ from the DataFrame. Provide the schema explicitly in that case, see [Reading Red
 
 With the Hash model, every value is stored as a string. When reading, the values are converted back according to the
 schema. The following types are supported: `String`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Boolean`,
-`Date` (stored as `yyyy-mm-dd`) and `Timestamp` (stored as `yyyy-mm-dd hh:mm:ss[.fffffffff]`).
+`Date` (stored as `yyyy-mm-dd`) and `Timestamp` (stored as `yyyy-mm-dd hh:mm:ss[.fffffffff]`). When reading Redis Hashes
+that were written by other clients, `Timestamp` fields also accept ISO-8601 date-times such as `2022-10-14T13:33:15.012345`
+or `2022-10-14T13:33:15Z`. Values without an offset are interpreted in the JVM default time zone.
 
 Other types, such as arrays, maps, nested structs or binary columns, are written with their `toString()` value (for example
 `WrappedArray(a, b)` or `[B@6d06d69c`) and can't be read back. Convert them first, for example with `to_json()` or
