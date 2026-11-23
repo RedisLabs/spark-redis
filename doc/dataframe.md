@@ -79,8 +79,38 @@ schema JSON (`StructType.json`), so any Spark and Scala version can read the tab
 
 Earlier versions of Spark-Redis stored a Java-serialized `StructType` instead. Those schemas can only be read with the
 Spark minor version and the Scala version that wrote them: reading one with another version fails with an error that
-names the schema key. To read such a table, pass the schema with `.schema(...)`, or read it with the versions that wrote
-it. Saving the table again stores its schema as JSON.
+names the schema key. To read such a table, pass the schema with `.schema(...)`, read it with the versions that wrote
+it, save the table again, or migrate its schema.
+
+#### Migrating old schemas to JSON
+
+`SchemaMigration` rewrites Java-serialized schema keys as JSON. It reads them without Java deserialization, so it works
+whichever Spark and Scala versions wrote them, and whichever it runs on: for example, before or after upgrading from
+Spark 3.1 to 3.5. It changes only the `_spark:<table>:schema` keys, never the rows, and keeps a key's TTL. A key that
+another client changes while it runs is left alone and reported, and so is a schema it can't read, for example one with
+a data type that the Spark version it runs on doesn't have.
+
+From the command line, with the same `spark.redis.*` settings as your jobs, and the Spark-Redis JAR that includes its
+dependencies (see [Getting Started](getting-started.md)) for the Scala version of your Spark:
+
+```bash
+spark-submit --class com.redislabs.provider.redis.SchemaMigration \
+  --conf spark.redis.host=redis.example.com --conf spark.redis.port=6379 --conf spark.redis.password=passwd \
+  <path-to>/spark-redis_2.12-<version>-jar-with-dependencies.jar --dry-run
+```
+
+`--dry-run` reports what it would migrate and changes nothing; run again without it to migrate. `--tables <pattern>`
+limits it to the tables whose names match a glob. It prints one line per schema key, and exits with 1 if a key failed or
+changed meanwhile.
+
+From a Spark job or notebook:
+
+```scala
+import com.redislabs.provider.redis.{RedisConfig, SchemaMigration}
+
+val results = SchemaMigration.migrate(RedisConfig.fromSparkConf(sc.getConf), tables = "person*", dryRun = true)
+results.foreach(println)
+```
 
 ### Specifying Redis key
 

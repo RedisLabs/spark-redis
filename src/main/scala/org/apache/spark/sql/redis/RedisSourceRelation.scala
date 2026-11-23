@@ -357,7 +357,7 @@ object RedisSourceRelation {
     * Earlier versions stored a Java-serialized `StructType`. Those bytes can only be read with the Spark minor version
     * and the Scala version that wrote them: `StructType` doesn't declare a `serialVersionUID`, and the one the JVM
     * computes differs between Spark 3.2, 3.3, 3.4 and 3.5, and a schema's metadata holds Scala collection classes.
-    * [[decodeSchema]] still reads them.
+    * [[decodeSchema]] still reads them on those versions, and `SchemaMigration` rewrites them as JSON on any.
     */
   private[redis] def encodeSchema(schema: StructType): Array[Byte] = schema.json.getBytes(UTF_8)
 
@@ -375,11 +375,14 @@ object RedisSourceRelation {
       try {
         SerializationUtils.deserialize[StructType](bytes)
       } catch {
-        case e: SerializationException if e.getCause.isInstanceOf[InvalidClassException] =>
+        // another Spark version (StructType's serialVersionUID) or another Scala version (its collection classes)
+        case e: SerializationException
+            if e.getCause.isInstanceOf[InvalidClassException] || e.getCause.isInstanceOf[ClassNotFoundException] =>
           throw new IllegalStateException(s"The schema in '$key' was written by an earlier version of spark-redis " +
-            "with another Spark or Scala version, and can't be read with this one. Read the table with an explicit " +
-            ".schema(), or with the Spark and Scala versions that wrote it; saving the table again stores its " +
-            "schema in a format every version reads.", e)
+            "with another Spark or Scala version, and can't be read with this one. Run the schema migration " +
+            "(com.redislabs.provider.redis.SchemaMigration, see doc/dataframe.md) to store it in a format every " +
+            "version reads, read the table with an explicit .schema(), or read it with the Spark and Scala versions " +
+            "that wrote it.", e)
       }
     } else {
       val parsed = try DataType.fromJson(new String(bytes, UTF_8)) catch {
