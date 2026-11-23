@@ -9,6 +9,9 @@ jobs:
     # Ubuntu 24.04 has Temurin 8 in its tool cache; ubuntu-latest (Ubuntu 26.04) has no Java 8, so setup-java would
     # download it from GitHub releases, and the jdk8u514-b01 download fails its checksum.
     runs-on: ubuntu-24.04
+    permissions:
+      # to attach the jars to the release
+      contents: write
 
     steps:
       - uses: actions/checkout@v7
@@ -21,10 +24,8 @@ jobs:
           realversion=`echo ${realversion}|cut -d '-' -f 2-2`
           echo "VERSION=$realversion" >> "$GITHUB_OUTPUT"
 
-      # Publishes through the Central Publisher Portal (central-publishing-maven-plugin in the release profile).
-      # OSSH_USERNAME and OSSH_TOKEN must hold a Portal user token, generated at https://central.sonatype.com/usertoken
-      # by an account that can publish com.redislabs. The old OSSRH (oss.sonatype.org) credentials no longer work.
-      - name: Set up publishing to maven central
+      # The server is only used by the Maven Central steps below.
+      - name: Set up Java
         uses: actions/setup-java@v6
         with:
           java-version: '8'
@@ -36,12 +37,53 @@ jobs:
       - name: mvn versions
         run: mvn versions:set -DnewVersion=${{ steps.get_version.outputs.VERSION }}
 
+      # 'package' stops before the release profile signs the jars (verify) and uploads them (deploy), so these two
+      # steps need no credentials. Each one builds the jar, sources, javadoc and jar-with-dependencies.
+      - name: Build for Scala 2.12 (spark-redis_2.12)
+        run: |
+          mvn --no-transfer-progress \
+            --batch-mode \
+            -DskipTests package -P release
+          mkdir -p dist
+          cp target/spark-redis_2.12-${{ steps.get_version.outputs.VERSION }}*.jar dist/
+
+      - name: Build for Scala 2.13 (spark-redis_2.13)
+        # Like Spark 3.x, the same release is also built for Scala 2.13. 'clean' so that no class compiled
+        # for Scala 2.12 by the previous step ends up in the Scala 2.13 jar.
+        run: |
+          dev/change-scala-version.sh 2.13
+          mvn --no-transfer-progress \
+            --batch-mode \
+            -DskipTests clean package -P release
+          cp target/spark-redis_2.13-${{ steps.get_version.outputs.VERSION }}*.jar dist/
+
+      - name: Attach the jars to the release
+        working-directory: dist
+        run: |
+          sha256sum *.jar > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "${{ github.event.release.tag_name }}" *.jar SHA256SUMS \
+            --repo "${{ github.repository }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Maven Central publishing is off until the repository variable PUBLISH_TO_MAVEN_CENTRAL is 'true':
+      #   gh variable set PUBLISH_TO_MAVEN_CENTRAL --body true --repo RedisLabs/spark-redis
+      # It publishes through the Central Publisher Portal (central-publishing-maven-plugin in the release profile)
+      # and needs:
+      # - OSSH_USERNAME and OSSH_TOKEN: a Portal user token, generated at https://central.sonatype.com/usertoken by
+      #   an account that can publish com.redislabs. The old OSSRH (oss.sonatype.org) credentials no longer work.
+      # - OSSH_GPG_SECRET_KEY and OSSH_GPG_SECRET_KEY_PASSWORD: an unexpired signing key, armored, whose public key
+      #   is on keyserver.ubuntu.com. Maven Central rejects files that aren't signed.
       - name: Install gpg key
+        if: vars.PUBLISH_TO_MAVEN_CENTRAL == 'true'
         run: |
           cat <(echo -e "${{ secrets.OSSH_GPG_SECRET_KEY }}") | gpg --batch --import
           gpg --list-secret-keys --keyid-format LONG
 
-      - name: Publish for Scala 2.12 (spark-redis_2.12)
+      - name: Publish to Maven Central for Scala 2.13 (spark-redis_2.13)
+        if: vars.PUBLISH_TO_MAVEN_CENTRAL == 'true'
+        # The checkout is still switched to Scala 2.13 by the build step above.
         run: |
           mvn --no-transfer-progress \
             --batch-mode \
@@ -51,11 +93,10 @@ jobs:
           MAVEN_USERNAME: ${{secrets.OSSH_USERNAME}}
           MAVEN_PASSWORD: ${{secrets.OSSH_TOKEN}}
 
-      - name: Publish for Scala 2.13 (spark-redis_2.13)
-        # Like Spark 3.x, the same release is also published for Scala 2.13. 'clean' so that no class compiled
-        # for Scala 2.12 by the previous step ends up in the Scala 2.13 jar.
+      - name: Publish to Maven Central for Scala 2.12 (spark-redis_2.12)
+        if: vars.PUBLISH_TO_MAVEN_CENTRAL == 'true'
         run: |
-          dev/change-scala-version.sh 2.13
+          dev/change-scala-version.sh 2.12
           mvn --no-transfer-progress \
             --batch-mode \
             -Dgpg.passphrase='${{ secrets.OSSH_GPG_SECRET_KEY_PASSWORD }}' \
