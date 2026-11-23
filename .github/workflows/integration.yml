@@ -22,17 +22,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set Java up in the runner
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '8'
           distribution: 'temurin'
           cache: 'maven'
       - name: Setup Maven
-        uses: s4u/setup-maven-action@v1.8.0
+        uses: s4u/setup-maven-action@v1.22.0
         with:
-          java-version: 8
+          # The project is already checked out above.
+          checkout-enabled: 'false'
+          # Pin these: newer releases of this action default to Zulu and a
+          # newer Maven, which would replace the Temurin JDK set up above.
+          java-version: '8'
+          java-distribution: 'temurin'
+          maven-version: '3.9.2'
       - name: Install missing dependencies to container
         run: |
           sudo apt update
@@ -51,6 +57,6 @@ jobs:
           JVM_OPTS: -Xmx3200m
           TERM: dumb
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
