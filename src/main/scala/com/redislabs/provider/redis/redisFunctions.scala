@@ -456,7 +456,7 @@ object RedisContext extends Serializable {
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val rows = hashes.map { case (key, hashFields) => (redisConfig.getHost(key).endpoint, (key, hashFields)) }
-    writeKeys(rows) { case (key, hashFields) =>
+    writeKeys(rows, inTransaction = ttl > 0) { case (key, hashFields) =>
       nonEmpty(hashFields)((pipeline: Pipeline) => pipeline.hset(key, hashFields.asJava)) ++
         expireCommand(key, ttl)
     }
@@ -472,7 +472,7 @@ object RedisContext extends Serializable {
                   readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val rows = hashes.map { case (key, hashFields) => (redisConfig.getHost(key).endpoint, (key, hashFields)) }
-    writeKeys(rows) { case (key, hashFields) =>
+    writeKeys(rows, inTransaction = ttl > 0) { case (key, hashFields) =>
       nonEmpty(hashFields)((pipeline: Pipeline) => pipeline.hset(key, hashFields.asJava)) ++
         expireCommand(key, ttl)
     }
@@ -528,7 +528,7 @@ object RedisContext extends Serializable {
                   readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val rows = keyValues.map { case (key, listValues) => (redisConfig.getHost(key).endpoint, (key, listValues)) }
-    writeKeys(rows) { case (key, listValues) =>
+    writeKeys(rows, inTransaction = ttl > 0) { case (key, listValues) =>
       nonEmpty(listValues)((pipeline: Pipeline) => pipeline.rpush(key, listValues: _*)) ++ expireCommand(key, ttl)
     }
   }
@@ -539,7 +539,7 @@ object RedisContext extends Serializable {
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
     val rows = keyValues.map { case (key, listValues) => (redisConfig.getHost(key).endpoint, (key, listValues)) }
-    writeKeys(rows) { case (key, listValues) =>
+    writeKeys(rows, inTransaction = ttl > 0) { case (key, listValues) =>
       nonEmpty(listValues)((pipeline: Pipeline) => pipeline.rpush(key, listValues: _*)) ++ expireCommand(key, ttl)
     }
   }
@@ -556,34 +556,49 @@ object RedisContext extends Serializable {
                    redisConfig: RedisConfig,
                    readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
+    val endpoint = redisConfig.getHost(key).endpoint
     val elements: Iterator[WriteCommand] = arr.map(v => (pipeline: Pipeline) => pipeline.lpush(key, v))
-    val trim: List[WriteCommand] =
-      if (listSize > 0) List((pipeline: Pipeline) => pipeline.ltrim(key, 0, listSize - 1)) else Nil
-    writeToKey(redisConfig.getHost(key).endpoint, elements, trim)
+    writeToKey(endpoint, elements, expire = Nil)
+    if (listSize > 0) {
+      writeWithRedirects(Seq((endpoint, key)))(k => List((pipeline: Pipeline) => pipeline.ltrim(k, 0, listSize - 1)))
+    }
   }
 
   // redisConfig's topology was read on the driver and can be out of date, so every writer goes through
   // writeWithRedirects: it follows MOVED and ASK to the slot's current owner, and fails on any other error reply
   // instead of dropping the write (#347).
 
+  // A value and its TTL are set in one step: a write with a ttl runs a key's commands and its EXPIRE in one
+  // MULTI/EXEC, so neither a reader nor a failure between the two can leave the value without its TTL.
+
   /**
-    * Writes commands for one key to the endpoint that owns it, in order: `commands` in batches of
-    * `rddWriteIteratorGroupingSize`, then `last` (an `EXPIRE` or `LTRIM` that must follow them).
+    * Writes commands for one key to the endpoint that owns it, in batches of `rddWriteIteratorGroupingSize`.
+    *
+    * With an `expire`, each batch runs in one `MULTI`/`EXEC` that ends with it, so the key never holds the batch's
+    * elements without its TTL, and the TTL counts from the last batch. A partition with no elements still sends the
+    * `expire`, as before.
     */
-  private def writeToKey(endpoint: RedisEndpoint, commands: Iterator[WriteCommand], last: List[WriteCommand])(
+  private def writeToKey(endpoint: RedisEndpoint, commands: Iterator[WriteCommand], expire: List[WriteCommand])(
       implicit readWriteConfig: ReadWriteConfig): Unit = {
-    commands.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach { batch =>
-      writeWithRedirects(batch.map(command => (endpoint, command)))(command => List(command))
-    }
-    if (last.nonEmpty) {
-      writeWithRedirects(last.map(command => (endpoint, command)))(command => List(command))
+    val batches = commands.grouped(readWriteConfig.rddWriteIteratorGroupingSize)
+    if (expire.isEmpty) {
+      batches.foreach(batch => writeWithRedirects(batch.map(command => (endpoint, command)))(command => List(command)))
+    } else if (batches.isEmpty) {
+      writeWithRedirects(expire.map(command => (endpoint, command)))(command => List(command))
+    } else {
+      batches.foreach(batch => writeTransactionsWithRedirects(Seq((endpoint, batch)))(_ ++ expire))
     }
   }
 
-  /** Writes rows of several keys, each to the endpoint that owns its key, in `rddWriteIteratorGroupingSize` batches. */
-  private def writeKeys[A](rows: Iterator[(RedisEndpoint, A)])(commands: A => List[WriteCommand])(
-      implicit readWriteConfig: ReadWriteConfig): Unit =
-    rows.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach(batch => writeWithRedirects(batch)(commands))
+  /**
+    * Writes rows of several keys, each to the endpoint that owns its key, in `rddWriteIteratorGroupingSize` batches.
+    * With `inTransaction`, each row's commands (its value, then its `EXPIRE`) run in one `MULTI`/`EXEC`.
+    */
+  private def writeKeys[A](rows: Iterator[(RedisEndpoint, A)], inTransaction: Boolean = false)(
+      commands: A => List[WriteCommand])(implicit readWriteConfig: ReadWriteConfig): Unit =
+    rows.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach { batch =>
+      if (inTransaction) writeTransactionsWithRedirects(batch)(commands) else writeWithRedirects(batch)(commands)
+    }
 
   /** `command`, unless `values` is empty: Redis rejects an `HSET` or `RPUSH` with nothing to set or push. */
   private def nonEmpty(values: Iterable[_])(command: WriteCommand): List[WriteCommand] =

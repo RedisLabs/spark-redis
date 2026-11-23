@@ -179,9 +179,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         val encodedRows = keys.toList.map { key =>
           (node.endpoint, (key, persistence.encodeRow(keyName, rowsWithKey(key))))
         }
-        writeWithRedirects(encodedRows) { case (key, encodedRow) =>
+        val commands: ((String, Any)) => Seq[WriteCommand] = { case (key, encodedRow) =>
           persistence.saveCommands(key, encodedRow, ttl)
         }
+        // with a ttl, one MULTI/EXEC per row, so its fields and its TTL are set in one step
+        if (ttl > 0) writeTransactionsWithRedirects(encodedRows)(commands) else writeWithRedirects(encodedRows)(commands)
     }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
