@@ -1,28 +1,30 @@
 package com.redislabs.provider.redis.util
 
-import scala.collection.IterableLike
-import scala.collection.generic.CanBuildFrom
-
 /**
   * @author The Viet Nguyen
   */
 object CollectionUtils {
 
-  implicit class RichCollection[A, Repr](val xs: IterableLike[A, Repr]) extends AnyVal {
+  /**
+    * `distinctBy` for Scala 2.12. Scala 2.13 collections have their own `distinctBy`, which takes precedence over
+    * this one.
+    */
+  implicit class RichCollection[A](val xs: Seq[A]) extends AnyVal {
 
-    def distinctBy[B, That](f: A => B)(implicit cbf: CanBuildFrom[Repr, A, That]): That = {
-      val builder = cbf(xs.repr)
-      val iterator = xs.iterator
-      var set = Set[B]()
-      while (iterator.hasNext) {
-        val element = iterator.next
+    /**
+      * @return the elements of the collection without duplicates according to `f`, keeping the first occurrence
+      */
+    def distinctBy[B](f: A => B): Seq[A] = {
+      val builder = Seq.newBuilder[A]
+      var seen = Set[B]()
+      xs.foreach { element =>
         val distinctField = f(element)
-        if (!set(distinctField)) {
-          set += distinctField
+        if (!seen(distinctField)) {
+          seen += distinctField
           builder += element
         }
       }
-      builder.result
+      builder.result()
     }
   }
 
