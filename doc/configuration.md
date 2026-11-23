@@ -134,10 +134,16 @@ Besides the commands that read and write your data, Spark-Redis uses the followi
 | `SCAN`                      | to find the keys that match a pattern: RDD reads with a key pattern, DataFrame reads, and DataFrame writes with `SaveMode.Overwrite`, `ErrorIfExists` (the default) and `Ignore` |
 | `TYPE`                      | DataFrame reads with the `filter.keys.by.type` option                                                                                                               |
 | `CLIENT SETNAME`            | on every new connection, when `spark.redis.client.name` or the `client.name` option is set |
+| `ASKING`                    | before a write to a slot that is being migrated, after the server answered `ASK` |
+| `MULTI`, `UNLINK`, `EXEC`   | DataFrame writes with `write.mode = replace` |
+| `COMMAND INFO`, `HELLO`     | on the driver, once per write of the `binary` model with a `ttl`, to find out whether every primary has `MSETEX` and whether the server is a cluster. A refused command counts as no: the write then uses `SET ... EX` and groups the keys by hash slot |
 
 Proxies and managed services that block or don't implement these commands are not supported. Typical errors are
 `ERR unknown command 'CLUSTER'`, `ERR data connection don't process admin command` (blocked `INFO`) and
 `Invalid node response` (no `SCAN`).
+
+Each new connection also sends `CLIENT SETINFO` with the library's name and version (Redis 7.2 and later). A server
+that refuses it is still supported: the refusal is ignored.
 
 [Redis Sentinel](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/) is not supported: Spark-Redis
 can't ask Sentinel for the current master. As a workaround, point `spark.redis.host` and `spark.redis.port` at the current
