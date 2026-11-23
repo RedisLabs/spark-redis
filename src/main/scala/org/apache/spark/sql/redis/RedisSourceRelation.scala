@@ -7,7 +7,7 @@ import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.{FieldParseException, Logging}
+import com.redislabs.provider.redis.util.{FieldParseException, Logging, RedisCapabilities, WriteCapabilities}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.{SerializationException, SerializationUtils}
@@ -110,20 +110,16 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+    // The binary model writes a TTL with MSETEX where every primary has it, so ask once per write, here on the driver.
+    val binaryTtlWrite: Option[(BinaryRedisPersistence, WriteCapabilities)] = (persistence: AnyRef) match {
+      case binary: BinaryRedisPersistence if ttl > 0 => Some(binary -> RedisCapabilities.forWrite(redisConfig))
+      case _ => None
+    }
     val schema = userSpecifiedSchema.getOrElse(data.schema)
     // write schema, so that we can load dataframe back
     currentSchema = saveSchema(schema)
     if (overwrite) {
-      // truncate the table
-      sc.fromRedisKeyPattern(dataKeyPattern).foreachPartition { partition =>
-        groupKeysByNode(redisConfig.hosts, partition).foreach { case (node, keys) =>
-          withConnection(node.connect()) { conn =>
-            foreachWithPipeline(conn, keys) { (pipeline, key) =>
-              (pipeline: PipelineBase).del(key) // fix ambiguous reference to overloaded definition
-            }
-          }
-        }
-      }
+      truncate()
     }
 
     // write data
@@ -133,20 +129,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         // the following can be optimized to not create a map
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
-          withConnection(node.connect()) { conn =>
-            val save = (pipeline: Pipeline, key: String) => {
-              val row = rowsWithKey(key)
-              val encodedRow = persistence.encodeRow(keyName, row)
-              persistence.save(pipeline, key, encodedRow, ttl)
-            }
-            if (replaceHashes) {
-              // A replace that Redis refused fails the task instead of leaving the old row in place silently. Unlike
-              // foreachWithPipeline, this also sees the errors inside each EXEC reply.
-              failOnErrorReplies(mapWithPipeline(conn, keys)(save))
-            } else {
-              foreachWithPipeline(conn, keys)(save)
-            }
-          }
+          saveRows(node, keys, rowsWithKey, binaryTtlWrite)
         }
       }
     }
@@ -156,6 +139,51 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       logInfo(s"Dataframe only contains key.column specified in options. No data was writen to redis.")
     }
   }
+
+  /**
+    * Deletes the table's rows. The topology is read again for this: the relation's copy can be out of date, and a key
+    * scan finds nothing on a slot's old owner once the slot has moved. The deletes follow MOVED and ASK (#347).
+    */
+  private def truncate(): Unit = {
+    val currentConfig = new RedisConfig(redisConfig.initialHost)
+    sc.fromRedisKeyPattern(dataKeyPattern)(currentConfig, readWriteConfig).foreachPartition { partition =>
+      partition.grouped(iteratorGroupingSize).foreach { keys =>
+        writeWithRedirects(keys.map(key => (currentConfig.getHost(key).endpoint, key))) { key =>
+          // the type ascription fixes an ambiguous reference to an overloaded definition
+          List((pipeline: Pipeline) => (pipeline: PipelineBase).del(key))
+        }
+      }
+    }
+  }
+
+  /** Writes the rows of `keys`, which the relation's topology puts on `node`. */
+  private def saveRows(node: RedisNode, keys: Array[String], rowsWithKey: Map[String, Row],
+                       binaryTtlWrite: Option[(BinaryRedisPersistence, WriteCapabilities)]): Unit =
+    binaryTtlWrite match {
+      case Some((binary, capabilities)) =>
+        // one MSETEX per batch (per slot on a cluster), or SET ... EX per row; a rejected write fails the task
+        withConnection(node.connect()) { conn =>
+          val encodedRows = keys.map(key => key -> binary.encodeRow(keyName, rowsWithKey(key)))
+          binary.saveWithTtl(conn, encodedRows, ttl, capabilities)
+        }
+      case None if replaceHashes =>
+        // A replace that Redis refused fails the task instead of leaving the old row in place silently. Unlike
+        // foreachWithPipeline, this also sees the errors inside each EXEC reply.
+        withConnection(node.connect()) { conn =>
+          val save = (pipeline: Pipeline, key: String) =>
+            persistence.save(pipeline, key, persistence.encodeRow(keyName, rowsWithKey(key)), ttl)
+          failOnErrorReplies(mapWithPipeline(conn, keys)(save))
+        }
+      case None =>
+        // Follows MOVED and ASK to each key's current owner, since the relation's topology can be out of date, and
+        // fails on any other error reply instead of dropping the row (#347).
+        val encodedRows = keys.toList.map { key =>
+          (node.endpoint, (key, persistence.encodeRow(keyName, rowsWithKey(key))))
+        }
+        writeWithRedirects(encodedRows) { case (key, encodedRow) =>
+          persistence.saveCommands(key, encodedRow, ttl)
+        }
+    }
 
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     logInfo("build scan")

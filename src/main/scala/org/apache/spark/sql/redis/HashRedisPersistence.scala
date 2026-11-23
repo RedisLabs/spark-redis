@@ -3,6 +3,7 @@ package org.apache.spark.sql.redis
 import java.util.{List => JList}
 
 import com.redislabs.provider.redis.util.ParseUtils
+import com.redislabs.provider.redis.util.PipelineUtils.WriteCommand
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
@@ -30,12 +31,22 @@ class HashRedisPersistence(replace: Boolean) extends RedisPersistence[Any] {
   override def save(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit =
     if (replace) saveReplacing(pipeline, key, value, ttl) else saveMerging(pipeline, key, value, ttl)
 
-  private def saveMerging(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
-    val javaValue = value.asInstanceOf[Map[String, String]].asJava
-    pipeline.hmset(key, javaValue)
-    if (ttl > 0) {
-      pipeline.expire(key, ttl.toLong)
-    }
+  private def saveMerging(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit =
+    saveCommands(key, value, ttl).foreach(command => command(pipeline))
+
+  /**
+    * The `merge` commands: `HSET` of the row's fields, then `EXPIRE` when `ttl` is given. A row with no non-null
+    * fields sends no `HSET`, which Redis would reject. A `replace` is one `MULTI`/`EXEC`, so it isn't split into
+    * commands: [[save]] sends it.
+    */
+  override def saveCommands(key: String, value: Any, ttl: Int): List[WriteCommand] = {
+    require(!replace, "write.mode = replace writes each row in one MULTI/EXEC, which save sends")
+    val fields = value.asInstanceOf[Map[String, String]]
+    val set: List[WriteCommand] =
+      if (fields.nonEmpty) List((pipeline: Pipeline) => pipeline.hset(key, fields.asJava)) else Nil
+    val expire: List[WriteCommand] =
+      if (ttl > 0) List((pipeline: Pipeline) => pipeline.expire(key, ttl.toLong)) else Nil
+    set ++ expire
   }
 
   private def saveReplacing(pipeline: Pipeline, key: String, value: Any, ttl: Int): Unit = {
