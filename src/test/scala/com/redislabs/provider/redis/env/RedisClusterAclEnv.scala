@@ -14,7 +14,7 @@ trait RedisClusterAclEnv extends Env {
     .set("spark.redis.host", redisHost)
     .set("spark.redis.port", s"$redisPort")
     .set("spark.redis.user", user)
-    .set("spark.redis.auth", userPassword)
+    .set("spark.redis.password", userPassword)
     .set("spark.streaming.stopGracefullyOnShutdown", "true")
     .set("spark.driver.bindAddress", "127.0.0.1")
 

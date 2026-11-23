@@ -23,6 +23,12 @@ trait Logging {
     _logger
   }
 
+  def logWarning(msg: => String): Unit = {
+    if (logger.isWarnEnabled) {
+      _logger.warn(msg)
+    }
+  }
+
   def logInfo(msg: => String): Unit = {
     if (logger.isInfoEnabled) {
       _logger.info(msg)

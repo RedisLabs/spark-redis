@@ -69,7 +69,7 @@ $ bin/spark-shell --jars <path-to>/spark-redis_2.12-<version>-jar-with-dependenc
 By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
 
 ```bash
-$ bin/spark-shell --packages com.redislabs:spark-redis_2.12:3.1.0 --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
+$ bin/spark-shell --packages com.redislabs:spark-redis_2.12:3.1.0 --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.password=passwd"
 ```
 
 On Databricks, install the library on the cluster from Maven with the coordinates `com.redislabs:spark-redis_2.12:3.1.0`,
@@ -93,7 +93,7 @@ val sc = new SparkContext(new SparkConf()
       // initial redis port
       .set("spark.redis.port", "6379")
       // optional redis AUTH password
-      .set("spark.redis.auth", "passwd")
+      .set("spark.redis.password", "passwd")
   )
 ```
 
@@ -106,7 +106,7 @@ val spark = SparkSession
   .master("local[*]")
   .config("spark.redis.host", "localhost")
   .config("spark.redis.port", "6379")
-  .config("spark.redis.auth", "passwd")
+  .config("spark.redis.password", "passwd")
   .getOrCreate()
   
 val sc = spark.sparkContext  

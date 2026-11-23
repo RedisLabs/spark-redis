@@ -19,7 +19,7 @@ stack trace. The most common causes are:
 1. **The connection settings were not applied**, and Spark-Redis connected to the default `localhost:6379`. Look for
    `Failed connecting to host localhost:6379` in the stack trace, and see [below](#failed-connecting-to-host-localhost6379).
 2. **The option names are wrong.** DataFrame and stream options don't have the `spark.redis.` prefix: use
-   `.option("host", ...)`, `.option("auth", ...)`, `.option("ssl", "true")`, not `.option("spark.redis.host", ...)`. See
+   `.option("host", ...)`, `.option("password", ...)`, `.option("ssl", "true")`, not `.option("spark.redis.host", ...)`. See
    [Configuration](configuration.md#overriding-the-connection-for-a-dataframe-stream-or-rdd).
 3. **TLS is required** by the server (for example Amazon MemoryDB, Amazon ElastiCache with in-transit encryption, or any
    server with TLS enabled) but `ssl` isn't set to `true`. See [TLS](configuration.md#tls).
@@ -39,17 +39,17 @@ when the `SparkContext` is created, so settings made later are ignored:
   which is always the case in `spark-shell`, `pyspark` and notebooks. On Databricks, set the parameters in the cluster's
   **Spark config**. On Zeppelin, set them in the Spark interpreter settings.
 
-Alternatively, pass the connection settings as DataFrame options (`host`, `port`, `auth`, ...). See
+Alternatively, pass the connection settings as DataFrame options (`host`, `port`, `password`, ...). See
 [When the configuration is read](configuration.md#when-the-configuration-is-read).
 
 ## WRONGPASS or NOAUTH errors
 
-* `NOAUTH Authentication required`: the server requires a password, but none was sent. Set `spark.redis.auth` (or the `auth`
-  option). Check that the setting was applied, see [above](#failed-connecting-to-host-localhost6379).
+* `NOAUTH Authentication required`: the server requires a password, but none was sent. Set `spark.redis.password` (or the
+  `password` option). Check that the setting was applied, see [above](#failed-connecting-to-host-localhost6379).
 * `WRONGPASS invalid username-password pair or user is disabled`: the user or password is wrong. If the server has no
-  password or no ACL user, don't pass empty strings such as `.option("user", "")` or `.option("auth", "")`. Leave the
-  options unset, because an empty value is still sent with `AUTH`. If you only have a password, set `auth` and leave `user`
-  unset.
+  password or no ACL user, don't pass empty strings such as `.option("user", "")` or `.option("password", "")`. Leave
+  the options unset, because an empty value is still sent with `AUTH`. If you only have a password, set `password` and leave
+  `user` unset.
 
 ## ERR unknown command or ERR ... don't process admin command
 
@@ -67,7 +67,7 @@ or `.option("timeout", 60000)`.
 ## NullPointerException in Utils.redact
 
 A stack trace like the following when saving or loading a DataFrame means that one of the options has a `null` value, for
-example `.option("auth", None)` in Python or a variable that is `null` in Scala/Java:
+example `.option("password", None)` in Python or a variable that is `null` in Scala/Java:
 
 ```
 java.lang.NullPointerException

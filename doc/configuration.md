@@ -4,6 +4,7 @@
   - [When the configuration is read](#when-the-configuration-is-read)
   - [Overriding the connection for a DataFrame, stream or RDD](#overriding-the-connection-for-a-dataframe-stream-or-rdd)
   - [Authentication](#authentication)
+    - [Keeping the password out of the Spark UI and logs](#keeping-the-password-out-of-the-spark-ui-and-logs)
   - [TLS](#tls)
   - [Connection pool](#connection-pool)
   - [Redis server requirements](#redis-server-requirements)
@@ -16,7 +17,8 @@
 | `spark.redis.host`                             | host or IP of the initial node. In cluster mode the connector reads the cluster topology from this node, so there is no need to list the other nodes.                     | `localhost` |
 | `spark.redis.port`                             | the initial node's TCP port                                                                                                                                                 | `6379`      |
 | `spark.redis.user`                             | ACL user name sent with `AUTH` (Redis 6+). Leave it unset to authenticate with a password only.                                                                             | -           |
-| `spark.redis.auth`                             | password sent with `AUTH`. Leave it unset if the server has no password.                                                                                                    | -           |
+| `spark.redis.password`                         | password sent with `AUTH`. Leave it unset if the server has no password. Spark hides its value in the Spark UI and event logs, see [Keeping the password out of the Spark UI and logs](#keeping-the-password-out-of-the-spark-ui-and-logs) | -           |
+| `spark.redis.auth`                             | **deprecated**, use `spark.redis.password`. Read only when `spark.redis.password` is unset. Spark doesn't hide its value                                                    | -           |
 | `spark.redis.db`                               | DB number. Avoid using this, especially in cluster mode.                                                                                                                    | `0`         |
 | `spark.redis.timeout`                          | connection timeout **and** socket read timeout, in milliseconds                                                                                                             | `2000`      |
 | `spark.redis.ssl`                              | set to `true` to connect with TLS, see [TLS](#tls)                                                                                                                          | `false`     |
@@ -45,7 +47,7 @@ Settings applied later are not seen by Spark-Redis, and the connector silently f
 ## Overriding the connection for a DataFrame, stream or RDD
 
 The DataFrame API (`spark.read`, `df.write`, Spark SQL `OPTIONS`) and Structured Streaming (`spark.readStream`) accept the
-following options. Note that the names don't have the `spark.redis.` prefix: an option such as `.option("spark.redis.auth", ...)`
+following options. Note that the names don't have the `spark.redis.` prefix: an option such as `.option("spark.redis.password", ...)`
 is ignored.
 
 | Option    | Overrides             | Type      |
@@ -53,7 +55,8 @@ is ignored.
 | `host`    | `spark.redis.host`    | `String`  |
 | `port`    | `spark.redis.port`    | `Int`     |
 | `user`    | `spark.redis.user`    | `String`  |
-| `auth`    | `spark.redis.auth`    | `String`  |
+| `password` | `spark.redis.password` | `String` |
+| `auth`    | **deprecated**, use `password`. Read only when `password` is unset | `String` |
 | `dbNum`   | `spark.redis.db`      | `Int`     |
 | `timeout` | `spark.redis.timeout` | `Int`     |
 | `ssl`     | `spark.redis.ssl`     | `Boolean` |
@@ -67,7 +70,7 @@ val df = spark.read
   .format("org.apache.spark.sql.redis")
   .option("host", "redis.example.com")
   .option("port", "6380")
-  .option("auth", "passwd")
+  .option("password", "passwd")
   .option("ssl", "true")
   .option("table", "person")
   .load()
@@ -83,10 +86,39 @@ implicit val redisConfig: RedisConfig = new RedisConfig(new RedisEndpoint("redis
 
 ## Authentication
 
-* Password only (`requirepass`, or the `default` user): set `spark.redis.auth` (or the `auth` option).
-* ACL user (Redis 6+): set both `spark.redis.user` and `spark.redis.auth` (or the `user` and `auth` options).
+* Password only (`requirepass`, or the `default` user): set `spark.redis.password` (or the `password` option).
+* ACL user (Redis 6+): set both `spark.redis.user` and `spark.redis.password` (or the `user` and `password` options).
 * No authentication: leave both unset. Don't set them to an empty string. An empty value is still sent with `AUTH`, and
   the connection fails with `WRONGPASS invalid username-password pair or user is disabled` (or a similar `AUTH` error).
+
+### Keeping the password out of the Spark UI and logs
+
+Spark hides the value of a setting whose name matches `spark.redaction.regex` in the Spark UI's Environment tab, the
+History Server and event logs. It also hides a DataFrame or stream option whose name matches it where query plans show
+options, for example in the SQL tab. The default pattern contains `password`, so `spark.redis.password` and the
+`password` option are hidden.
+
+Spark-Redis 3.1.0 and earlier read the password only from `spark.redis.auth` (`redis.auth` before 2.3.1) and the `auth`
+option. These names don't match the default pattern, so the password shows in clear text wherever Spark shows the
+configuration or the query plan
+([GHSA-wmm3-vmjq-7mmc](https://github.com/RedisLabs/spark-redis/security/advisories/GHSA-wmm3-vmjq-7mmc)). Spark-Redis
+still reads them when the new names are unset, and logs a warning.
+
+* Rename `spark.redis.auth` to `spark.redis.password`, and the `auth` option to `password`. Remove the old name: while
+  it's set, its value still shows, even if the new name is set too.
+* With Spark-Redis 3.1.0 or earlier, add the old names to the pattern instead. Start from your Spark version's default,
+  for example with Spark 3.5:
+
+  ```bash
+  --conf 'spark.redaction.regex=(?i)secret|password|token|access[.]?key|credential|redis[.]auth|^auth$'
+  ```
+
+* If the password was set with the old names, rotate it. Also delete the event logs that contain it.
+* Authenticate as an [ACL user](https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/)
+  (`spark.redis.user`) that has only the permissions the job needs, so a leaked password grants as little as possible.
+
+Spark also hides a value that matches the pattern on its own, whatever its key. A test password such as `my-secret` is
+hidden even under `spark.redis.auth`, so check with a value like `hunter2`.
 
 ## TLS
 

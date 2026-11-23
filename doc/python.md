@@ -26,7 +26,7 @@ $ ./bin/pyspark --jars <path-to>/spark-redis_2.12-<version>-jar-with-dependencie
 By default it connects to `localhost:6379` without any password, you can change the connection settings in the following manner:
 
 ```bash
-$ ./bin/pyspark --packages com.redislabs:spark-redis_2.12:3.1.0 --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.auth=passwd"
+$ ./bin/pyspark --packages com.redislabs:spark-redis_2.12:3.1.0 --conf "spark.redis.host=localhost" --conf "spark.redis.port=6379" --conf "spark.redis.password=passwd"
 ```
 
 2. Read DataFrame from JSON, write/read from Redis:
@@ -55,13 +55,13 @@ spark = SparkSession\
     .appName("myApp")\
     .config("spark.redis.host", "localhost")\
     .config("spark.redis.port", "6379")\
-    .config("spark.redis.auth", "passwd")\
+    .config("spark.redis.password", "passwd")\
     .getOrCreate()
 ```
 
 The `spark.redis.*` settings are only applied when the builder creates the `SparkContext`. In the `pyspark` shell and in
 notebooks a `SparkContext` already exists, so set them with `--conf` or in the cluster configuration, or pass them as
-DataFrame options (`host`, `port`, `auth`, ...). See [When the configuration is read](configuration.md#when-the-configuration-is-read).
+DataFrame options (`host`, `port`, `password`, ...). See [When the configuration is read](configuration.md#when-the-configuration-is-read).
 
 ## What is supported
 

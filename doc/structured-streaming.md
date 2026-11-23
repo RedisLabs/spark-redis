@@ -163,7 +163,8 @@ Similarly to Dataframe API, we can override connection options on the individual
 | host       | overrides `spark.redis.host` configured in SparkSession      | `String`   | `localhost` |
 | port       | overrides `spark.redis.port` configured in SparkSession      | `Int`      | `6379`      |
 | user       | overrides `spark.redis.user` configured in SparkSession      | `String`   | -           |
-| auth       | overrides `spark.redis.auth` configured in SparkSession      | `String`   | -           |
+| password   | overrides `spark.redis.password` configured in SparkSession  | `String`   | -           |
+| auth       | **deprecated**, use `password`                               | `String`   | -           |
 | ssl        | overrides `spark.redis.ssl` configured in SparkSession       | `Boolean`  | `false`     |
 | dbNum      | overrides `spark.redis.db` configured in SparkSession        | `Int`      | `0`         |
 | timeout    | overrides `spark.redis.timeout` configured in SparkSession   | `Int`      | `2000`      |
