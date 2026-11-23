@@ -139,16 +139,41 @@ The table's rows are the keys that match `<table>:*`.
 
 Please note:
 
-* With `SaveMode.Append`, when a row's key already exists, the new row is merged into the existing Redis hash with `HMSET`.
-  Fields of the new row replace the existing fields, but fields that exist only in Redis are kept, for example a column that
-  isn't in the new DataFrame or a value that is `null` in the new row (see [Null values](#null-values)). To replace whole
-  rows, use `SaveMode.Overwrite` or delete the keys first.
+* With `SaveMode.Append`, when a row's key already exists, the new row is merged into the existing Redis hash with `HMSET`
+  by default. Fields of the new row replace the existing fields, but fields that exist only in Redis are kept, for example a
+  column that isn't in the new DataFrame or a value that is `null` in the new row (see [Null values](#null-values)). To
+  replace whole rows, set `write.mode` to `replace` (see [Write mode](#write-mode)), or use `SaveMode.Overwrite`.
 * `SaveMode.Overwrite` isn't atomic: the existing keys are deleted first and the new rows are written afterwards, so readers
   can see an empty or partially written table while the job runs. If the job fails after the delete, the table stays
   incomplete. To switch to new data without a gap, write it to a new table name and switch the readers to it.
 * `ErrorIfExists`, `Ignore` and `Overwrite` scan the whole keyspace for `<table>:*` keys before writing, which can take a
   long time on a large database. Use `SaveMode.Append` when you don't need these checks, and see
   [Tuning reads and writes](configuration.md#tuning-reads-and-writes).
+
+### Write mode
+
+When a row's key is already stored and `SaveMode.Append` is set, the `write.mode` option decides what happens to the
+stored hash:
+
+- `merge` (the default) writes the new row's fields over the stored ones. Fields that the new row doesn't have, or has
+  as `null`, keep their stored values.
+- `replace` makes the stored hash exactly the new row, so fields that the new row doesn't have, or has as `null`, are
+  removed. Each key is replaced in one `MULTI`/`EXEC` transaction (`UNLINK`, `HSET`, and `EXPIRE` when `ttl` is set),
+  so a reader sees the old row or the new one, never a mix. The key keeps no TTL from the row it replaces, and a row
+  whose values are all `null` leaves no key. If Redis refuses a transaction, the write fails.
+
+```scala
+df.write
+  .format("org.apache.spark.sql.redis")
+  .option("table", "person")
+  .option("key.column", "name")
+  .option("write.mode", "replace")
+  .mode(SaveMode.Append)
+  .save()
+```
+
+Any other `write.mode` value fails the write before anything is written. `write.mode` applies to the hash model. The
+binary model stores a row as one value, so a write always replaces it.
 
 ### Null values
 
@@ -202,7 +227,8 @@ CREATE TEMPORARY VIEW person (name STRING, age INT)
 ### Time to live
 
 If you want to expire your data after a certain period of time, you can specify its time to live in `seconds`. Redis will use 
-[Expire](https://redis.io/commands/expire) command to cleanup data. 
+[Expire](https://redis.io/commands/expire) command to cleanup data. With `write.mode` `replace`, the TTL is set in the same
+transaction as the row (see [Write mode](#write-mode)).
 
 For example, to expire data after 30 seconds:
 
@@ -468,6 +494,7 @@ sc.toRedisKV(kvRdd)
 | partitions.number      | number of partitions (applies only when reading DataFrame)                                                                                                  | `Int`                 | `3`     |
 | key.column             | when writing - specifies unique column used as a Redis key, by default a key is auto-generated <br/> when reading - specifies column name to store hash key | `String`              | -       |
 | ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`                                                                               | `Int`                 | `0`     |
+| write.mode             | what a hash-model write does to a hash already stored under the row's key: `merge` keeps fields the new row doesn't have, `replace` removes them, see [Write mode](#write-mode) | `enum [merge, replace]` | `merge` |
 | infer.schema           | infer schema from random row, all columns will have `String` type                                                                                           | `Boolean`             | `false` |
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                                                                                            | `Int`                 | 100     |
 | scan.count             | count option of SCAN command (used to iterate over keys)                                                                                                    | `Int`                 | 100     |
