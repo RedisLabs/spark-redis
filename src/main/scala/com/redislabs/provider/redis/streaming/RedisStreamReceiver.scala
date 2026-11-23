@@ -54,6 +54,10 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
       } catch {
         case e: Exception =>
           restart("Error handling message. Restarting.", e)
+      } finally {
+        // the loops exit once the receiver is stopped or restarted; return the connection to the pool,
+        // otherwise every restart leaks one connection per consumer
+        jedis.close()
       }
     }
 

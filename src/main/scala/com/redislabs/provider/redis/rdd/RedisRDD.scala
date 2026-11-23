@@ -3,6 +3,7 @@ package com.redislabs.provider.redis.rdd
 import java.util
 
 import com.redislabs.provider.redis.partitioner._
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.ParseUtils.ignoreJedisWrongTypeException
 import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisNode}
@@ -39,33 +40,30 @@ class RedisKVRDD(prev: RDD[String],
 
   def getKV(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
+      // the values are read eagerly, so the connection can be returned before the iterator is consumed
+      withConnection(node.endpoint.connect()) { conn =>
+        val response = mapWithPipeline(conn, nodeKeys) { (pipeline, key) =>
+          pipeline.get(key)
+        }
 
-      val response = mapWithPipeline(conn, nodeKeys) { (pipeline, key) =>
-        pipeline.get(key)
+        nodeKeys.zip(response)
+          .flatMap{
+            case (_, e: Throwable) => Some(Failure(e))
+            case (k, v: String) => Some(Success((k,v)))
+            case _ => None
+          }.flatMap(ignoreJedisWrongTypeException(_).get) // Unwrap `Try` to throw exceptions if any
+          .iterator
       }
-
-      val res = nodeKeys.zip(response)
-        .flatMap{
-          case (_, e: Throwable) => Some(Failure(e))
-          case (k, v: String) => Some(Success((k,v)))
-          case _ => None
-        }.flatMap(ignoreJedisWrongTypeException(_).get) // Unwrap `Try` to throw exceptions if any
-        .iterator
-
-      conn.close()
-      res
     }
   }
 
   def getHASH(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[(String, String)] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
-      val res = nodeKeys.flatMap{k =>
-        ignoreJedisWrongTypeException(Try(conn.hgetAll(k).toMap)).get
-      }.flatten.iterator
-      conn.close()
-      res
+      withConnection(node.endpoint.connect()) { conn =>
+        nodeKeys.flatMap{k =>
+          ignoreJedisWrongTypeException(Try(conn.hgetAll(k).toMap)).get
+        }.flatten.iterator
+      }
     }
   }
 }
@@ -90,24 +88,23 @@ class RedisListRDD(prev: RDD[String],
 
   def getSET(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
-      val res: Iterator[String] = nodeKeys.flatMap{k =>
-        ignoreJedisWrongTypeException(Try(conn.smembers(k).toSet)).get
-      }.flatten
-        .iterator
-      conn.close()
-      res
+      withConnection(node.endpoint.connect()) { conn =>
+        val res: Iterator[String] = nodeKeys.flatMap{k =>
+          ignoreJedisWrongTypeException(Try(conn.smembers(k).toSet)).get
+        }.flatten
+          .iterator
+        res
+      }
     }
   }
 
   def getLIST(nodes: Array[RedisNode], keys: Iterator[String]): Iterator[String] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
-      val res = nodeKeys.flatMap{ k =>
-        ignoreJedisWrongTypeException(Try(conn.lrange(k, 0, -1))).get
-      }.flatten.iterator
-      conn.close()
-      res
+      withConnection(node.endpoint.connect()) { conn =>
+        nodeKeys.flatMap{ k =>
+          ignoreJedisWrongTypeException(Try(conn.lrange(k, 0, -1))).get
+        }.flatten.iterator
+      }
     }
   }
 }
@@ -146,8 +143,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              startPos: Long,
                              endPos: Long): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
-      val res = {
+      withConnection(node.endpoint.connect()) { conn =>
         if (classTag[T] == classTag[(String, Double)]) {
           nodeKeys.flatMap{k =>
             ignoreJedisWrongTypeException(Try(conn.zrangeWithScores(k, startPos, endPos))).get
@@ -161,8 +157,6 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
       }
-      conn.close()
-      res
     }.asInstanceOf[Iterator[T]]
   }
 
@@ -171,8 +165,7 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
                              startScore: Double,
                              endScore: Double): Iterator[T] = {
     groupKeysByNode(nodes, keys).flatMap { case (node, nodeKeys) =>
-      val conn = node.endpoint.connect()
-      val res = {
+      withConnection(node.endpoint.connect()) { conn =>
         if (classTag[T] == classTag[(String, Double)]) {
           nodeKeys.flatMap{k =>
             ignoreJedisWrongTypeException(Try(conn.zrangeByScoreWithScores(k, startScore, endScore))).get
@@ -187,8 +180,6 @@ class RedisZSetRDD[T: ClassTag](prev: RDD[String],
           throw new scala.Exception("Unknown RedisZSetRDD type")
         }
       }
-      conn.close()
-      res
     }.asInstanceOf[Iterator[T]]
   }
 }
@@ -451,13 +442,13 @@ trait Keys {
     if (isRedisRegex(keyPattern)) {
       endpoints.iterator.map { endpoint =>
         val keys = new util.HashSet[String]()
-        val conn = endpoint.connect()
-        val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-        keys.addAll(scanKeys(conn, params).filter { key =>
-          val slot = JedisClusterCRC16.getSlot(key)
-          slot >= sPos && slot <= ePos
-        })
-        conn.close()
+        withConnection(endpoint.connect()) { conn =>
+          val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
+          keys.addAll(scanKeys(conn, params).filter { key =>
+            val slot = JedisClusterCRC16.getSlot(key)
+            slot >= sPos && slot <= ePos
+          })
+        }
         keys.iterator()
       }.flatten
     } else {
