@@ -46,7 +46,7 @@ object PipelineUtils {
       totalResp += resp
     }
 
-    totalResp.flatMap(_.asScala)
+    totalResp.flatMap(_.asScala).toSeq
   }
 
   /**

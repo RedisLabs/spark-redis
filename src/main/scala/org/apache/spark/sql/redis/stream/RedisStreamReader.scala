@@ -56,7 +56,7 @@ class RedisStreamReader(redisConfig: RedisConfig) extends Logging with Serializa
       withConnection(redisConfig.connectionForKey(config.streamKey)) { conn =>
         val entries = conn.xrange(config.streamKey, nextEntryId(after), end, config.batchSize).asScala
         logDebug(s"Got entries: $entries")
-        entries.map(entry => entry.getID -> entry.getFields)
+        entries.map(entry => entry.getID -> entry.getFields).toSeq
       }
     }
   }

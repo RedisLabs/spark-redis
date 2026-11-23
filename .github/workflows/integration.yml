@@ -18,26 +18,43 @@ on:
 jobs:
 
   build:
-    name: Build and Test (Spark ${{ matrix.spark }})
+    name: Build and Test (Spark ${{ matrix.spark }}, Scala ${{ matrix.scala-binary }})
     runs-on: ubuntu-latest
     strategy:
       # run every Spark version even if one of them fails
       fail-fast: false
       matrix:
-        # Each Spark version is paired with the Scala version it is built with: scala-library is only backward
-        # compatible, so an older one can miss methods that Spark calls.
+        # Like Spark 3.x, every Spark version is tested with its Scala 2.12 and its Scala 2.13 build, each with the
+        # Scala version that Spark build uses: scala-library is only backward compatible, so an older one can miss
+        # methods that Spark calls.
         include:
           # the version the library is built and released with (spark.version in pom.xml)
           - spark: '3.5.10'
+            scala-binary: '2.12'
             scala: '2.12.18'
             coverage: true
+          - spark: '3.5.10'
+            scala-binary: '2.13'
+            scala: '2.13.8'
           # older Spark lines that the library supports
           - spark: '3.2.1'
+            scala-binary: '2.12'
+            scala: '2.12.15'
+          - spark: '3.2.1'
+            scala-binary: '2.13'
+            scala: '2.13.5'
+          - spark: '3.3.3'
+            scala-binary: '2.12'
             scala: '2.12.15'
           - spark: '3.3.3'
-            scala: '2.12.15'
+            scala-binary: '2.13'
+            scala: '2.13.8'
           - spark: '3.4.2'
+            scala-binary: '2.12'
             scala: '2.12.17'
+          - spark: '3.4.2'
+            scala-binary: '2.13'
+            scala: '2.13.8'
     env:
       MVN_ARGS: -Dspark.version=${{ matrix.spark }} -Dscala.complete.version=${{ matrix.scala }}
       REDIS_VERSION: '6.0.10'
@@ -45,7 +62,20 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v7
       - name: Set Java up in the runner
-        # no Maven cache here: the Setup Maven step caches ~/.m2/repository per Spark version
+        id: setup-java
+        # The JDK download from GitHub releases fails now and then (a truncated file, or a checksum mismatch), and
+        # every matrix job downloads it, so a failure is retried below instead of failing the job.
+        # No Maven cache here: the Setup Maven step caches ~/.m2/repository per Spark version.
+        continue-on-error: true
+        uses: actions/setup-java@v6
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+      - name: Wait before retrying the Java setup
+        if: steps.setup-java.outcome == 'failure'
+        run: sleep 30
+      - name: Set Java up in the runner (retry)
+        if: steps.setup-java.outcome == 'failure'
         uses: actions/setup-java@v6
         with:
           java-version: '8'
@@ -60,9 +90,13 @@ jobs:
           java-version: '8'
           java-distribution: 'temurin'
           maven-version: '3.9.2'
-          # one Maven cache per Spark version: the cache key is otherwise only based on pom.xml, so all the
-          # matrix jobs would share one entry that holds the dependencies of a single Spark version
-          cache-prefix: spark-${{ matrix.spark }}-
+          # one Maven cache per Spark and Scala version: the cache key is otherwise only based on pom.xml, so all the
+          # matrix jobs would share one entry that holds the dependencies of a single Spark build
+          cache-prefix: spark-${{ matrix.spark }}-scala-${{ matrix.scala-binary }}-
+      - name: Switch the build to Scala ${{ matrix.scala-binary }}
+        # the same script the release uses, so that the spark-redis_2.13 build is tested as it is published
+        if: matrix.scala-binary != '2.12'
+        run: dev/change-scala-version.sh ${{ matrix.scala-binary }}
       - name: Get the runner image
         # ImageOS (e.g. ubuntu24) is set on the runner, not in the env context of the workflow
         id: runner-image

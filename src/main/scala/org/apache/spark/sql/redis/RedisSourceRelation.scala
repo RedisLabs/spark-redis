@@ -17,7 +17,6 @@ import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import redis.clients.jedis.{PipelineBase, Protocol}
 
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 class RedisSourceRelation(override val sqlContext: SQLContext,
@@ -61,7 +60,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   private val keysPatternOpt: Option[String] = parameters.get(SqlOptionKeysPattern)
   private val numPartitions = parameters.get(SqlOptionNumPartitions).map(_.toInt)
     .getOrElse(SqlOptionNumPartitionsDefault)
-  private val persistenceModel = parameters.getOrDefault(SqlOptionModel, SqlOptionModelHash)
+  private val persistenceModel = parameters.getOrElse(SqlOptionModel, SqlOptionModelHash)
   private val persistence = RedisPersistence(persistenceModel)
   private val tableNameOpt: Option[String] = parameters.get(SqlOptionTableName)
   private val ttl = parameters.get(SqlOptionTTL).map(_.toInt).getOrElse(0)
@@ -289,7 +288,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         } else {
           keysAndValues.filter {
             case (_, null) => false // binary model
-            case (_, value: JList[_]) if value.forall(_ == null) => false // hash model
+            case (_, value: JList[_]) if value.asScala.forall(_ == null) => false // hash model
             case _ => true
           }
         }

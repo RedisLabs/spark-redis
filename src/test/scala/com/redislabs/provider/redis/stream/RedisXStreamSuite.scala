@@ -11,7 +11,7 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Millis, Span}
 import redis.clients.jedis.StreamEntryID
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 // scalastyle:off multiple.string.literals
 trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
@@ -42,9 +42,9 @@ trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
 
     // write to stream
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      conn.xadd(streamKey, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4"))
-      conn.xadd(streamKey, new StreamEntryID(1, 1), Map("b" -> "2"))
-      conn.xadd(streamKey, new StreamEntryID(2, 0), Map("c" -> "3"))
+      conn.xadd(streamKey, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4").asJava)
+      conn.xadd(streamKey, new StreamEntryID(1, 1), Map("b" -> "2").asJava)
+      conn.xadd(streamKey, new StreamEntryID(2, 0), Map("c" -> "3").asJava)
     }
 
     ssc.start()
@@ -87,9 +87,9 @@ trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
 
     // write to stream
     withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
-      conn.xadd(streamKey, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4"))
-      conn.xadd(streamKey, new StreamEntryID(1, 1), Map("b" -> "2"))
-      conn.xadd(streamKey, new StreamEntryID(2, 0), Map("c" -> "3"))
+      conn.xadd(streamKey, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4").asJava)
+      conn.xadd(streamKey, new StreamEntryID(1, 1), Map("b" -> "2").asJava)
+      conn.xadd(streamKey, new StreamEntryID(2, 0), Map("c" -> "3").asJava)
     }
 
     ssc.start()
@@ -138,11 +138,11 @@ trait RedisXStreamSuite extends SparkStreamingRedisSuite with Matchers {
 
     // write to stream
     withConnection(redisConfig.connectionForKey(stream1Key)) { conn =>
-      conn.xadd(stream1Key, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4"))
+      conn.xadd(stream1Key, new StreamEntryID(1, 0), Map("a" -> "1", "z" -> "4").asJava)
     }
     withConnection(redisConfig.connectionForKey(stream2Key)) { conn =>
-      conn.xadd(stream2Key, new StreamEntryID(1, 1), Map("b" -> "2"))
-      conn.xadd(stream2Key, new StreamEntryID(2, 0), Map("c" -> "3"))
+      conn.xadd(stream2Key, new StreamEntryID(1, 1), Map("b" -> "2").asJava)
+      conn.xadd(stream2Key, new StreamEntryID(2, 0), Map("c" -> "3").asJava)
     }
 
     ssc.start()

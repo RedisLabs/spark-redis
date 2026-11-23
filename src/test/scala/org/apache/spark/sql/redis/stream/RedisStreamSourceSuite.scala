@@ -241,7 +241,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
           "date" -> "2022-10-14",
           "event" -> "click")
         conn.xadd(streamKey, new StreamEntryID(0, 1), entry.asJava)
-        eventually(timeout(5 seconds)) {
+        eventually(timeout(5.seconds)) {
           val result = spark.sql("select * from persons").collect()
           result.length shouldBe 1
           val row = result.head
@@ -271,7 +271,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
             conn.xadd(streamKey, new StreamEntryID(i, 0), Person.dataMaps.head.asJava)
           }
         }
-        eventually(timeout(10 seconds)) {
+        eventually(timeout(10.seconds)) {
           counts.asScala.sum shouldBe 500
           ids.size shouldBe 500
         }
@@ -305,7 +305,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     foreachBatchStream(streamKey, extraWriteOptions = writeOptions) { (batch, _) =>
       batch.collect().foreach(row => ids.add(row.getAs[String]("_id")))
     } { _ =>
-      eventually(timeout(10 seconds)) {
+      eventually(timeout(10.seconds)) {
         ids.size shouldBe 50
       }
       ids.asScala.toSet shouldBe (1 to 50).map(i => s"0-$i").toSet
@@ -392,7 +392,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   }
 
   def checkLastDeliveredId(streamKey: String, lastDeliveredId: String): Unit = {
-    eventually(timeout(5 seconds)) {
+    eventually(timeout(5.seconds)) {
       withConnection(redisConfig.connectionForKey(streamKey)) { conn =>
         // Jedis parses the nil entries-read that Redis 7+ returns after XGROUP SETID
         val group = conn.xinfoGroup(streamKey).asScala.find(_.getName == "spark-source")
@@ -402,7 +402,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   }
 
   def checkCount(spark: SparkSession, rowsNum: Int): Unit = {
-    eventually(timeout(5 seconds)) {
+    eventually(timeout(5.seconds)) {
       val resultDf = spark.sql("select * from persons")
       resultDf.count() shouldBe rowsNum
       resultDf.show()
@@ -410,7 +410,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
   }
 
   def checkCountAndLastItem(spark: SparkSession, lastDeliveredId: String, rowsNum: Int): Unit = {
-    eventually(timeout(5 seconds)) {
+    eventually(timeout(5.seconds)) {
       val resultDf = spark.sql("select * from persons")
       val result = resultDf.collect()
       result.length should be(rowsNum)

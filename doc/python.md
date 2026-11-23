@@ -14,6 +14,9 @@
 $ ./bin/pyspark --packages com.redislabs:spark-redis_2.12:3.1.0
 ```
 
+PySpark installed with `pip` and the default Spark 3.x download use Scala 2.12. With a Scala 2.13 Spark distribution, use
+`spark-redis_2.13` instead.
+
 or with a JAR file that you built:
 
 ```bash

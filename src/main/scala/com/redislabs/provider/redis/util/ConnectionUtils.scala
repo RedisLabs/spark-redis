@@ -36,12 +36,12 @@ object ConnectionUtils {
       val client = jedis.getClient
       val combinedArgs = command +: args
       client.sendCommand(XINFO, combinedArgs: _*)
-      val response = asList(client.getOne).asScala
+      val response = asList(client.getOne).asScala.toSeq
       command match {
         case SubCommandStream =>
           asMap(response)
         case SubCommandGroups =>
-          response.map(m => asList(m)).map(_.asScala).map(asMap)
+          response.map(m => asList(m)).map(_.asScala.toSeq).map(asMap)
             .map(m => String.valueOf(m("name")) -> m).toMap
       }
     }
