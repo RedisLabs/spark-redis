@@ -23,6 +23,7 @@
 | `spark.redis.max.pipeline.size`                | the maximum number of commands sent in one pipeline, see [Tuning](#tuning-reads-and-writes)                                                                                 | `100`       |
 | `spark.redis.scan.count`                       | the `COUNT` hint passed to `SCAN` when iterating over keys, see [Tuning](#tuning-reads-and-writes)                                                                          | `100`       |
 | `spark.redis.rdd.write.iterator.grouping.size` | the number of items `toRedisKV`, `toRedisByteKV` and `toRedisByteHASHes` take from a partition at a time before grouping them by Redis node, see [Tuning](#tuning-reads-and-writes) | `1000`      |
+| `spark.redis.client.name`                      | optional client name. Every connection the connector opens, on the driver, on the executors and to every cluster node, sets it with `CLIENT SETNAME`, so `CLIENT LIST` shows it as `name=...`. Printable ASCII without spaces only; any other value fails on the driver before a connection opens. Unset or empty (the default) leaves connections unnamed |
 
 ## When the configuration is read
 
@@ -56,9 +57,10 @@ is ignored.
 | `dbNum`   | `spark.redis.db`      | `Int`     |
 | `timeout` | `spark.redis.timeout` | `Int`     |
 | `ssl`     | `spark.redis.ssl`     | `Boolean` |
+| `client.name` | `spark.redis.client.name` | `String` |
 
 Each option overrides only its own parameter. Options that aren't set fall back to the `spark.redis.*` value from the
-`SparkConf`, and then to the default.
+`SparkConf`, and then to the default. An empty `client.name` leaves that source's connections unnamed.
 
 ```scala
 val df = spark.read
@@ -131,6 +133,7 @@ Besides the commands that read and write your data, Spark-Redis uses the followi
 | `CLUSTER SLOTS`             | in cluster mode, to read the topology                                                                                                                                |
 | `SCAN`                      | to find the keys that match a pattern: RDD reads with a key pattern, DataFrame reads, and DataFrame writes with `SaveMode.Overwrite`, `ErrorIfExists` (the default) and `Ignore` |
 | `TYPE`                      | DataFrame reads with the `filter.keys.by.type` option                                                                                                               |
+| `CLIENT SETNAME`            | on every new connection, when `spark.redis.client.name` or the `client.name` option is set |
 
 Proxies and managed services that block or don't implement these commands are not supported. Typical errors are
 `ERR unknown command 'CLUSTER'`, `ERR data connection don't process admin command` (blocked `INFO`) and

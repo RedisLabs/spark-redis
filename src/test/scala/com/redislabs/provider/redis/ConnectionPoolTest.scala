@@ -1,7 +1,10 @@
 package com.redislabs.provider.redis
 
+import java.util.UUID
+
 import com.redislabs.provider.redis.env.RedisStandaloneEnv
 import org.scalatest.{FunSuite, Matchers}
+import redis.clients.jedis.Jedis
 
 /**
   * Integration tests for ConnectionPool, specifically testing CLIENT SETINFO functionality.
@@ -46,6 +49,45 @@ class ConnectionPoolTest extends FunSuite with Matchers with RedisStandaloneEnv 
       val clientList = conn.clientList()
       assumeServerReportsClientLibraryInfo(clientList)
       clientList should include("lib-ver=" + RedisClientLibraryInfo.libVersion)
+    } finally {
+      conn.close()
+    }
+  }
+
+  /** This connection's own line of CLIENT LIST, as field -> value. */
+  private def ownClientListEntry(conn: Jedis): Map[String, String] = {
+    val id = conn.clientId().toString
+    val entries = conn.clientList().split("\n").map(_.trim).filter(_.nonEmpty).map { line =>
+      line.split(" ").map { field =>
+        val kv = field.split("=", 2)
+        kv(0) -> (if (kv.length > 1) kv(1) else "")
+      }.toMap
+    }
+    entries.find(_.get("id").contains(id)).getOrElse(fail(s"CLIENT LIST has no entry for client id $id"))
+  }
+
+  test("a connection to an endpoint with a clientName carries that name in CLIENT LIST") {
+    val name = "spark-redis-pool-test-" + UUID.randomUUID().toString.take(8)
+    val endpoint = RedisEndpoint(host = redisHost, port = redisPort, auth = redisAuth, clientName = name)
+    val conn = ConnectionPool.connect(endpoint)
+    try {
+      val entry = ownClientListEntry(conn)
+      entry("name") shouldBe name
+      // The name does not displace the library info that CLIENT SETINFO sets.
+      if (entry.contains("lib-name")) {
+        entry("lib-name") shouldBe RedisClientLibraryInfo.libName
+        entry("lib-ver") shouldBe RedisClientLibraryInfo.libVersion
+      }
+    } finally {
+      conn.close()
+    }
+  }
+
+  test("a connection to an endpoint without a clientName has no name in CLIENT LIST") {
+    val endpoint = RedisEndpoint(host = redisHost, port = redisPort, auth = redisAuth)
+    val conn = ConnectionPool.connect(endpoint)
+    try {
+      ownClientListEntry(conn)("name") shouldBe ""
     } finally {
       conn.close()
     }
