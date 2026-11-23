@@ -5,7 +5,8 @@ Maven is used to build a jar file and run tests. Makefile is used to start and s
 
 Build with JDK 8, the version the CI uses. Building with JDK 11 or newer is known to fail with the Scala and plugin versions
 the project uses (for example with `NoClassDefFoundError: javax/tools/ToolProvider`), so if you have several JDKs installed,
-point `JAVA_HOME` to a JDK 8 and check the Java version reported by `mvn -version`.
+point `JAVA_HOME` to a JDK 8 and check the Java version reported by `mvn -version`. The tests run on the same JDK, whatever
+`java` comes first on your `PATH`.
 
 The `Makefile` expects that Redis binaries (`redis-server` and`redis-cli`) are in your `PATH` environment variable.
 The tests also connect over TLS, so Redis must be built with TLS support (`make BUILD_TLS=yes`), as in the

@@ -53,7 +53,9 @@
 		<jedis.version>3.9.0</jedis.version>
 		<!-- the latest Spark 3.x; CI also tests older Spark versions, see .github/workflows/integration.yml -->
 		<spark.version>3.5.10</spark.version>
-		<plugins.scalatest.version>1.0</plugins.scalatest.version>
+		<!-- 2.0.0 or later: the plugin starts the test JVM from ${java.home}, the JDK that runs Maven (JAVA_HOME).
+		     1.0 ran whatever `java` came first on PATH, so a newer JDK there ran the tests on that JDK. -->
+		<plugins.scalatest.version>2.2.0</plugins.scalatest.version>
 	</properties>
 
 	<distributionManagement>
