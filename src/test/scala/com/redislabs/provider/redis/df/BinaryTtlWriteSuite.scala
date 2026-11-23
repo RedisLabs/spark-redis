@@ -176,10 +176,8 @@ trait BinaryTtlWriteSuite extends RedisDataframeSuite with Matchers {
     val persistence = new BinaryRedisPersistence
     val encoded = dataFrame(1).collect().map(row => dataKey(table, row) -> persistence.encodeRow(KeyColumn, row)).toMap
     groupKeysByNode(redisConfig.hosts, encoded.keysIterator).foreach { case (node, keys) =>
-      withConnection(connectAs(node.endpoint).connect()) { conn =>
-        persistence.saveWithTtl(conn, keys.map(key => key -> encoded(key)).toSeq, Ttl, capabilities)(
-          ReadWriteConfig.Default)
-      }
+      val rows = keys.toSeq.map(key => (connectAs(node.endpoint), (key, encoded(key))))
+      persistence.saveWithTtl(rows, Ttl, capabilities)(ReadWriteConfig.Default)
     }
   }
 

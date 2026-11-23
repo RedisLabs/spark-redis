@@ -2,18 +2,17 @@ package org.apache.spark.sql.redis
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import com.redislabs.provider.redis.ReadWriteConfig
-import com.redislabs.provider.redis.util.PipelineUtils.{WriteCommand, mapWithPipeline}
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisEndpoint}
+import com.redislabs.provider.redis.util.PipelineUtils.{WriteCommand, writeMultiKeyWithRedirects, writeWithRedirects}
 import com.redislabs.provider.redis.util.{RedisCapabilities, WriteCapabilities}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
 import redis.clients.jedis.commands.ProtocolCommand
-import redis.clients.jedis.exceptions.JedisDataException
 import redis.clients.jedis.params.SetParams
 import redis.clients.jedis.util.{JedisClusterCRC16, SafeEncoder}
-import redis.clients.jedis.{Jedis, Pipeline}
+import redis.clients.jedis.Pipeline
 
 /**
   * @author The Viet Nguyen
@@ -35,32 +34,30 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
   }
 
   /**
-    * Writes one batch of rows that all live on the node `conn` points at, each with the same TTL, and fails if
-    * Redis rejects any write. With `MSETEX` the batch is one command, or one per hash slot when `slotScoped`.
-    * Without it, each row is one `SET … EX`. Both store the same values with the same TTL.
+    * Writes rows that all get the same TTL, following `MOVED` and `ASK`, and fails if Redis rejects any write.
     *
-    * @param rows         Redis key and encoded row
+    * With `MSETEX`, the rows of one node go in one command, or one per hash slot when `slotScoped`. A slot that is
+    * being migrated gets one `SET … EX` per row instead, because Redis can't run a command on several of its keys
+    * then. Without `MSETEX`, each row is one `SET … EX`. Both store the same values with the same TTL.
+    *
+    * @param rows         each row's Redis key and encoded row, paired with the endpoint that owns the key in the
+    *                     cached topology
     * @param ttl          seconds, more than 0
     * @param capabilities what the server can do, probed once per write
     */
-  def saveWithTtl(conn: Jedis, rows: Seq[(String, Array[Byte])], ttl: Int, capabilities: WriteCapabilities)
+  def saveWithTtl(rows: Seq[(RedisEndpoint, (String, Array[Byte]))], ttl: Int, capabilities: WriteCapabilities)
                  (implicit readWriteConfig: ReadWriteConfig): Unit = {
     require(ttl > 0, s"ttl must be more than 0, got $ttl")
+    val setWithTtl: ((String, Array[Byte])) => Seq[WriteCommand] = { case (key, value) =>
+      saveCommands(key, value, ttl)
+    }
     if (capabilities.msetex) {
-      val groups = if (capabilities.slotScoped) {
-        rows.groupBy { case (key, _) => JedisClusterCRC16.getSlot(key) }.values.toSeq
-      } else {
-        Seq(rows)
-      }
-      val replies = mapWithPipeline(conn, groups.filter(_.nonEmpty)) { (pipeline, group) =>
-        msetex(pipeline, group, ttl)
-      }
-      failOnRejected(conn, RedisCapabilities.Msetex, replies, MsetexOk)
+      val groups = rows.groupBy { case (endpoint, (key, _)) =>
+        (endpoint, if (capabilities.slotScoped) JedisClusterCRC16.getSlot(key) else 0)
+      }.toList.map { case ((endpoint, _), group) => endpoint -> group.map(_._2) }
+      writeMultiKeyWithRedirects(groups)(group => List(msetex(group, ttl)))(group => group, setWithTtl)
     } else {
-      val replies = mapWithPipeline(conn, rows) { case (pipeline, (key, value)) =>
-        save(pipeline, key, value, ttl)
-      }
-      failOnRejected(conn, "SET", replies, SetOk)
+      writeWithRedirects(rows)(setWithTtl)
     }
   }
 
@@ -87,11 +84,9 @@ object BinaryRedisPersistence {
   }
 
   private val Ex = SafeEncoder.encode("EX")
-  private val MsetexOk: AnyRef = Long.box(1L)
-  private val SetOk: AnyRef = "OK"
 
   /** `MSETEX numkeys key value [key value ...] EX ttl`. On a cluster the keys must share a hash slot. */
-  private def msetex(pipeline: Pipeline, rows: Seq[(String, Array[Byte])], ttl: Int): Unit = {
+  private def msetex(rows: Seq[(String, Array[Byte])], ttl: Int): WriteCommand = {
     val args = Array.newBuilder[Array[Byte]]
     args.sizeHint(2 * rows.size + 3)
     args += SafeEncoder.encode(rows.size.toString)
@@ -101,20 +96,7 @@ object BinaryRedisPersistence {
     }
     args += Ex
     args += SafeEncoder.encode(ttl.toString)
-    pipeline.sendCommand(MsetexCommand, args.result(): _*)
-  }
-
-  /** A pipelined error reply never surfaces by itself, so a write Redis rejected must fail here. */
-  private def failOnRejected(conn: Jedis, command: String, replies: Seq[AnyRef], ok: AnyRef): Unit = {
-    val rejected = replies.filterNot(_ == ok)
-    if (rejected.nonEmpty) {
-      val (detail, cause) = rejected.head match {
-        case e: JedisDataException => (e.getMessage, e)
-        case other: Any => (s"unexpected reply $other", null)
-      }
-      val node = s"${conn.getClient.getHost}:${conn.getClient.getPort}"
-      throw new JedisDataException(
-        s"$command with TTL: Redis rejected ${rejected.size} of ${replies.size} commands on $node: $detail", cause)
-    }
+    val command = args.result()
+    (pipeline: Pipeline) => pipeline.sendCommand(MsetexCommand, command: _*)
   }
 }
