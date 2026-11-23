@@ -44,9 +44,11 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
 		<scala.major.version>2.12</scala.major.version>
-		<scala.complete.version>${scala.major.version}.0</scala.complete.version>
+		<!-- keep in line with the Scala version that spark.version below is built with (2.12.18 for Spark 3.5.x) -->
+		<scala.complete.version>${scala.major.version}.18</scala.complete.version>
 		<jedis.version>3.9.0</jedis.version>
-		<spark.version>3.2.1</spark.version>
+		<!-- the latest Spark 3.x; CI also tests older Spark versions, see .github/workflows/integration.yml -->
+		<spark.version>3.5.10</spark.version>
 		<plugins.scalatest.version>1.0</plugins.scalatest.version>
 	</properties>
 

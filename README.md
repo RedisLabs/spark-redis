@@ -21,11 +21,12 @@ Spark-Redis also supports Spark Streaming (DStreams) and Structured Streaming.
 ## Version compatibility and branching
 
 The library has several branches, each corresponds to a different supported Spark version. For example, 'branch-2.3' works with any Spark 2.3.x version.
-The master branch contains the recent development for the next release.
+The master branch contains the recent development for the next release. It is built with the latest Spark 3.5.x, and CI
+also tests it with Spark 3.2, 3.3 and 3.4.
 
 | Spark-Redis                                                               | Spark | Redis            | Supported Scala Versions | 
 |---------------------------------------------------------------------------|-------| ---------------- | ------------------------ |
-| [master](https://github.com/RedisLabs/spark-redis/)                       | 3.2.x | >=2.9.0          | 2.12                     | 
+| [master](https://github.com/RedisLabs/spark-redis/)                       | 3.2.x - 3.5.x (built with 3.5.x) | >=2.9.0          | 2.12                     | 
 | [3.1](https://github.com/RedisLabs/spark-redis/tree/v3.1.0)               | 3.2.x | >=2.9.0          | 2.12                     | 
 | [3.0](https://github.com/RedisLabs/spark-redis/tree/branch-3.0)           | 3.0.x | >=2.9.0          | 2.12                     | 
 | [2.4, 2.5, 2.6](https://github.com/RedisLabs/spark-redis/tree/branch-2.4) | 2.4.x | >=2.9.0          | 2.11, 2.12               | 
