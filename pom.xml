@@ -290,6 +290,18 @@
             </plugin>
 		</plugins>
 	</build>
+	<dependencyManagement>
+		<dependencies>
+			<!-- Testcontainers talks to Docker through JNA and is built with JNA 5.13.0. Spark brings an older JNA in
+			     the Scala 2.13 builds (5.3.1 with Spark 3.2), which would win and has no Apple Silicon library, so
+			     the tests couldn't start Redis on an arm64 Mac. This sets the version only, not the scope. -->
+			<dependency>
+				<groupId>net.java.dev.jna</groupId>
+				<artifactId>jna</artifactId>
+				<version>5.13.0</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
         <dependency>
             <groupId>redis.clients</groupId>
