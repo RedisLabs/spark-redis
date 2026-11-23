@@ -14,18 +14,29 @@ import scala.util.{Failure, Success, Try}
   */
 object ParseUtils {
 
+  /**
+    * Parses each field of the schema from its string value.
+    *
+    * @throws IllegalArgumentException a value can't be parsed as its field's type. It is a [[FieldParseException]]
+    *                                  that names the field, the value and the type, and a NumberFormatException for
+    *                                  a number. Wrap the call in [[FieldParseException.withKey]] to name the key.
+    */
   def parseFields(value: Map[String, String], schema: StructType): Array[Any] =
     schema.fields.map { field =>
       val fieldName = field.name
       val fieldValue = value(fieldName)
-      parseValue(field.dataType, fieldValue)
+      parseValue(field, fieldValue)
     }
 
-  private def parseValue(dataType: DataType, fieldValueStr: String): Any = {
+  private def parseValue(field: StructField, fieldValueStr: String): Any = {
     if (fieldValueStr == null) {
       null
     } else {
-      parseNotNullValue(dataType, fieldValueStr)
+      try {
+        parseNotNullValue(field.dataType, fieldValueStr)
+      } catch {
+        case e: IllegalArgumentException => throw FieldParseException(field.name, fieldValueStr, field.dataType, e)
+      }
     }
   }
 
