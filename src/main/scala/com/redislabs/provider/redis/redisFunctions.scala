@@ -1,10 +1,11 @@
 package com.redislabs.provider.redis
 
 import com.redislabs.provider.redis.rdd._
-import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.PipelineUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import redis.clients.jedis.Pipeline
+import redis.clients.jedis.params.SetParams
 import scala.collection.JavaConverters._
 
 /**
@@ -399,6 +400,7 @@ class RedisContext(@transient val sc: SparkContext) extends Serializable {
 
 
 object RedisContext extends Serializable {
+
   /**
     * @param arr k/vs which should be saved in the target host
     *            save all the k/vs to the target host
@@ -406,29 +408,11 @@ object RedisContext extends Serializable {
     */
   def setKVs(arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig, readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    arr
-      .map { case (key, value) =>
-        (redisConfig.getHost(key), (key, value))
-      }
-      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
-      .foreach { batch =>
-        batch
-          .toArray
-          .groupBy(_._1)
-          .foreach { case (node, nodeKVs) =>
-            withConnection(node.endpoint.connect()) { conn =>
-              foreachWithPipeline(conn, nodeKVs) { case (pipeline, (_, (k, v))) =>
-                if (ttl <= 0) {
-                  pipeline.set(k, v)
-                }
-                else {
-                  pipeline.setex(k, ttl.toLong, v)
-                }
-              }
-            }
-          }
-      }
+    val rows = arr.map(kv => (redisConfig.getHost(kv._1).endpoint, kv))
+    writeKeys(rows) { case (k, v) =>
+      List((pipeline: Pipeline) =>
+        if (ttl <= 0) pipeline.set(k, v) else pipeline.set(k, v, SetParams.setParams().ex(ttl.toLong)))
+    }
   }
 
   /**
@@ -440,25 +424,11 @@ object RedisContext extends Serializable {
   def setByteKVs(arr: Iterator[(Array[Byte], Array[Byte])], ttl: Int, redisConfig: RedisConfig,
                  readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    arr
-      .map(kv => (redisConfig.getHost(kv._1), kv))
-      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
-      .foreach { batch =>
-        batch
-          .groupBy(_._1)
-          .foreach { case (node, nodeKvs) =>
-            withConnection(node.endpoint.connect()) { conn =>
-              foreachWithPipeline(conn, nodeKvs.map(_._2)) { case (pipeline, (k, v)) =>
-                if (ttl <= 0) {
-                  pipeline.set(k, v)
-                } else {
-                  pipeline.setex(k, ttl.toLong, v)
-                }
-              }
-            }
-          }
-      }
+    val rows = arr.map(kv => (redisConfig.getHost(kv._1).endpoint, kv))
+    writeKeys(rows) { case (k, v) =>
+      List((pipeline: Pipeline) =>
+        if (ttl <= 0) pipeline.set(k, v) else pipeline.set(k, v, SetParams.setParams().ex(ttl.toLong)))
+    }
   }
 
   /**
@@ -470,13 +440,10 @@ object RedisContext extends Serializable {
   def setHash(hashName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig,
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    withConnection(redisConfig.connectionForKey(hashName)) { conn =>
-      val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
-        pipeline.hset(hashName, k, v)
-      }
-      if (ttl > 0) pipeline.expire(hashName, ttl.toLong)
-      syncAndCheck(pipeline)
+    val fields: Iterator[WriteCommand] = arr.map { case (k, v) =>
+      (pipeline: Pipeline) => pipeline.hset(hashName, k, v)
     }
+    writeToKey(redisConfig.getHost(hashName).endpoint, fields, expireCommand(hashName, ttl))
   }
 
   /**
@@ -488,22 +455,11 @@ object RedisContext extends Serializable {
               redisConfig: RedisConfig,
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    hashes
-      .map { case (key, hashFields) =>
-        (redisConfig.getHost(key), (key, hashFields))
-      }
-      .toArray
-      .groupBy(_._1)
-      .foreach { case (node, arr) =>
-        withConnection(node.endpoint.connect()) { conn =>
-          foreachWithPipeline(conn, arr) { (pipeline, a) =>
-            val (key, hashFields) = a._2
-            pipeline.hmset(key, hashFields.asJava)
-            if (ttl > 0) pipeline.expire(key, ttl.toLong)
-          }
-        }
-      }
+    val rows = hashes.map { case (key, hashFields) => (redisConfig.getHost(key).endpoint, (key, hashFields)) }
+    writeKeys(rows) { case (key, hashFields) =>
+      nonEmpty(hashFields)((pipeline: Pipeline) => pipeline.hset(key, hashFields.asJava)) ++
+        expireCommand(key, ttl)
+    }
   }
 
   /**
@@ -515,26 +471,11 @@ object RedisContext extends Serializable {
                   redisConfig: RedisConfig,
                   readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    hashes
-      .map { case (key, hashFields) =>
-        (redisConfig.getHost(key), (key, hashFields))
-      }
-      .grouped(readWriteConfig.rddWriteIteratorGroupingSize)
-      .foreach { batch =>
-        batch
-          .toArray
-          .groupBy(_._1)
-          .foreach { case (node, arr) =>
-            withConnection(node.endpoint.connect()) { conn =>
-              foreachWithPipeline(conn, arr) { (pipeline, a) =>
-                val (key, hashFields) = a._2
-                pipeline.hmset(key, hashFields.asJava)
-                if (ttl > 0) pipeline.expire(key, ttl.toLong)
-              }
-            }
-          }
-      }
+    val rows = hashes.map { case (key, hashFields) => (redisConfig.getHost(key).endpoint, (key, hashFields)) }
+    writeKeys(rows) { case (key, hashFields) =>
+      nonEmpty(hashFields)((pipeline: Pipeline) => pipeline.hset(key, hashFields.asJava)) ++
+        expireCommand(key, ttl)
+    }
   }
 
   /**
@@ -546,13 +487,10 @@ object RedisContext extends Serializable {
   def setZset(zsetName: String, arr: Iterator[(String, String)], ttl: Int, redisConfig: RedisConfig,
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    withConnection(redisConfig.connectionForKey(zsetName)) { conn =>
-      val pipeline = foreachWithPipelineNoLastSync(conn, arr) { case (pipeline, (k, v)) =>
-        pipeline.zadd(zsetName, v.toDouble, k)
-      }
-      if (ttl > 0) pipeline.expire(zsetName, ttl.toLong)
-      syncAndCheck(pipeline)
+    val members: Iterator[WriteCommand] = arr.map { case (k, v) =>
+      (pipeline: Pipeline) => pipeline.zadd(zsetName, v.toDouble, k)
     }
+    writeToKey(redisConfig.getHost(zsetName).endpoint, members, expireCommand(zsetName, ttl))
   }
 
   /**
@@ -564,13 +502,8 @@ object RedisContext extends Serializable {
   def setSet(setName: String, arr: Iterator[String], ttl: Int, redisConfig: RedisConfig,
              readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    withConnection(redisConfig.connectionForKey(setName)) { conn =>
-      val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
-        pipeline.sadd(setName, v)
-      }
-      if (ttl > 0) pipeline.expire(setName, ttl.toLong)
-      syncAndCheck(pipeline)
-    }
+    val members: Iterator[WriteCommand] = arr.map(v => (pipeline: Pipeline) => pipeline.sadd(setName, v))
+    writeToKey(redisConfig.getHost(setName).endpoint, members, expireCommand(setName, ttl))
   }
 
   /**
@@ -585,37 +518,19 @@ object RedisContext extends Serializable {
               redisConfig: RedisConfig,
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    withConnection(redisConfig.connectionForKey(listName)) { conn =>
-      val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
-        pipeline.rpush(listName, v)
-      }
-      if (ttl > 0) pipeline.expire(listName, ttl.toLong)
-      syncAndCheck(pipeline)
-    }
+    val elements: Iterator[WriteCommand] = arr.map(v => (pipeline: Pipeline) => pipeline.rpush(listName, v))
+    writeToKey(redisConfig.getHost(listName).endpoint, elements, expireCommand(listName, ttl))
   }
-
 
   def setByteList(keyValues: Iterator[(Array[Byte], Seq[Array[Byte]])],
                   ttl: Int,
                   redisConfig: RedisConfig,
                   readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    keyValues
-      .map { case (key, listValues) =>
-        (redisConfig.getHost(key), (key, listValues))
-      }
-      .toArray
-      .groupBy(_._1)
-      .foreach { case (node, arr) =>
-        withConnection(node.endpoint.connect()) { conn =>
-          foreachWithPipeline(conn, arr) { (pipeline, a) =>
-            val (key, listVals) = a._2
-            pipeline.rpush(key, listVals: _*)
-            if (ttl > 0) pipeline.expire(key, ttl.toLong)
-          }
-        }
-      }
+    val rows = keyValues.map { case (key, listValues) => (redisConfig.getHost(key).endpoint, (key, listValues)) }
+    writeKeys(rows) { case (key, listValues) =>
+      nonEmpty(listValues)((pipeline: Pipeline) => pipeline.rpush(key, listValues: _*)) ++ expireCommand(key, ttl)
+    }
   }
 
   def setList(keyValues: Iterator[(String, Seq[String])],
@@ -623,22 +538,10 @@ object RedisContext extends Serializable {
               redisConfig: RedisConfig,
               readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-
-    keyValues
-      .map { case (key, listValues) =>
-        (redisConfig.getHost(key), (key, listValues))
-      }
-      .toArray
-      .groupBy(_._1)
-      .foreach { case (node, arr) =>
-        withConnection(node.endpoint.connect()) { conn =>
-          foreachWithPipeline(conn, arr) { (pipeline, a) =>
-            val (key, listVals) = a._2
-            pipeline.rpush(key, listVals: _*)
-            if (ttl > 0) pipeline.expire(key, ttl.toLong)
-          }
-        }
-      }
+    val rows = keyValues.map { case (key, listValues) => (redisConfig.getHost(key).endpoint, (key, listValues)) }
+    writeKeys(rows) { case (key, listValues) =>
+      nonEmpty(listValues)((pipeline: Pipeline) => pipeline.rpush(key, listValues: _*)) ++ expireCommand(key, ttl)
+    }
   }
 
   /**
@@ -653,16 +556,45 @@ object RedisContext extends Serializable {
                    redisConfig: RedisConfig,
                    readWriteConfig: ReadWriteConfig) {
     implicit val rwConf: ReadWriteConfig = readWriteConfig
-    withConnection(redisConfig.connectionForKey(key)) { conn =>
-      val pipeline = foreachWithPipelineNoLastSync(conn, arr) { (pipeline, v) =>
-        pipeline.lpush(key, v)
-      }
-      if (listSize > 0) {
-        pipeline.ltrim(key, 0, listSize - 1)
-      }
-      syncAndCheck(pipeline)
+    val elements: Iterator[WriteCommand] = arr.map(v => (pipeline: Pipeline) => pipeline.lpush(key, v))
+    val trim: List[WriteCommand] =
+      if (listSize > 0) List((pipeline: Pipeline) => pipeline.ltrim(key, 0, listSize - 1)) else Nil
+    writeToKey(redisConfig.getHost(key).endpoint, elements, trim)
+  }
+
+  // redisConfig's topology was read on the driver and can be out of date, so every writer goes through
+  // writeWithRedirects: it follows MOVED and ASK to the slot's current owner, and fails on any other error reply
+  // instead of dropping the write (#347).
+
+  /**
+    * Writes commands for one key to the endpoint that owns it, in order: `commands` in batches of
+    * `rddWriteIteratorGroupingSize`, then `last` (an `EXPIRE` or `LTRIM` that must follow them).
+    */
+  private def writeToKey(endpoint: RedisEndpoint, commands: Iterator[WriteCommand], last: List[WriteCommand])(
+      implicit readWriteConfig: ReadWriteConfig): Unit = {
+    commands.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach { batch =>
+      writeWithRedirects(batch.map(command => (endpoint, command)))(command => List(command))
+    }
+    if (last.nonEmpty) {
+      writeWithRedirects(last.map(command => (endpoint, command)))(command => List(command))
     }
   }
+
+  /** Writes rows of several keys, each to the endpoint that owns its key, in `rddWriteIteratorGroupingSize` batches. */
+  private def writeKeys[A](rows: Iterator[(RedisEndpoint, A)])(commands: A => List[WriteCommand])(
+      implicit readWriteConfig: ReadWriteConfig): Unit =
+    rows.grouped(readWriteConfig.rddWriteIteratorGroupingSize).foreach(batch => writeWithRedirects(batch)(commands))
+
+  /** `command`, unless `values` is empty: Redis rejects an `HSET` or `RPUSH` with nothing to set or push. */
+  private def nonEmpty(values: Iterable[_])(command: WriteCommand): List[WriteCommand] =
+    if (values.nonEmpty) List(command) else Nil
+
+  /** The `EXPIRE` that follows a key's write, when `ttl` is set. */
+  private def expireCommand(key: String, ttl: Int): List[WriteCommand] =
+    if (ttl > 0) List((pipeline: Pipeline) => pipeline.expire(key, ttl.toLong)) else Nil
+
+  private def expireCommand(key: Array[Byte], ttl: Int): List[WriteCommand] =
+    if (ttl > 0) List((pipeline: Pipeline) => pipeline.expire(key, ttl.toLong)) else Nil
 }
 
 trait RedisFunctions {

@@ -3,7 +3,7 @@ package org.apache.spark.sql.redis
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.redislabs.provider.redis.ReadWriteConfig
-import com.redislabs.provider.redis.util.PipelineUtils.mapWithPipeline
+import com.redislabs.provider.redis.util.PipelineUtils.{WriteCommand, mapWithPipeline}
 import com.redislabs.provider.redis.util.{RedisCapabilities, WriteCapabilities}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.Row
@@ -22,12 +22,15 @@ class BinaryRedisPersistence extends RedisPersistence[Array[Byte]] {
 
   import BinaryRedisPersistence._
 
-  override def save(pipeline: Pipeline, key: String, value: Array[Byte], ttl: Int): Unit = {
+  override def save(pipeline: Pipeline, key: String, value: Array[Byte], ttl: Int): Unit =
+    saveCommands(key, value, ttl).foreach(command => command(pipeline))
+
+  override def saveCommands(key: String, value: Array[Byte], ttl: Int): List[WriteCommand] = {
     val keyBytes = key.getBytes(UTF_8)
     if (ttl > 0) {
-      pipeline.set(keyBytes, value, SetParams.setParams().ex(ttl.toLong))
+      List((pipeline: Pipeline) => pipeline.set(keyBytes, value, SetParams.setParams().ex(ttl.toLong)))
     } else {
-      pipeline.set(keyBytes, value)
+      List((pipeline: Pipeline) => pipeline.set(keyBytes, value))
     }
   }
 

@@ -1,5 +1,6 @@
 package org.apache.spark.sql.redis
 
+import com.redislabs.provider.redis.util.PipelineUtils.WriteCommand
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import redis.clients.jedis.Pipeline
@@ -10,6 +11,13 @@ import redis.clients.jedis.Pipeline
 trait RedisPersistence[T] extends Serializable {
 
   def save(pipeline: Pipeline, key: String, value: T, ttl: Int): Unit
+
+  /**
+    * The commands that [[save]] sends for one row, in order, each sending exactly one command and returning its
+    * response. A writer that sends these sees every reply, so it can follow `MOVED` and `ASK` and fail on an error
+    * reply (`PipelineUtils.writeWithRedirects`).
+    */
+  def saveCommands(key: String, value: T, ttl: Int): List[WriteCommand]
 
   def load(pipeline: Pipeline, key: String, requiredColumns: Seq[String]): Unit
 
