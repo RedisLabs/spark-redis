@@ -27,8 +27,8 @@ import redis.clients.jedis.util.JedisClusterCRC16
   * The table name has no hash tag, so the schema key (`_spark:<table>:schema`) stays in a slot that doesn't move;
   * the row keys (`<table>:<id>`) take the suite's slot from the hash tag in each id.
   *
-  * `write.mode = replace` writes each row in a `MULTI`/`EXEC`, and the binary model with a `ttl` writes a slot's rows
-  * in one `MSETEX` where the server has it. Both must follow the redirects too.
+  * `write.mode = replace`, and the hash model with a `ttl`, write each row in a `MULTI`/`EXEC`, and the binary model
+  * with a `ttl` writes a slot's rows in one `MSETEX` where the server has it. They must follow the redirects too.
   */
 class DataframeRedirectedWriteClusterSuite extends SparkRedisSuite with RedisClusterEnv with RedirectedWrites
     with Matchers {
@@ -73,6 +73,7 @@ class DataframeRedirectedWriteClusterSuite extends SparkRedisSuite with RedisClu
   }
 
   private val Replace = Map(SqlOptionWriteMode -> SqlOptionWriteModeReplace)
+  private val HashWithTtl = Map(SqlOptionTTL -> Ttl.toString)
   private val BinaryWithTtl = Map(SqlOptionModel -> SqlOptionModelBinary, SqlOptionTTL -> Ttl.toString)
 
   private def write(table: String, rows: Seq[Person], options: Map[String, String]): Unit =
@@ -102,6 +103,14 @@ class DataframeRedirectedWriteClusterSuite extends SparkRedisSuite with RedisClu
     val withoutTtl = expected.count { case (id, _, _) => conn.ttl(key(id)) <= 0 }
     withClue(s"$missing of ${expected.size} rows not stored and $withoutTtl without a TTL $when:") {
       stored shouldBe wanted
+      withoutTtl shouldBe 0
+    }
+  }
+
+  /** Checks that each row's hash has a TTL, and names how many don't. */
+  private def checkTtls(conn: Jedis, table: String, expected: Seq[Person], when: String): Unit = {
+    val withoutTtl = expected.count { case (id, _, _) => conn.ttl(s"$table:$id") <= 0 }
+    withClue(s"$withoutTtl of ${expected.size} rows without a TTL $when:") {
       withoutTtl shouldBe 0
     }
   }
@@ -191,6 +200,30 @@ class DataframeRedirectedWriteClusterSuite extends SparkRedisSuite with RedisClu
         write(table, rows, Replace)
       } { conn =>
         checkRows(conn, table, rows, Seq.empty, "while their slot was migrating")
+      }
+    }
+  }
+
+  test("the hash model with a ttl stores every row with its TTL after the rows' slot moved to another primary") {
+    withTable { table =>
+      val rows = people(uuid(), "new")
+      afterSlotMoved(HashTag, beforeMove = () => createView(table, HashWithTtl)) { _ =>
+        insert(table, rows, overwrite = false)
+      } { conn =>
+        checkRows(conn, table, rows, Seq.empty, "after their slot moved")
+        checkTtls(conn, table, rows, "after their slot moved")
+      }
+    }
+  }
+
+  test("the hash model with a ttl stores every row with its TTL while the rows' slot is being migrated") {
+    withTable { table =>
+      val rows = people(uuid(), "new")
+      whileSlotMigrating(HashTag) { _ =>
+        write(table, rows, HashWithTtl)
+      } { conn =>
+        checkRows(conn, table, rows, Seq.empty, "while their slot was migrating")
+        checkTtls(conn, table, rows, "while their slot was migrating")
       }
     }
   }
