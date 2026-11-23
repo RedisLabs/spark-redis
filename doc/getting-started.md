@@ -51,11 +51,11 @@ cd spark-redis
 mvn clean package -DskipTests
 ```
 
-The build produces `target/spark-redis_2.12-<version>.jar` and `target/spark-redis_2.12-<version>-jar-with-dependencies.jar`.
-To build for Scala 2.13 instead, switch the build first:
+The build produces `target/spark-redis_2.13-<version>.jar` and `target/spark-redis_2.13-<version>-jar-with-dependencies.jar`.
+To build for Scala 2.12 instead, for the default Spark 3.x download, switch the build first:
 
 ```
-dev/change-scala-version.sh 2.13
+dev/change-scala-version.sh 2.12
 mvn clean package -DskipTests
 ```
 

@@ -31,21 +31,22 @@ jobs:
         # Scala version that Spark build uses: scala-library is only backward compatible, so an older one can miss
         # methods that Spark calls.
         include:
-          # the version the library is built and released with (spark.version in pom.xml)
-          - spark: '3.5.10'
-            scala-binary: '2.12'
-            scala: '2.12.18'
-            redis: '7.4'
-            coverage: true
+          # the version the library is built and released with (spark.version in pom.xml), on the default Scala 2.13
+          # build and on Scala 2.12
           - spark: '3.5.10'
             scala-binary: '2.13'
             scala: '2.13.8'
             redis: '7.4'
-          # the newest Redis line, on the released build. Every entry names its Redis version: an entry that only added
-          # a key would be merged into the entry above instead of becoming a job of its own
+            coverage: true
           - spark: '3.5.10'
             scala-binary: '2.12'
             scala: '2.12.18'
+            redis: '7.4'
+          # the newest Redis line, on the default build. Every entry names its Redis version: an entry that only added
+          # a key would be merged into the entry above instead of becoming a job of its own
+          - spark: '3.5.10'
+            scala-binary: '2.13'
+            scala: '2.13.8'
             redis: '8.6'
           # older Spark lines that the library supports
           - spark: '3.2.1'
@@ -100,8 +101,9 @@ jobs:
           # matrix jobs would share one entry that holds the dependencies of a single Spark build
           cache-prefix: spark-${{ matrix.spark }}-scala-${{ matrix.scala-binary }}-
       - name: Switch the build to Scala ${{ matrix.scala-binary }}
-        # the same script the release uses, so that the spark-redis_2.13 build is tested as it is published
-        if: matrix.scala-binary != '2.12'
+        # pom.xml builds for Scala 2.13. The same script the release uses, so that the spark-redis_2.12 build is tested
+        # as it is published
+        if: matrix.scala-binary != '2.13'
         run: dev/change-scala-version.sh ${{ matrix.scala-binary }}
       - name: Show the Redis version under test
         run: docker run --rm "$REDIS_IMAGE" redis-server --version
