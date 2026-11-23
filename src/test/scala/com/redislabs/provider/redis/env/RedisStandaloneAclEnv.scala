@@ -7,7 +7,6 @@ import org.apache.spark.SparkConf
  * Standalone with user/password authentication
  */
 trait RedisStandaloneAclEnv extends Env {
-
   override val conf: SparkConf = new SparkConf()
     .setMaster("local[*]").setAppName(getClass.getName)
     .set("spark.redis.host", redisHost)

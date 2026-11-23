@@ -1,0 +1,2 @@
+user default on >passwd ~* &* +@all
+user alice on >p1pp0 ~* &* +@all

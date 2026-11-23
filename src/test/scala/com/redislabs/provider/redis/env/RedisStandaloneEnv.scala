@@ -7,7 +7,6 @@ import org.apache.spark.SparkConf
  * @author The Viet Nguyen
  */
 trait RedisStandaloneEnv extends Env {
-
   override val conf: SparkConf = new SparkConf()
     .setMaster("local[*]").setAppName(getClass.getName)
     .set("spark.redis.host", redisHost)
