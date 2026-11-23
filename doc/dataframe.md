@@ -230,6 +230,11 @@ If you want to expire your data after a certain period of time, you can specify 
 [Expire](https://redis.io/commands/expire) command to cleanup data. With `write.mode` `replace`, the TTL is set in the same
 transaction as the row (see [Write mode](#write-mode)).
 
+With the Binary persistence model each value is written together with its TTL. Where every primary has
+[MSETEX](https://redis.io/commands/msetex) (Redis 8.4 and later), each batch of rows is one `MSETEX`, or one per hash slot
+on a cluster. Otherwise each row is one `SET ... EX`. The connector asks the server whether it has `MSETEX`
+(`COMMAND INFO`) once per write. Both ways store the same values and TTLs.
+
 For example, to expire data after 30 seconds:
 
 ```scala

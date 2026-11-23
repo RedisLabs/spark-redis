@@ -2,10 +2,10 @@ package com.redislabs.provider.redis.df
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import com.redislabs.provider.redis.RedisEndpoint
-import com.redislabs.provider.redis.toRedisContext
+import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisEndpoint, toRedisContext}
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.TestUtils.generateTableName
+import com.redislabs.provider.redis.util.{RedisCapabilities, WriteCapabilities}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.redis._
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
@@ -165,5 +165,99 @@ trait BinaryTtlWriteSuite extends RedisDataframeSuite with Matchers {
     write(table, partitions = 8, batchSize = 3)
     onPrimaries(callsOn(_, "command|info")) shouldBe Seq.fill(primaries.size)(1L)
     verifyStored(table)
+  }
+
+  /**
+    * Writes `rows` through `BinaryRedisPersistence.saveWithTtl`, node by node, with the given capabilities instead of
+    * the probed ones. This drives the path the server would not choose, such as the fallback on a server with MSETEX.
+    */
+  protected def writeDirect(table: String, capabilities: WriteCapabilities,
+                            connectAs: RedisEndpoint => RedisEndpoint = identity): Unit = {
+    val persistence = new BinaryRedisPersistence
+    val encoded = dataFrame(1).collect().map(row => dataKey(table, row) -> persistence.encodeRow(KeyColumn, row)).toMap
+    groupKeysByNode(redisConfig.hosts, encoded.keysIterator).foreach { case (node, keys) =>
+      withConnection(connectAs(node.endpoint).connect()) { conn =>
+        persistence.saveWithTtl(conn, keys.map(key => key -> encoded(key)).toSeq, Ttl, capabilities)(
+          ReadWriteConfig.Default)
+      }
+    }
+  }
+
+  protected def distinctSlots(table: String): Long =
+    rows.map(row => JedisClusterCRC16.getSlot(dataKey(table, row))).distinct.size.toLong
+
+  /** Runs `body` while every primary has an extra ACL user with the test password and `rules`, then removes it. */
+  protected def withAclUser[A](user: String, rules: String*)(body: => A): A = {
+    onPrimaries(_.aclSetUser(user, Seq("reset", "on", s">$userPassword", "~*", "&*", "+@all") ++ rules: _*))
+    try body
+    finally onPrimaries(_.aclDelUser(user))
+  }
+
+  test("the write capabilities come from the server: COMMAND INFO for MSETEX, HELLO for slot grouping") {
+    RedisCapabilities.forWrite(redisConfig) shouldBe
+      WriteCapabilities(msetex = serverHasMsetex, slotScoped = clusterMode)
+  }
+
+  test("a primary that can't be asked about MSETEX counts as not having it") {
+    val user = "binary_ttl_no_command"
+    withAclUser(user, "-command") {
+      val config = new RedisConfig(redisConfig.initialHost.copy(user = user, auth = userPassword))
+      RedisCapabilities.forWrite(config).msetex shouldBe false
+    }
+  }
+
+  test("without MSETEX a binary ttl write sends one SET EX per row") {
+    val table = generateTableName(TablePrefix)
+    resetCommandStats()
+    writeDirect(table, WriteCapabilities(msetex = false, slotScoped = clusterMode))
+    calls("set") shouldBe RowCount
+    calls("msetex") shouldBe 0
+    calls("setex") shouldBe 0
+    verifyStored(table)
+  }
+
+  test("with MSETEX a binary ttl write sends one MSETEX per node, or per hash slot on a cluster") {
+    val table = generateTableName(TablePrefix)
+    val capabilities = WriteCapabilities(msetex = true, slotScoped = clusterMode)
+    if (serverHasMsetex) {
+      resetCommandStats()
+      writeDirect(table, capabilities)
+      calls("msetex") shouldBe (if (clusterMode) distinctSlots(table) else 1L)
+      calls("set") shouldBe 0
+      verifyStored(table)
+      // the fallback stores the same bytes
+      val fallbackTable = generateTableName(TablePrefix)
+      writeDirect(fallbackTable, capabilities.copy(msetex = false))
+      rows.foreach { row =>
+        val key = dataKey(table, row)
+        val fallbackKey = dataKey(fallbackTable, row)
+        val stored = withConnection(redisConfig.connectionForKey(key))(_.get(key.getBytes(UTF_8)))
+        val fallbackStored =
+          withConnection(redisConfig.connectionForKey(fallbackKey))(_.get(fallbackKey.getBytes(UTF_8)))
+        withClue(s"key $key: ")(stored shouldBe fallbackStored)
+      }
+    } else {
+      // A server without MSETEX rejects it, and the write must fail instead of dropping the rows.
+      val e = intercept[JedisDataException](writeDirect(table, capabilities))
+      e.getMessage should include("MSETEX")
+      e.getMessage.toLowerCase should include("unknown command")
+      sc.fromRedisKeyPattern(s"$table:*").count() shouldBe 0
+    }
+  }
+
+  test("a binary ttl write that Redis rejects fails instead of passing silently") {
+    val user = "binary_ttl_read_only"
+    withAclUser(user, "-@write") {
+      Seq(false, serverHasMsetex).distinct.foreach { msetex =>
+        val table = generateTableName(TablePrefix)
+        val e = intercept[JedisDataException] {
+          writeDirect(table, WriteCapabilities(msetex, clusterMode), _.copy(user = user, auth = userPassword))
+        }
+        withClue(s"msetex = $msetex: ") {
+          e.getMessage should include("NOPERM")
+          sc.fromRedisKeyPattern(s"$table:*").count() shouldBe 0
+        }
+      }
+    }
   }
 }

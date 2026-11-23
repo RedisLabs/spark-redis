@@ -7,7 +7,7 @@ import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.{FieldParseException, Logging}
+import com.redislabs.provider.redis.util.{FieldParseException, Logging, RedisCapabilities, WriteCapabilities}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
 import org.apache.commons.lang3.{SerializationException, SerializationUtils}
@@ -110,6 +110,11 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
   }
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+    // The binary model writes a TTL with MSETEX where every primary has it, so ask once per write, here on the driver.
+    val binaryTtlWrite: Option[(BinaryRedisPersistence, WriteCapabilities)] = (persistence: AnyRef) match {
+      case binary: BinaryRedisPersistence if ttl > 0 => Some(binary -> RedisCapabilities.forWrite(redisConfig))
+      case _ => None
+    }
     val schema = userSpecifiedSchema.getOrElse(data.schema)
     // write schema, so that we can load dataframe back
     currentSchema = saveSchema(schema)
@@ -139,12 +144,17 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
               val encodedRow = persistence.encodeRow(keyName, row)
               persistence.save(pipeline, key, encodedRow, ttl)
             }
-            if (replaceHashes) {
-              // A replace that Redis refused fails the task instead of leaving the old row in place silently. Unlike
-              // foreachWithPipeline, this also sees the errors inside each EXEC reply.
-              failOnErrorReplies(mapWithPipeline(conn, keys)(save))
-            } else {
-              foreachWithPipeline(conn, keys)(save)
+            binaryTtlWrite match {
+              case Some((binary, capabilities)) =>
+                // one MSETEX per batch (per slot on a cluster), or SET ... EX per row; a rejected write fails the task
+                val encodedRows = keys.map(key => key -> binary.encodeRow(keyName, rowsWithKey(key)))
+                binary.saveWithTtl(conn, encodedRows, ttl, capabilities)
+              case None if replaceHashes =>
+                // A replace that Redis refused fails the task instead of leaving the old row in place silently. Unlike
+                // foreachWithPipeline, this also sees the errors inside each EXEC reply.
+                failOnErrorReplies(mapWithPipeline(conn, keys)(save))
+              case None =>
+                foreachWithPipeline(conn, keys)(save)
             }
           }
         }
