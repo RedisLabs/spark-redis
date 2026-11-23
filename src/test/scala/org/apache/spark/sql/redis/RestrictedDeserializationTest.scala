@@ -144,17 +144,36 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
   }
 
   test("a short value that declares a huge array fails without allocating it") {
-    // a row whose last value is an empty long array, whose length is the stream's last 4 bytes
-    val bytes = SerializationUtils.serialize(Array[Any]("John", Array.emptyLongArray))
-    ByteBuffer.wrap(bytes).putInt(bytes.length - 4, Int.MaxValue - 8)
-    val e = the[SerializationException] thrownBy decode(bytes)
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+    val bytes = hugeArrayRow
+    val e = the[ValueRejectedException] thrownBy decode(bytes)
+    e shouldBe a[SerializationException]
     e.getMessage should include(s"${bytes.length} bytes")
   }
 
   test("arrays that each fit in the value, but not all together, fail before the one that goes over is allocated") {
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
     val bytes = nestedArrays(depth = 3)
-    val e = the[SerializationException] thrownBy decode(bytes)
+    val e = the[ValueRejectedException] thrownBy decode(bytes)
     e.getMessage should include(s"${bytes.length} bytes")
+  }
+
+  test("a value nested deeper than the limit fails before it can overflow the stack") {
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+    // without the limit, reading these overflows a 512 KB stack at about 1,000 levels
+    val bytes = deeplyNestedArrays(100000)
+    val result = onThread(stackSize = 512L << 10)(decode(bytes))
+    result.left.get shouldBe a[ValueRejectedException]
+    result.left.get.getMessage should include(s"more than ${RestrictedDeserialization.MaxDepth} levels")
+  }
+
+  test("rows and schemas nested 60 structs deep still read back") {
+    def struct(n: Int): String =
+      if (n == 0) "named_struct('a', 1, 'arr', array(map('k', array(1))))"
+      else s"named_struct('s', ${struct(n - 1)}, 'arr', array(${struct(0)}), 'm', map('k', 1))"
+    roundTrip(s"SELECT ${struct(60)} s")
+    val schema = spark.sql(s"SELECT ${struct(60)} s").schema
+    RedisSourceRelation.decodeSchema("_spark:deep:schema", SerializationUtils.serialize(schema)) shouldBe schema
   }
 
   test("a stream that isn't Java serialization still fails as before") {
@@ -163,7 +182,14 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
 
   test("the error names the Redis key") {
     val bytes = SerializationUtils.serialize(Array[Any](new java.util.HashMap[String, String]()))
-    val e = the[ClassNotAllowedException] thrownBy ClassNotAllowedException.withKey("person:1")(decode(bytes))
+    val e = the[ClassNotAllowedException] thrownBy RestrictedDeserialization.withKey("person:1")(decode(bytes))
+    e.key shouldBe Some("person:1")
+    e.getMessage should include("'person:1'")
+  }
+
+  test("a rejected value's error names the Redis key") {
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+    val e = the[ValueRejectedException] thrownBy RestrictedDeserialization.withKey("person:1")(decode(hugeArrayRow))
     e.key shouldBe Some("person:1")
     e.getMessage should include("'person:1'")
   }
@@ -229,6 +255,19 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     out.toByteArray.ensuring(_.length == length)
   }
 
+  /** Runs body on a thread of its own with the given stack size, returning what it threw, errors included. */
+  private def onThread[T](stackSize: Long)(body: => T): Either[Throwable, T] = {
+    var result: Either[Throwable, T] = Left(new IllegalStateException("the thread didn't run"))
+    val thread = new Thread(null, new Runnable {
+      override def run(): Unit = result = try Right(body) catch {
+        case e: Throwable => Left(e)
+      }
+    }, "deserialize", stackSize)
+    thread.start()
+    thread.join()
+    result
+  }
+
   private def sparkAtLeast(major: Int, minor: Int): Boolean = {
     val Array(ma, mi) = SPARK_VERSION.split("[.-]").take(2).map(_.toInt)
     ma > major || (ma == major && mi >= minor)
@@ -236,6 +275,41 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
 }
 
 object RestrictedDeserializationTest {
+
+  /** A row whose last value is a long array that declares Int.MaxValue - 8 elements and holds none. */
+  def hugeArrayRow: Array[Byte] = {
+    // the empty array's length is the stream's last 4 bytes
+    val bytes = SerializationUtils.serialize(Array[Any]("John", Array.emptyLongArray))
+    ByteBuffer.wrap(bytes).putInt(bytes.length - 4, Int.MaxValue - 8)
+    bytes
+  }
+
+  /** `depth` nested `Object[1]` arrays, the innermost holding null: 10 bytes a level. */
+  def deeplyNestedArrays(depth: Int): Array[Byte] = {
+    import ObjectStreamConstants._
+    val out = new ByteArrayOutputStream()
+    val data = new DataOutputStream(out)
+    data.writeShort(STREAM_MAGIC)
+    data.writeShort(STREAM_VERSION)
+    data.writeByte(TC_ARRAY)
+    data.writeByte(TC_CLASSDESC)
+    data.writeUTF("[Ljava.lang.Object;")
+    data.writeLong(ObjectStreamClass.lookup(classOf[Array[AnyRef]]).getSerialVersionUID)
+    data.writeByte(SC_SERIALIZABLE)
+    data.writeShort(0) // fields
+    data.writeByte(TC_ENDBLOCKDATA) // class annotations
+    data.writeByte(TC_NULL) // superclass
+    data.writeInt(1)
+    (1 until depth).foreach { _ =>
+      data.writeByte(TC_ARRAY)
+      data.writeByte(TC_REFERENCE)
+      data.writeInt(baseWireHandle) // the class descriptor above
+      data.writeInt(1)
+    }
+    data.writeByte(TC_NULL)
+    data.flush()
+    out.toByteArray
+  }
 
   /** Records that its deserialization code ran. */
   class Tripwire extends JSerializable {

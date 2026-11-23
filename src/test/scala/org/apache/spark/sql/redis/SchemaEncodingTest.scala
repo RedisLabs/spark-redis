@@ -83,6 +83,19 @@ class SchemaEncodingTest extends FunSuite with Matchers {
     e.getMessage should include("java.util.HashMap")
   }
 
+  test("a Java-serialized schema key that declares a huge array or nests too deep fails as that, naming the key") {
+    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+    Seq("huge array" -> RestrictedDeserializationTest.hugeArrayRow,
+      "deep nesting" -> RestrictedDeserializationTest.deeplyNestedArrays(1000)).foreach { case (what, bytes) =>
+      withClue(what) {
+        val e = the[ValueRejectedException] thrownBy decodeSchema(Key, bytes)
+        e.key shouldBe Some(Key)
+        e.getMessage should include(Key)
+        e.getMessage should not include "another Spark or Scala version"
+      }
+    }
+  }
+
   test("a Java-serialized value that is not a schema is not a schema") {
     val e = the[IllegalStateException] thrownBy decodeSchema(Key, SerializationUtils.serialize(Integer.valueOf(1)))
     e.getMessage should include(Key)

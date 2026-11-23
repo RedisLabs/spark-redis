@@ -351,7 +351,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
       filteredKeysAndValues.map { case (key, value) =>
         val keyMap = keyName -> tableKey(keysPrefixPattern, key)
         FieldParseException.withKey(key) {
-          ClassNotAllowedException.withKey(key) {
+          RestrictedDeserialization.withKey(key) {
             persistence.decodeRow(keyMap, value, schema, requiredColumns)
           }
         }
@@ -387,15 +387,19 @@ object RedisSourceRelation {
     * @throws IllegalStateException     if the value is a Java-serialized schema from another Spark version, or isn't
     *                                   a schema at all
     * @throws ClassNotAllowedException if the value is Java-serialized and contains a class that isn't allowed
+    * @throws ValueRejectedException   if the value is Java-serialized and declares more than a schema can, see
+    *                                  [[RestrictedDeserialization]]
     */
   private[redis] def decodeSchema(key: String, bytes: Array[Byte],
                                   allowedClasses: ClassAllowlist = ClassAllowlist.Default): StructType =
     if (isJavaSerialized(bytes)) {
       val decoded = try {
-        ClassNotAllowedException.withKey(key) {
+        RestrictedDeserialization.withKey(key) {
           RestrictedDeserialization.deserialize[AnyRef](bytes, allowedClasses)
         }
       } catch {
+        // a filter's rejection, which is an InvalidClassException too, but says nothing about the version
+        case e: ValueRejectedException => throw e
         // another Spark version (StructType's serialVersionUID) or another Scala version (its collection classes)
         case e: SerializationException
             if e.getCause.isInstanceOf[InvalidClassException] || e.getCause.isInstanceOf[ClassNotFoundException] =>

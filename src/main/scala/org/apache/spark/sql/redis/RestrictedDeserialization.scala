@@ -20,29 +20,52 @@ import scala.util.Try
   * So every class in the stream must be allowed by a [[ClassAllowlist]], and it is checked before the class is
   * loaded, so a class that isn't allowed never runs any code. Dynamic proxies are never allowed.
   *
-  * The arrays in the stream can't declare more elements in all than the stream has bytes, see [[ArrayLengthLimit]],
-  * so a short value can't make the read run out of memory.
+  * The arrays in the stream can't declare more elements in all than the stream has bytes, and the stream can't nest
+  * deeper than [[MaxDepth]], see [[StreamLimits]], so a short value can't make the read run out of memory or stack.
   */
 private[redis] object RestrictedDeserialization {
 
   /**
+    * The deepest a Java-serialized value may nest, as ObjectInputStream counts it: a level for each object or array
+    * inside another. A row or a schema with 30 levels of nested structs reaches about 100, so this reads values with
+    * about 60. Reading recurses once per level, and nested Scala maps overflow a 1 MB stack, the default on Linux, at
+    * about 480 levels on Scala 2.12, and a 512 KB one at about 320.
+    */
+  private[redis] val MaxDepth = 200
+
+  /** Whether this JVM lets spark-redis limit what a stream declares, see [[StreamLimits]]. */
+  private[redis] def limitsAvailable: Boolean = StreamLimits.available
+
+  /**
     * @throws ClassNotAllowedException if the stream names a class that `allowlist` doesn't allow
-    * @throws SerializationException   if the bytes can't be deserialized, for example because a class has another
-    *                                  `serialVersionUID` (cause: `InvalidClassException`) or doesn't exist, or the
-    *                                  stream's arrays declare more elements than it has bytes
+    * @throws ValueRejectedException   if the stream's arrays declare more elements than it has bytes, it nests deeper
+    *                                  than [[MaxDepth]], or the JVM's serialization filter rejects it
+    * @throws SerializationException   if the bytes can't be deserialized otherwise, for example because a class has
+    *                                  another `serialVersionUID` (cause: `InvalidClassException`) or doesn't exist
     */
   def deserialize[T](bytes: Array[Byte], allowlist: ClassAllowlist): T =
     try {
       // the constructor already reads the stream header
       val in = new AllowlistObjectInputStream(new ByteArrayInputStream(bytes), allowlist)
-      val arrays = ArrayLengthLimit.install(in, bytes.length)
+      val limits = StreamLimits.install(in, bytes.length)
       try in.readObject().asInstanceOf[T] catch {
         case e: ClassNotAllowedException => throw e
-        case e: InvalidClassException if arrays.exceeded => throw new SerializationException(arrays.message, e)
+        // what a filter rejects fails as "filter status: REJECTED"
+        case e: InvalidClassException if limits.rejection.isDefined =>
+          throw new ValueRejectedException(limits.rejection.get, None, e)
       } finally in.close()
     } catch {
       case e: ClassNotAllowedException => throw e
       case e@(_: IOException | _: ClassNotFoundException) => throw new SerializationException(e)
+    }
+
+  /** Runs body, adding the Redis key to a [[ClassNotAllowedException]] or [[ValueRejectedException]] it throws. */
+  private[redis] def withKey[T](key: String)(body: => T): T =
+    try {
+      body
+    } catch {
+      case e: ClassNotAllowedException if e.key.isEmpty => throw e.withKey(key)
+      case e: ValueRejectedException if e.key.isEmpty => throw e.withKey(key)
     }
 
   private class AllowlistObjectInputStream(in: InputStream, allowlist: ClassAllowlist) extends ObjectInputStream(in) {
@@ -65,36 +88,53 @@ private[redis] object RestrictedDeserialization {
   }
 
   /**
-    * Limits the elements that a stream's arrays declare, in all, to the stream's length in bytes. ObjectInputStream
-    * allocates an array as soon as it has read its length, before any element, so without a limit a value of a few
-    * bytes could declare an array of 2^31 longs, or nest arrays that each declare as many elements as the value has
-    * bytes. Allocating them runs the JVM out of memory, and Spark ends an executor that does, or the driver, which
-    * reads the schema. Every element takes at least one byte of the stream that ObjectOutputStream writes, so the
-    * limit never fails a value that spark-redis wrote.
+    * Limits what a stream declares, before ObjectInputStream acts on it:
     *
-    * ObjectInputStream reports an array's length before allocating it only to a serialization filter, whose interface
-    * is `java.io.ObjectInputFilter` on Java 9 and later and `sun.misc.ObjectInputFilter` on Java 8 (8u121 and later).
-    * spark-redis is built for Java 8, so it implements whichever one the JVM has through reflection, and reads without
-    * the limit on a JVM that has neither. A filter that the JVM already gives the stream, such as one set with
-    * `jdk.serialFilter`, still decides everything this one doesn't reject.
+    *  - The elements of its arrays, in all, to the stream's length in bytes. ObjectInputStream allocates an array as
+    *    soon as it has read its length, before any element, so without a limit a value of a few bytes could declare
+    *    an array of 2^31 longs, or nest arrays that each declare as many elements as the value has bytes. Every
+    *    element takes at least one byte of the stream that ObjectOutputStream writes, so this never fails a value
+    *    that spark-redis wrote.
+    *  - Its depth, to [[MaxDepth]]. ObjectInputStream recurses once per level, so without a limit about 100 KB of
+    *    nested arrays or maps could overflow the stack.
+    *
+    * Running out of memory or stack ends the JVM: Spark ends an executor that does, and the driver reads the schema.
+    *
+    * ObjectInputStream reports an array's length before allocating it, and the depth of each object before reading
+    * it, only to a serialization filter, whose interface is `java.io.ObjectInputFilter` on Java 9 and later and
+    * `sun.misc.ObjectInputFilter` on Java 8 (8u121 and later). spark-redis is built for Java 8, so it implements
+    * whichever one the JVM has through reflection, and reads without the limits on a JVM that has neither. A filter
+    * that the JVM already gives the stream, such as one set with `jdk.serialFilter`, still decides everything these
+    * limits don't reject.
     */
-  private object ArrayLengthLimit {
+  private object StreamLimits {
 
-    /** The elements that one stream's arrays have declared so far. */
-    final class Elements private[ArrayLengthLimit](maxElements: Long) {
-      private[ArrayLengthLimit] var elements = 0L
+    /** What one stream has declared so far, and whether a filter rejected it. */
+    final class Limits private[StreamLimits](maxElements: Long) {
+      private[StreamLimits] var elements = 0L
+      private[StreamLimits] var depth = 0L
+      private[StreamLimits] var rejectedByJvmFilter = false
 
-      /** Whether the stream has declared more elements than `maxElements`. The array that went over isn't allocated. */
-      def exceeded: Boolean = elements > maxElements
+      private[StreamLimits] def exceeded: Boolean = elements > maxElements || depth > MaxDepth
 
-      def message: String =
-        s"The Java-serialized value's arrays declare $elements elements, more than its $maxElements bytes can hold, " +
-          "so Spark-Redis didn't write it. It was not read, to keep it from running Spark out of memory."
+      /** Why the stream was rejected, if it was. What went over is neither allocated nor read. */
+      def rejection: Option[String] =
+        if (elements > maxElements) {
+          Some(s"its arrays declare $elements elements, more than its $maxElements bytes can hold, so Spark-Redis " +
+            "didn't write it. Reading it could run Spark out of memory.")
+        } else if (depth > MaxDepth) {
+          Some(s"it nests more than $MaxDepth levels deep, which a value Spark-Redis wrote only does with more than " +
+            "60 levels of nested structs. Reading it could overflow the stack.")
+        } else if (rejectedByJvmFilter) {
+          Some("the JVM's serialization filter, for example one set with jdk.serialFilter, rejected it.")
+        } else {
+          None
+        }
     }
 
     /** The parts of a serialization filter API. */
     private final case class FilterApi(filterInterface: Class[_], checkInput: Method, arrayLength: Method,
-                                       rejected: AnyRef, undecided: AnyRef,
+                                       depth: Method, rejected: AnyRef, undecided: AnyRef,
                                        get: ObjectInputStream => AnyRef, set: (ObjectInputStream, AnyRef) => Unit)
 
     private def filterApi(filterInterface: String, get: Class[_] => ObjectInputStream => AnyRef,
@@ -102,7 +142,7 @@ private[redis] object RestrictedDeserialization {
       val filter = Class.forName(filterInterface)
       val info = Class.forName(filterInterface + "$FilterInfo")
       val status = Class.forName(filterInterface + "$Status")
-      FilterApi(filter, filter.getMethod("checkInput", info), info.getMethod("arrayLength"),
+      FilterApi(filter, filter.getMethod("checkInput", info), info.getMethod("arrayLength"), info.getMethod("depth"),
         status.getField("REJECTED").get(null), status.getField("UNDECIDED").get(null), get(filter), set(filter))
     }
 
@@ -132,37 +172,56 @@ private[redis] object RestrictedDeserialization {
 
     private lazy val api: Option[FilterApi] = Try(javaIoApi).orElse(Try(sunMiscApi)).toOption
 
+    def available: Boolean = api.isDefined
+
     /**
-      * Limits the arrays that `in` reads to `maxElements` elements in all. If the JVM has no filter API, or doesn't
-      * take the filter, `in` reads without the limit, as before the limit existed.
+      * Limits the arrays that `in` reads to `maxElements` elements in all, and its depth to [[MaxDepth]]. If the JVM
+      * has no filter API, or doesn't take the filter, `in` reads without the limits, as before they existed.
       */
-    def install(in: ObjectInputStream, maxElements: Long): Elements = {
-      val arrays = new Elements(maxElements)
+    def install(in: ObjectInputStream, maxElements: Long): Limits = {
+      val limits = new Limits(maxElements)
       api.foreach { api =>
         Try {
           val previous = Option(api.get(in))
           val handler = new InvocationHandler {
             override def invoke(proxy: AnyRef, method: Method, args: Array[AnyRef]): AnyRef = method.getName match {
               case "checkInput" =>
+                val info = args(0)
                 // the length of the array about to be allocated, or -1 for a class or a reference
-                val length = api.arrayLength.invoke(args(0)).asInstanceOf[java.lang.Long].longValue
-                if (length > 0) arrays.elements += length
-                if (arrays.exceeded) {
+                val length = long(api.arrayLength, info)
+                if (length > 0) limits.elements += length
+                // 1 for the value itself, and one more for each object or array inside another
+                limits.depth = math.max(limits.depth, long(api.depth, info))
+                if (limits.exceeded) {
                   api.rejected
                 } else {
-                  previous.map(filter => unwrapped(api.checkInput.invoke(filter, args(0)))).getOrElse(api.undecided)
+                  previous.fold(api.undecided)(filter => checkedBy(filter, info))
                 }
               case "equals" => java.lang.Boolean.valueOf(proxy eq args(0))
               case "hashCode" => Integer.valueOf(System.identityHashCode(proxy))
-              case "toString" => s"spark-redis array length limit ($maxElements elements)"
+              case "toString" => s"spark-redis stream limits ($maxElements array elements, depth $MaxDepth)"
               case _ => throw new UnsupportedOperationException(method.toString)
+            }
+
+            /** What the JVM's own filter says, noting a rejection. ObjectInputStream rejects on an exception too. */
+            private def checkedBy(filter: AnyRef, info: AnyRef): AnyRef = {
+              val status = try unwrapped(api.checkInput.invoke(filter, info)) catch {
+                case e: RuntimeException =>
+                  limits.rejectedByJvmFilter = true
+                  throw e
+              }
+              // ObjectInputStream rejects a null status too
+              if (status == null || status == api.rejected) limits.rejectedByJvmFilter = true
+              status
             }
           }
           api.set(in, Proxy.newProxyInstance(getClass.getClassLoader, Array(api.filterInterface), handler))
         }
       }
-      arrays
+      limits
     }
+
+    private def long(method: Method, info: AnyRef): Long = method.invoke(info).asInstanceOf[java.lang.Long].longValue
 
     private def unwrapped(result: => AnyRef): AnyRef =
       try result catch {
@@ -190,20 +249,35 @@ final class ClassNotAllowedException(className: String, val key: Option[String] 
     s"The Java-serialized value$where contains $what, which isn't allowed. spark-redis only deserializes the " +
       "classes it writes itself, so that a value someone else stored in Redis can't run code in Spark." + hint
   }
+
+  private[redis] def withKey(key: String): ClassNotAllowedException = {
+    val keyed = new ClassNotAllowedException(classname, Some(key), proxy)
+    keyed.setStackTrace(getStackTrace)
+    keyed
+  }
 }
 
-object ClassNotAllowedException {
+/**
+  * A Java-serialized value read from Redis was not read, because it declares more than a value spark-redis wrote
+  * can, or because the JVM's serialization filter rejected it, see [[RestrictedDeserialization]]. It is thrown before
+  * anything the value declares beyond that is allocated or read.
+  *
+  * @param reason why the value was rejected
+  * @param key    the Redis key the value was read from, when known
+  */
+final class ValueRejectedException private[redis](val reason: String, val key: Option[String], cause: Throwable)
+  extends SerializationException(reason, cause) {
 
-  /** Runs body, adding the Redis key to a [[ClassNotAllowedException]] it throws. */
-  private[redis] def withKey[T](key: String)(body: => T): T =
-    try {
-      body
-    } catch {
-      case e: ClassNotAllowedException if e.key.isEmpty =>
-        val withKey = new ClassNotAllowedException(e.classname, Some(key), e.proxy)
-        withKey.setStackTrace(e.getStackTrace)
-        throw withKey
-    }
+  override def getMessage: String = {
+    val where = key.map(k => s" in key '$k'").getOrElse("")
+    s"The Java-serialized value$where was not read: $reason"
+  }
+
+  private[redis] def withKey(key: String): ValueRejectedException = {
+    val keyed = new ValueRejectedException(reason, Some(key), getCause)
+    keyed.setStackTrace(getStackTrace)
+    keyed
+  }
 }
 
 /**

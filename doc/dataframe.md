@@ -332,7 +332,10 @@ Allow only classes whose deserialization can't do anything but restore their fie
 
 A value's arrays also can't declare more elements in all than the value has bytes, which no value Spark-Redis wrote
 does. Without that limit, a value of a few bytes could declare an array of billions of elements, and allocating it would
-run the executor (or, for a schema, the driver) out of memory. A serialization filter that the JVM sets with
+run the executor (or, for a schema, the driver) out of memory. And a value can't nest more than 200 objects deep, which
+a row or schema only does with more than about 60 levels of nested structs: reading nests as deeply as the value, and
+without a limit, about 100 KB of nested arrays would overflow the stack, which also ends the executor or the driver.
+Either fails the read with a `ValueRejectedException` that names the key. A serialization filter that the JVM sets with
 `jdk.serialFilter` still applies.
 
 ## Reading
