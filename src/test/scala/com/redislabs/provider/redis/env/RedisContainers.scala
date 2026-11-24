@@ -3,10 +3,13 @@ package com.redislabs.provider.redis.env
 import java.net.{InetAddress, ServerSocket}
 import java.time.Duration
 
+import javax.net.ssl.SSLContext
+
 import scala.util.{Failure, Success, Try}
 
 import org.testcontainers.containers.{FixedHostPortGenericContainer, GenericContainer}
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.images.builder.Transferable
 import org.testcontainers.utility.MountableFile
 
 /**
@@ -82,16 +85,24 @@ object RedisContainers {
     startedWhen(c, "Ready to accept connections")
   }
 
+  // The certificates are generated for this JVM (see TestCertificates) and handed to the container from memory. Then
+  // the JVM's default SSLContext, which Spark-Redis connects with when `ssl` is set, trusts their CA only.
   private lazy val tls: Try[RedisContainer] = Try {
     val c = new RedisContainer
     copy(c, "containers/standalone-tls.conf", s"$ConfDir/redis.conf")
     copy(c, "containers/users.acl", s"$ConfDir/users.acl")
-    Seq("redis.crt", "redis.key", "ca.crt", "redis.dh").foreach { name =>
-      copy(c, s"tls/$name", s"$ConfDir/tls/$name")
+    Seq(
+      "redis.crt" -> TestCertificates.serverCertificatePem,
+      "redis.key" -> TestCertificates.serverKeyPem,
+      "ca.crt" -> TestCertificates.caCertificatePem
+    ).foreach { case (name, pem) =>
+      c.withCopyToContainer(Transferable.of(pem, ReadOnly), s"$ConfDir/tls/$name")
     }
     c.withExposedPorts(Int.box(TlsPort))
     c.withCommand("redis-server", s"$ConfDir/redis.conf")
     startedWhen(c, "Ready to accept connections")
+    SSLContext.setDefault(TestCertificates.clientContext)
+    c
   }
 
   private def startCluster(ports: Seq[Int]): RedisClusterContainer = {
@@ -126,7 +137,11 @@ object RedisContainers {
     */
   def replicaPort: Option[Int] = if (Enabled) Some(replica.get.getMappedPort(StandalonePort)) else None
 
-  /** TLS-only Redis with the same ACL users, using the certificates in `src/test/resources/tls`. */
+  /**
+    * TLS-only Redis with the same ACL users, whose certificate the JVM's default SSLContext trusts once this returns
+    * (see `tls`). With `redis.containers=false` the default SSLContext is left as it is, so the test JVM needs a
+    * truststore for that server's certificate (see `test.jvm.options` in `pom.xml`).
+    */
   def tlsPort: Int = if (Enabled) tls.get.getMappedPort(TlsPort) else TlsPort
 
   /** Port of the first of three cluster primaries, with `default` (no password) and `alice`/`p1pp0`. */

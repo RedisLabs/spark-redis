@@ -31,6 +31,11 @@ Running tests from your IDE works the same way: the first suite that needs Redis
 started yourself instead, on the old fixed ports (6379 standalone, 6380 TLS, 7379-7381 cluster), pass
 `-Dredis.containers=false`.
 
+The TLS suites generate a CA and a server certificate in memory when they run, for their own TLS container, so the
+repository holds no private keys. With `-Dredis.containers=false`, your TLS server on port 6380 needs a certificate of
+its own: pass a truststore for it to the test JVM with
+`-Dtest.jvm.options="-Djavax.net.ssl.trustStore=/path/to/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"`.
+
 To build Spark-Redis without running tests:
 
 ```
