@@ -1,7 +1,7 @@
 package org.apache.spark.sql.redis.stream
 
 import com.redislabs.provider.redis.RedisConfig
-import com.redislabs.provider.redis.util.ConnectionUtils.{JedisExt, XINFO, withConnection}
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.StreamUtils.{EntryIdEarliest, createConsumerGroupIfNotExist, nextEntryId,
   resetConsumerGroup}
 import com.redislabs.provider.redis.util.{FieldParseException, Logging, ParseUtils}
@@ -234,8 +234,7 @@ object RedisSource {
   }
 
   def streamLastId(conn: Jedis, streamKey: String): String = {
-    val infoMap = conn.xinfo(XINFO.SubCommandStream, streamKey)
-    String.valueOf(infoMap(XINFO.LastGeneratedId))
+    conn.xinfoStream(streamKey).getLastGeneratedId.toString
   }
 
 }
