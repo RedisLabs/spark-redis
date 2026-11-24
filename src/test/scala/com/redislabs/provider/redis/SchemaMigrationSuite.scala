@@ -9,7 +9,6 @@ import com.redislabs.provider.redis.df.RedisDataframeSuite
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.JavaSerializedSchemaTest.{Schema, Spark31Schema, resource}
 import com.redislabs.provider.redis.util.Person
-import com.redislabs.provider.redis.util.TestUtils.findCause
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.sql.redis.RedisSourceRelation.schemaKey
 import org.apache.spark.sql.types.{DataType, StructType}
@@ -46,13 +45,12 @@ trait SchemaMigrationSuite extends RedisDataframeSuite {
   // lazy: the SparkSession exists only once beforeAll has run
   private lazy val personSchema: StructType = spark.createDataFrame(Person.data).schema
 
-  test("a table whose schema another Spark version Java-serialized loads after the migration") {
+  test("a table whose schema another Spark version Java-serialized loads before and after the migration") {
     val table = newPrefix()
     writeDf(table)
     val key = schemaKey(table)
     setValue(key, fromAnotherSparkVersion(personSchema))
-    val before = intercept[Exception](loadAndVerifyDf(table))
-    findCause[IllegalStateException](before).getMessage should include("SchemaMigration")
+    loadAndVerifyDf(table)
 
     SchemaMigration.migrate(redisConfig, table) shouldBe Seq(Result(key, Outcome.Migrated))
     new String(value(key), UTF_8) shouldBe personSchema.json

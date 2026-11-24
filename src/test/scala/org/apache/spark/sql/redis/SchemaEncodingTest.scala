@@ -4,17 +4,14 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import com.redislabs.provider.redis.util.JavaSerializedSchemaTest.{Spark31Schema, resource, Schema => SchemaOfResources}
 import org.apache.commons.lang3.SerializationUtils
-import org.apache.spark.SPARK_VERSION
 import org.apache.spark.sql.redis.RedisSourceRelation.{decodeSchema, encodeSchema}
 import org.apache.spark.sql.types._
 import org.scalatest.{FunSuite, Matchers}
 
-import scala.util.Properties
 
 /**
   * The schema key holds Spark's schema JSON, which every Spark and Scala version reads. Schemas that earlier versions
-  * stored Java-serialized are still read with the Spark and Scala versions that wrote them, allowing only the classes
-  * a schema is made of.
+  * stored Java-serialized are still read, whichever Spark and Scala versions wrote them, without deserializing them.
   */
 class SchemaEncodingTest extends FunSuite with Matchers {
 
@@ -48,20 +45,14 @@ class SchemaEncodingTest extends FunSuite with Matchers {
     decodeSchema(Key, encodeSchema(schema)) shouldBe schema
   }
 
-  test("a schema that an earlier version stored Java-serialized still reads with the same Spark version") {
+  test("a schema that an earlier version stored Java-serialized still reads") {
     decodeSchema(Key, SerializationUtils.serialize(schema)) shouldBe schema
   }
 
-  test("a schema that Spark 3.1 or 3.2 Java-serialized reads with the Spark and Scala versions that wrote it") {
-    val written = Seq(
-      ("3.1", "2.12", "spark-3.1.3-scala-2.12.b64", Spark31Schema),
-      ("3.2", "2.12", "spark-3.2.1-scala-2.12.b64", SchemaOfResources),
-      ("3.2", "2.13", "spark-3.2.1-scala-2.13.b64", SchemaOfResources))
-    val sparkMinor = SPARK_VERSION.split('.').take(2).mkString(".")
-    val scalaBinary = Properties.versionNumberString.split('.').take(2).mkString(".")
-    val here = written.filter { case (spark, scalaVersion, _, _) => spark == sparkMinor && scalaVersion == scalaBinary }
-    assume(here.nonEmpty, s"none of the resources was written by Spark $sparkMinor on Scala $scalaBinary")
-    here.foreach { case (_, _, name, expected) =>
+  test("a schema that Spark 3.1 or 3.2 Java-serialized on Scala 2.12 or 2.13 reads on this Spark and Scala version") {
+    Seq("spark-3.1.3-scala-2.12.b64" -> Spark31Schema,
+      "spark-3.2.1-scala-2.12.b64" -> SchemaOfResources,
+      "spark-3.2.1-scala-2.13.b64" -> SchemaOfResources).foreach { case (name, expected) =>
       withClue(name) {
         decodeSchema(Key, resource(name)) shouldBe expected
       }
@@ -76,22 +67,29 @@ class SchemaEncodingTest extends FunSuite with Matchers {
     }
   }
 
-  test("a Java-serialized schema key holding a class a schema isn't made of fails before the class's code runs") {
-    val e = the[ClassNotAllowedException] thrownBy
+  test("a Java-serialized schema key holding another class fails, naming the key and the class") {
+    val e = the[IllegalStateException] thrownBy
       decodeSchema(Key, SerializationUtils.serialize(new java.util.HashMap[String, String]()))
-    e.key shouldBe Some(Key)
+    e.getMessage should include(Key)
     e.getMessage should include("java.util.HashMap")
+    e.getMessage should include(".schema()")
   }
 
-  test("a Java-serialized schema key that declares a huge array or nests too deep fails as that, naming the key") {
-    assume(RestrictedDeserialization.limitsAvailable, "this JVM has no serialization filter API")
+  test("a Java-serialized schema key that declares a huge array or nests too deep fails fast, naming the key") {
+    // the elements of nested ArrayLists are the annotations of their writeObject, which take the most stack to read
+    val nestedLists = RestrictedDeserializationTest.onThread(stackSize = 256L << 20) {
+      val root = new java.util.ArrayList[AnyRef]()
+      (1 to 5000).foldLeft(root) { (list, _) => val next = new java.util.ArrayList[AnyRef](); list.add(next); next }
+      SerializationUtils.serialize(root)
+    }.fold(e => throw e, identity)
     Seq("huge array" -> RestrictedDeserializationTest.hugeArrayRow,
-      "deep nesting" -> RestrictedDeserializationTest.deeplyNestedArrays(1000)).foreach { case (what, bytes) =>
+      "nested arrays" -> RestrictedDeserializationTest.deeplyNestedArrays(100000),
+      "nested lists" -> nestedLists).foreach { case (what, bytes) =>
       withClue(what) {
-        val e = the[ValueRejectedException] thrownBy decodeSchema(Key, bytes)
-        e.key shouldBe Some(Key)
-        e.getMessage should include(Key)
-        e.getMessage should not include "another Spark or Scala version"
+        // on a 512 KB stack, which reading 200 levels of nested lists on the caller's thread would overflow
+        val result = RestrictedDeserializationTest.onThread(stackSize = 512L << 10)(decodeSchema(Key, bytes))
+        result.left.get shouldBe an[IllegalStateException]
+        result.left.get.getMessage should include(Key)
       }
     }
   }
@@ -101,10 +99,8 @@ class SchemaEncodingTest extends FunSuite with Matchers {
     e.getMessage should include(Key)
   }
 
-  test("a Java-serialized schema from another Spark version fails with an error that says what to do") {
-    val e = the[IllegalStateException] thrownBy decodeSchema(Key, withOtherSerialVersionUid(schema))
-    e.getMessage should include(Key)
-    e.getMessage should include(".schema()")
+  test("a Java-serialized schema from another Spark version, with another serialVersionUID, reads") {
+    decodeSchema(Key, withOtherSerialVersionUid(schema)) shouldBe schema
   }
 
   test("a value that is JSON but not a struct type is not a schema") {

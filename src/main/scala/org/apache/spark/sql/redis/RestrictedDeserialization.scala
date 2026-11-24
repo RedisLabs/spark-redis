@@ -13,10 +13,9 @@ import scala.util.Try
 /**
   * Java deserialization of values read from Redis, limited to the classes that spark-redis itself writes there.
   *
-  * The binary model stores each row as a Java-serialized array of its values, and every release up to 3.1.0 stored a
-  * table's schema as a Java-serialized `StructType`. Anyone who can write to those keys can store any serialized
-  * object there instead, and a plain `ObjectInputStream` loads and instantiates whatever classes the stream names.
-  * With a gadget chain on the classpath, reading the table then runs that code on the driver or the executors.
+  * The binary model stores each row as a Java-serialized array of its values. Anyone who can write to those keys can
+  * store any serialized object there instead, and a plain `ObjectInputStream` loads and instantiates whatever classes
+  * the stream names. With a gadget chain on the classpath, reading the table then runs that code on the executors.
   * Spark's Scala 2.13 builds ship Scala 2.13.8, for example, whose `LazyList` is one (CVE-2022-36944).
   *
   * So every class in the stream must be allowed by a [[ClassAllowlist]], and it is checked before the class is
@@ -29,7 +28,7 @@ private[redis] object RestrictedDeserialization extends Logging {
 
   /**
     * The deepest a Java-serialized value may nest, as ObjectInputStream counts it: a level for each object or array
-    * inside another. A row or a schema with 30 levels of nested structs reaches about 100, so this reads values with
+    * inside another. A row with 30 levels of nested structs reaches about 100, so this reads values with
     * about 60. Reading recurses once per level, and nested Scala maps overflow a 1 MB stack, the default on Linux, at
     * about 480 levels on Scala 2.12, and a 512 KB one at about 320.
     */
@@ -108,7 +107,7 @@ private[redis] object RestrictedDeserialization extends Logging {
     *  - Its depth, to [[MaxDepth]]. ObjectInputStream recurses once per level, so without a limit about 100 KB of
     *    nested arrays or maps could overflow the stack.
     *
-    * Running out of memory or stack ends the JVM: Spark ends an executor that does, and the driver reads the schema.
+    * Running out of memory or stack ends the JVM: Spark ends an executor that does.
     *
     * ObjectInputStream reports an array's length before allocating it, and the depth of each object before reading
     * it, only to a serialization filter, whose interface is `java.io.ObjectInputFilter` on Java 9 and later and
@@ -204,9 +203,8 @@ private[redis] object RestrictedDeserialization extends Logging {
     private def warnOnce(reason: String): Unit =
       if (warned.compareAndSet(false, true)) {
         logWarning(s"Spark-Redis can't limit what the Java-serialized values it reads from Redis declare: $reason. " +
-          "A value that someone else stored in a Binary model row, or in a table schema that Spark-Redis 3.1.0 or " +
-          "earlier stored, could then run Spark out of memory or stack. Such values are still only read if every " +
-          "class in them is allowed. This warning is logged once.")
+          "A value that someone else stored in a Binary model row could then run Spark out of memory or stack. " +
+          "Such values are still only read if every class in them is allowed. This warning is logged once.")
       }
 
     /**

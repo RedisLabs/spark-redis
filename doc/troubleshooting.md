@@ -129,9 +129,8 @@ Spark-Redis 3.1.0 and earlier ignored these errors, so a job could succeed while
 ## ClassNotAllowedException when reading a table
 
 `ClassNotAllowedException: The Java-serialized value in key '...' contains class '...', which isn't allowed` means a Binary
-model row, or a table schema stored by Spark-Redis 3.1.0 or earlier, contains a class that Spark-Redis doesn't write
-itself. Spark-Redis refuses to deserialize it, because deserializing an arbitrary class can run code, see
-[Binary model and untrusted data](dataframe.md#binary-model-and-untrusted-data).
+model row contains a class that Spark-Redis doesn't write itself. Spark-Redis refuses to deserialize it, because
+deserializing an arbitrary class can run code, see [Binary model and untrusted data](dataframe.md#binary-model-and-untrusted-data).
 
 * If the class is a user-defined type's (UDT), allow it with the `deserialization.allowed.classes` option.
 * Otherwise the value wasn't written by Spark-Redis. Check who else can write to the key, and delete or rewrite the value.
@@ -140,9 +139,8 @@ Spark-Redis 3.1.0 and earlier deserialized every class.
 
 ## ValueRejectedException when reading a table
 
-`ValueRejectedException: The Java-serialized value in key '...' was not read: ...` means a Binary model row, or a table
-schema stored by Spark-Redis 3.1.0 or earlier, declares more than a value Spark-Redis wrote can: more array elements
-than it has bytes, or more than 200 levels of nesting. Reading it could run Spark out of memory or stack, see
+`ValueRejectedException: The Java-serialized value in key '...' was not read: ...` means a Binary model row declares more
+than a value Spark-Redis wrote can: more array elements than it has bytes, or more than 200 levels of nesting. Reading it could run Spark out of memory or stack, see
 [Binary model and untrusted data](dataframe.md#binary-model-and-untrusted-data). If the message says the JVM's
 serialization filter rejected it, a `jdk.serialFilter` setting did.
 

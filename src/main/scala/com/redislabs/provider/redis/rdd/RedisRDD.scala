@@ -298,10 +298,8 @@ class RedisKeysRDD(sc: SparkContext,
         slot >= sPos && slot <= ePos
       }).iterator
     } else {
-      logInfo {
-        val nodesPassMasked = nodes.map(n => n.copy(endpoint = n.endpoint.maskPassword())).mkString
-        s"Computing partition, get keys partId: ${partition.index},  [$sPos - $ePos] nodes: $nodesPassMasked"
-      }
+      // a node's toString hides its endpoint's password
+      logInfo(s"Computing partition, get keys partId: ${partition.index},  [$sPos - $ePos] nodes: ${nodes.mkString}")
       getKeys(nodes, sPos, ePos, keyPattern)
     }
   }
@@ -439,21 +437,16 @@ trait Keys {
   }
 
   /**
-    * Scan keys, the result may contain duplicates
-    *
-    * @param jedis
-    * @param params
-    * @return keys of params pattern in jedis
+    * Scans the keys that match `params`, and adds those that `keep` accepts to `keys`, page by page, so that only the
+    * kept keys are held in memory. SCAN can return a key more than once; `keys` is a set.
     */
-  private def scanKeys(jedis: Jedis, params: ScanParams): util.List[String] = {
-    val keys = new util.ArrayList[String]
+  private def scanKeys(jedis: Jedis, params: ScanParams, keys: util.Set[String])(keep: String => Boolean): Unit = {
     var cursor = "0"
     do {
       val scan = jedis.scan(cursor, params)
-      keys.addAll(scan.getResult)
+      scan.getResult.asScala.foreach { key => if (keep(key)) keys.add(key) }
       cursor = scan.getCursor
     } while (cursor != "0")
-    keys
   }
 
   /**
@@ -475,10 +468,10 @@ trait Keys {
         val keys = new util.HashSet[String]()
         withConnection(endpoint.connect()) { conn =>
           val params = new ScanParams().`match`(keyPattern).count(readWriteConfig.scanCount)
-          keys.addAll(scanKeys(conn, params).asScala.filter { key =>
+          scanKeys(conn, params, keys) { key =>
             val slot = JedisClusterCRC16.getSlot(key)
             slot >= sPos && slot <= ePos
-          }.asJava)
+          }
         }
         keys.asScala.iterator
       }.flatten
@@ -495,11 +488,8 @@ trait Keys {
     * @param key   key
     * @return master node
     */
-  def getMasterNode(nodes: Array[RedisNode], key: String): RedisNode = {
-    val slot = JedisClusterCRC16.getSlot(key)
-    /* Master only */
-    nodes.filter { node => node.startSlot <= slot && node.endSlot >= slot }.filter(_.idx == 0)(0)
-  }
+  def getMasterNode(nodes: Array[RedisNode], key: String): RedisNode =
+    RedisConfig.primaryForSlot(nodes, JedisClusterCRC16.getSlot(key))
 
   /**
     * @param nodes list of RedisNode

@@ -137,7 +137,7 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
   }
 
   test("Expire") {
-    val expireTime = 1
+    val expireTime = 100
     val prefix = s"#expire in $expireTime#:"
     val wcnts = sc.parallelize(contentWords).map((_, 1)).
       reduceByKey(_ + _).map(x => (prefix + x._1, x._2.toString))
@@ -147,8 +147,16 @@ trait RedisRddSuite extends SparkRedisSuite with Keys with Matchers {
     sc.toRedisHASH(wcnts, prefix + hashKey, expireTime)
     sc.toRedisLIST(wds, prefix + listKey, expireTime)
     sc.toRedisSET(wds, prefix + setKey, expireTime)
-    Thread.sleep(expireTime * 1000 + 1)
-    sc.fromRedisKeyPattern(prefix + "*").count should be(0)
+    // every key the writes created has the TTL, rather than waiting for it to run out
+    val keys = sc.fromRedisKeyPattern(prefix + "*").collect().toSeq
+    try {
+      keys.size shouldBe wcnts.count() + 4
+      val ttls = keys.map(key => withConnection(redisConfig.connectionForKey(key))(_.ttl(key).longValue))
+      all(ttls) should (be > 0L and be <= expireTime.toLong)
+    } finally {
+      // the suites that extend this one count every key afterwards
+      keys.foreach(key => withConnection(redisConfig.connectionForKey(key))(_.del(key)))
+    }
   }
 
 }

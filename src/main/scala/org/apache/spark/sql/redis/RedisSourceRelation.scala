@@ -1,16 +1,15 @@
 package org.apache.spark.sql.redis
 
-import java.io.InvalidClassException
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.util.{List => JList}
 
 import com.redislabs.provider.redis.rdd.Keys
 import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
-import com.redislabs.provider.redis.util.{FieldParseException, Logging, RedisCapabilities, WriteCapabilities}
+import com.redislabs.provider.redis.util.{FieldParseException, JavaSerializedSchema, Logging, RedisCapabilities,
+  WriteCapabilities}
 import com.redislabs.provider.redis.util.PipelineUtils._
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig, RedisDataTypeHash, RedisDataTypeString, RedisEndpoint, RedisNode, toRedisContext}
-import org.apache.commons.lang3.SerializationException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.redis.RedisSourceRelation._
@@ -138,7 +137,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
     data.foreachPartition { partition: Iterator[Row] =>
       // grouped iterator to only allocate memory for a portion of rows
       partition.grouped(iteratorGroupingSize).foreach { batch =>
-        // the following can be optimized to not create a map
+        // one row per key: of rows with the same key in a batch, the last one is written
         val rowsWithKey: Map[String, Row] = batch.map(row => dataKeyId(row) -> row).toMap
         groupKeysByNode(redisConfig.hosts, rowsWithKey.keysIterator).foreach { case (node, keys) =>
           saveRows(node, keys, rowsWithKey, binaryTtlWrite)
@@ -313,7 +312,7 @@ class RedisSourceRelation(override val sqlContext: SQLContext,
         s"If dataframe was not persisted by Spark, provide a schema explicitly with .schema() " +
         s"or use 'infer.schema' option. ")
     }
-    decodeSchema(key, schemaBytes, allowedClasses)
+    decodeSchema(key, schemaBytes)
   }
 
   /**
@@ -368,52 +367,29 @@ object RedisSourceRelation {
     * A table's schema, as it is stored in its schema key: Spark's schema JSON (`StructType.json`), which every Spark
     * version reads.
     *
-    * Earlier versions stored a Java-serialized `StructType`. Those bytes can only be read with the Spark minor version
-    * and the Scala version that wrote them: `StructType` doesn't declare a `serialVersionUID`, and the one the JVM
-    * computes differs between Spark 3.2, 3.3, 3.4 and 3.5, and a schema's metadata holds Scala collection classes.
-    * [[decodeSchema]] still reads them on those versions, allowing only the classes a schema is made of (see
-    * [[RestrictedDeserialization]]): anyone who can write the schema key could otherwise run code on the driver.
-    * `SchemaMigration` rewrites them as JSON on any version.
+    * Earlier versions stored a Java-serialized `StructType`. Java deserialization reads those only with the Spark
+    * minor version and the Scala version that wrote them (`StructType` declares no `serialVersionUID`, and a schema's
+    * metadata holds Scala collection classes), so [[decodeSchema]] reads them with [[JavaSerializedSchema]] instead,
+    * which works on any version and never deserializes an object: anyone who can write the schema key could otherwise
+    * run code on the driver. `SchemaMigration` rewrites them as JSON.
     */
   private[redis] def encodeSchema(schema: StructType): Array[Byte] = schema.json.getBytes(UTF_8)
 
   /**
     * Reads a schema stored by [[encodeSchema]], or a Java-serialized one written by an earlier version of the
-    * library.
+    * library, whichever Spark and Scala versions wrote it.
     *
-    * @param key            the schema key, for error messages
-    * @param bytes          the key's value
-    * @param allowedClasses the classes a Java-serialized schema may contain
-    * @throws IllegalStateException     if the value is a Java-serialized schema from another Spark version, or isn't
-    *                                   a schema at all
-    * @throws ClassNotAllowedException if the value is Java-serialized and contains a class that isn't allowed
-    * @throws ValueRejectedException   if the value is Java-serialized and declares more than a schema can, see
-    *                                  [[RestrictedDeserialization]]
+    * @param key   the schema key, for error messages
+    * @param bytes the key's value
+    * @throws IllegalStateException if the value isn't a schema, or is a Java-serialized one that can't be read, for
+    *                               example because it has a data type that this Spark version doesn't have
     */
-  private[redis] def decodeSchema(key: String, bytes: Array[Byte],
-                                  allowedClasses: ClassAllowlist = ClassAllowlist.Default): StructType =
+  private[redis] def decodeSchema(key: String, bytes: Array[Byte]): StructType =
     if (isJavaSerialized(bytes)) {
-      val decoded = try {
-        RestrictedDeserialization.withKey(key) {
-          RestrictedDeserialization.deserialize[AnyRef](bytes, allowedClasses)
-        }
-      } catch {
-        // a filter's rejection, which is an InvalidClassException too, but says nothing about the version
-        case e: ValueRejectedException => throw e
-        // another Spark version (StructType's serialVersionUID) or another Scala version (its collection classes)
-        case e: SerializationException
-            if e.getCause.isInstanceOf[InvalidClassException] || e.getCause.isInstanceOf[ClassNotFoundException] =>
-          throw new IllegalStateException(s"The schema in '$key' was written by an earlier version of spark-redis " +
-            "with another Spark or Scala version, and can't be read with this one. Run the schema migration " +
-            "(com.redislabs.provider.redis.SchemaMigration, see doc/dataframe.md) to store it in a format every " +
-            "version reads, read the table with an explicit .schema(), or read it with the Spark and Scala versions " +
-            "that wrote it.", e)
-      }
-      decoded match {
-        case struct: StructType => struct
-        case other =>
-          throw new IllegalStateException(s"The value of '$key' is a Java-serialized ${other.getClass.getName}, " +
-            "not a table schema")
+      try JavaSerializedSchema.read(bytes) catch {
+        case NonFatal(e) =>
+          throw new IllegalStateException(s"The value of '$key' is Java-serialized, as Spark-Redis 3.1.0 and earlier " +
+            s"stored schemas. ${e.getMessage}. Read the table with an explicit .schema(), or save it again.", e)
       }
     } else {
       val parsed = try DataType.fromJson(new String(bytes, UTF_8)) catch {

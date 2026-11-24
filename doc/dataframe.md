@@ -77,17 +77,18 @@ Spark-Redis also writes the DataFrame schema:
 It is used by Spark-Redis internally when reading DataFrame back to Spark memory. The schema is stored as Spark's
 schema JSON (`StructType.json`), so any Spark and Scala version can read the table back.
 
-Earlier versions of Spark-Redis stored a Java-serialized `StructType` instead. Those schemas can only be read with the
-Spark minor version and the Scala version that wrote them: reading one with another version fails with an error that
-names the schema key. To read such a table, pass the schema with `.schema(...)`, read it with the versions that wrote
-it, save the table again, or migrate its schema. On the versions that wrote it, a Java-serialized schema is read
-allowing only the classes a schema is made of, the same way as [Binary model rows](#binary-model-and-untrusted-data).
+Spark-Redis 3.1.0 and earlier stored a Java-serialized `StructType` instead. Spark-Redis still reads those schemas,
+whichever Spark and Scala versions wrote them, and without Java deserialization: it parses the stored bytes itself and
+never loads a class the bytes name other than a Spark data type, so a schema key that someone else wrote can't run code.
+A value it can't read as a schema, for example one with a data type that the running Spark version doesn't have, fails
+the read with an error that names the schema key; pass the schema with `.schema(...)` or save the table again.
 
 #### Migrating old schemas to JSON
 
-`SchemaMigration` rewrites Java-serialized schema keys as JSON. It reads them without Java deserialization, so it works
-whichever Spark and Scala versions wrote them, and whichever it runs on: for example, before or after upgrading from
-Spark 3.1 to 3.5. It changes only the `_spark:<table>:schema` keys, never the rows, and keeps a key's TTL. A key that
+`SchemaMigration` rewrites Java-serialized schema keys as JSON. Reading a table doesn't need it, but it stores every
+schema in the format that every version of Spark, and older Spark-Redis versions on the same Spark, read the same way.
+It reads them without Java deserialization, so it works whichever Spark and Scala versions wrote them, and whichever it
+runs on: for example, before or after upgrading from Spark 3.1 to 3.5. It changes only the `_spark:<table>:schema` keys, never the rows, and keeps a key's TTL. A key that
 another client changes while it runs is left alone and reported, and so is a schema it can't read, for example one with
 a data type that the Spark version it runs on doesn't have.
 
@@ -332,10 +333,10 @@ Allow only classes whose deserialization can't do anything but restore their fie
 
 A value's arrays also can't declare more than the value's bytes can hold: each element takes at least one byte of the
 value, and a `long` or a `double` eight, which no value Spark-Redis wrote goes over. Without that limit, a value of a few
-bytes could declare an array of billions of elements, and allocating it would run the executor (or, for a schema, the
-driver) out of memory. And a value can't nest more than 200 objects deep, which a row or schema only does with more
-than about 60 levels of nested structs: reading nests as deeply as the value, and without a limit, about 100 KB of
-nested arrays would overflow the stack, which also ends the executor or the driver. Either fails the read with a
+bytes could declare an array of billions of elements, and allocating it would run the executor out of memory. And a
+value can't nest more than 200 objects deep, which a row only does with more than about 60 levels of nested structs:
+reading nests as deeply as the value, and without a limit, about 100 KB of nested arrays would overflow the stack,
+which also ends the executor. Either fails the read with a
 `ValueRejectedException` that names the key, and so does an array of negative length. A serialization filter that the
 JVM sets with `jdk.serialFilter` still applies. The limits need Java 8u121 or later; on a JVM that can't apply them,
 Spark-Redis logs a warning once and reads without them.
@@ -572,7 +573,7 @@ sc.toRedisKV(kvRdd)
 | ttl                    | data time to live in `seconds`. Data doesn't expire if `ttl` is less than `1`                                                                               | `Int`                 | `0`     |
 | write.mode             | what a hash-model write does to a hash already stored under the row's key: `merge` keeps fields the new row doesn't have, `replace` removes them, see [Write mode](#write-mode) | `enum [merge, replace]` | `merge` |
 | infer.schema           | infer schema from random row, all columns will have `String` type                                                                                           | `Boolean`             | `false` |
-| deserialization.allowed.classes | classes, besides Spark's own, that a Binary model row or an earlier version's Java-serialized schema may contain, for example a UDT's class, see [Binary model and untrusted data](#binary-model-and-untrusted-data) | `String`              | -       |
+| deserialization.allowed.classes | classes, besides Spark's own, that a Binary model row may contain, for example a UDT's class, see [Binary model and untrusted data](#binary-model-and-untrusted-data) | `String`              | -       |
 | max.pipeline.size      | maximum number of commands per pipeline (used to batch commands)                                                                                            | `Int`                 | 100     |
 | scan.count             | count option of SCAN command (used to iterate over keys)                                                                                                    | `Int`                 | 100     |
 | iterator.grouping.size | the number of rows processed together when reading or writing a partition                                                                                  | `Int`                 | 1000    |

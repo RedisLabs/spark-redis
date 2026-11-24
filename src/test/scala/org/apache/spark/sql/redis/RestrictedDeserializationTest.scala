@@ -280,8 +280,16 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     out.toByteArray.ensuring(_.length == length)
   }
 
+  private def sparkAtLeast(major: Int, minor: Int): Boolean = {
+    val Array(ma, mi) = SPARK_VERSION.split("[.-]").take(2).map(_.toInt)
+    ma > major || (ma == major && mi >= minor)
+  }
+}
+
+object RestrictedDeserializationTest {
+
   /** Runs body on a thread of its own with the given stack size, returning what it threw, errors included. */
-  private def onThread[T](stackSize: Long)(body: => T): Either[Throwable, T] = {
+  def onThread[T](stackSize: Long)(body: => T): Either[Throwable, T] = {
     var result: Either[Throwable, T] = Left(new IllegalStateException("the thread didn't run"))
     val thread = new Thread(null, new Runnable {
       override def run(): Unit = result = try Right(body) catch {
@@ -292,14 +300,6 @@ class RestrictedDeserializationTest extends FunSuite with Matchers with BeforeAn
     thread.join()
     result
   }
-
-  private def sparkAtLeast(major: Int, minor: Int): Boolean = {
-    val Array(ma, mi) = SPARK_VERSION.split("[.-]").take(2).map(_.toInt)
-    ma > major || (ma == major && mi >= minor)
-  }
-}
-
-object RestrictedDeserializationTest {
 
   /** A row whose last value is a long array that declares Int.MaxValue - 8 elements and holds none. */
   def hugeArrayRow: Array[Byte] = rowDeclaringLongArray(Int.MaxValue - 8)
