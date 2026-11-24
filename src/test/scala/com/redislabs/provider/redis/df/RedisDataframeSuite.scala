@@ -5,6 +5,7 @@ import com.redislabs.provider.redis.util.Person
 import com.redislabs.provider.redis.util.Person.data
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.redis.{RedisFormat, SqlOptionTableName}
+import org.apache.spark.sql.types.DataType
 import org.scalatest.Matchers
 
 /**
@@ -51,8 +52,8 @@ trait RedisDataframeSuite extends SparkRedisSuite with Matchers {
   def verifyDf(actualDf: DataFrame, data: Seq[Person] = Person.data): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()
-    // TODO: check nullable columns
-    // actualDf.schema shouldBe expectedDf.schema
+    // Names and types, not nullability: a table read with a schema declared in SQL has only nullable columns.
+    namesAndTypes(actualDf) shouldBe namesAndTypes(expectedDf)
     val loadedArr = actualDf.as[Person].collect()
     loadedArr.sortBy(_.name) shouldBe data.toArray.sortBy(_.name)
   }
@@ -60,10 +61,13 @@ trait RedisDataframeSuite extends SparkRedisSuite with Matchers {
   def verifyPartialDf(actualDf: DataFrame): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()
-    // TODO: check nullable columns
-    // actualDf.schema shouldBe expectedDf.schema
+    namesAndTypes(actualDf) shouldBe namesAndTypes(expectedDf).filter { case (name, _) => actualDf.columns.contains(name) }
     val loadedArr = actualDf.collect()
       .map(r => (r.getAs[String]("name"), r.getAs[Double]("salary")))
     loadedArr.sortBy(_._1) shouldBe data.toArray.sortBy(_.name).map(p => (p.name, p.salary))
   }
+
+  /** A DataFrame's columns as (name, type), by name. */
+  private def namesAndTypes(df: DataFrame): Seq[(String, DataType)] =
+    df.schema.fields.toSeq.map(field => field.name -> field.dataType).sortBy(_._1)
 }

@@ -153,7 +153,8 @@ A custom `SSLSocketFactory`, `SSLParameters` or `HostnameVerifier` can't be pass
 Each Spark JVM (the driver and every executor) keeps one Jedis connection pool per Redis endpoint, with at most 250
 connections and 32 idle connections. The pool size is not configurable. A task borrows a connection, runs its commands
 and returns it to the pool. If the server rejects a new connection with `ERR max number of clients reached`, Spark-Redis
-waits and retries. Make sure the server's `maxclients` covers the number of tasks that run concurrently.
+waits and retries, for up to 60 seconds, then fails the task with an error that names the server. Make sure the server's
+`maxclients` covers the number of tasks that run concurrently.
 
 ## Redis server requirements
 

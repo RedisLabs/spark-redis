@@ -1,7 +1,7 @@
 package com.redislabs.provider.redis.streaming
 
 import com.redislabs.provider.redis.RedisConfig
-import org.apache.curator.utils.ThreadUtils
+import com.redislabs.provider.redis.util.DaemonThreadPool
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.receiver.Receiver
@@ -34,7 +34,7 @@ private class RedisReceiver[T: ClassTag](keys: Array[String],
   extends Receiver[T](storageLevel) {
 
   def onStart() {
-    val executorPool = ThreadUtils.newFixedThreadPool(keys.length, "BlockLists Streaming")
+    val executorPool = DaemonThreadPool.fixed(keys.length, "BlockLists Streaming")
     try {
       /* start a executor for each interested List */
       keys.foreach{ key =>

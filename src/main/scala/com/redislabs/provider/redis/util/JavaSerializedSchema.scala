@@ -30,7 +30,33 @@ object JavaSerializedSchema {
     * @throws IllegalArgumentException if the bytes aren't such a stream, or hold something it can't read, such as a
     *                                  data type that this Spark version doesn't have
     */
-  def read(bytes: Array[Byte]): StructType = {
+  def read(bytes: Array[Byte]): StructType = onParserStack(parse(bytes))
+
+  /**
+    * The stack the parser runs on. It recurses once per level the stream nests, and a level takes up to about 3 KB of
+    * stack (an object's annotation, such as an `ArrayList`'s elements, takes the most), so [[MaxDepth]] levels need
+    * about 3 MB: more than a thread's default stack, and far more than a 512 KB one.
+    */
+  private val ParserStackBytes = 16L << 20
+
+  /**
+    * Runs `body` on a thread of its own with a [[ParserStackBytes]] stack, so that a value nested as deep as
+    * [[MaxDepth]] fails with an error rather than a StackOverflowError, whatever the caller's stack.
+    */
+  private def onParserStack[A](body: => A): A = {
+    @volatile var result: Either[Throwable, A] = Left(new IllegalStateException("the schema reader didn't run"))
+    val thread = new Thread(null, new Runnable {
+      override def run(): Unit = result = try Right(body) catch {
+        case e: Throwable => Left(e)
+      }
+    }, "spark-redis-schema-reader", ParserStackBytes)
+    thread.setDaemon(true)
+    thread.start()
+    thread.join()
+    result.fold(e => throw e, identity)
+  }
+
+  private def parse(bytes: Array[Byte]): StructType = {
     val value = try new StreamReader(bytes).readStream() catch {
       case _: EOFException => fail("the stream ends early")
       case e: IOException => fail(s"the stream is malformed (${e.getMessage})")
@@ -41,6 +67,12 @@ object JavaSerializedSchema {
       case other => fail(s"it holds ${describe(other)}, not a table schema (StructType)")
     }
   }
+
+  /**
+    * The deepest the stream may nest, counting each value and class descriptor inside another. A schema of 60 nested
+    * structs reaches about 190, and one of 100 about 310.
+    */
+  private val MaxDepth = 1000
 
   private val StructTypeClass = classOf[StructType].getName
   private val TypesPackage = "org.apache.spark.sql.types."
@@ -100,7 +132,6 @@ object JavaSerializedSchema {
   private final class StreamReader(bytes: Array[Byte]) {
     private val in = new DataInputStream(new ByteArrayInputStream(bytes))
     private val handles = mutable.ArrayBuffer[Any]()
-    private val MaxDepth = 1000
     private var depth = 0
 
     private final val Magic: Short = 0xACED.toShort

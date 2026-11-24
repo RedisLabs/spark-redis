@@ -112,7 +112,7 @@ case class RedisEndpoint(host: String = Protocol.DEFAULT_HOST,
   }
 
   /**
-    * @return config with masked password. Used for logging.
+    * @return the endpoint with an empty password. Logging doesn't need it: [[toString]] already hides the password.
     */
   def maskPassword(): RedisEndpoint = {
     this.copy(auth = "")
@@ -251,6 +251,43 @@ object RedisConfig extends Logging {
   def fromSparkConfAndParameters(conf: SparkConf, parameters: Map[String, String]): RedisConfig = {
     new RedisConfig(new RedisEndpoint(conf, parameters))
   }
+
+  /**
+    * The fields of an `INFO` reply, as field -> value. Section headers (`# Replication`) and blank lines are skipped,
+    * and a value keeps any `:` after the first, as in an IPv6 address.
+    */
+  private[redis] def parseInfo(info: String): Map[String, String] =
+    info.split("\r?\n").iterator.map(_.trim).filter(line => line.nonEmpty && !line.startsWith("#")).flatMap { line =>
+      val colon = line.indexOf(':')
+      if (colon > 0) Some(line.substring(0, colon) -> line.substring(colon + 1)) else None
+    }.toMap
+
+  /**
+    * The replicas that `INFO replication` lists on a primary with `state=online`, as (host, port). Each is a field
+    * `slave<n>` with a value such as `ip=10.0.0.2,port=6380,state=online,offset=1234,lag=0`.
+    */
+  private[redis] def onlineReplicas(replication: Map[String, String]): Seq[(String, Int)] =
+    replication.toSeq.filter { case (field, _) => field.matches("slave\\d+") }.sortBy(_._1.drop(5).toInt)
+      .flatMap { case (_, value) =>
+        val attributes = value.split(',').iterator.map(_.split("=", 2)).collect { case Array(k, v) => k -> v }.toMap
+        for {
+          ip <- attributes.get("ip")
+          port <- attributes.get("port").flatMap(p => scala.util.Try(p.toInt).toOption)
+          if attributes.get("state").contains("online")
+        } yield (ip, port)
+      }
+
+  /**
+    * The primary in `nodes` that serves `slot`.
+    *
+    * @throws IllegalStateException if none does, for example because the cluster was resharding or failing over when
+    *                               the topology was read
+    */
+  private[redis] def primaryForSlot(nodes: Array[RedisNode], slot: Int): RedisNode =
+    nodes.find(node => node.idx == 0 && node.startSlot <= slot && node.endSlot >= slot).getOrElse {
+      throw new IllegalStateException(s"No primary serves hash slot $slot in the topology Spark-Redis read " +
+        s"(${nodes.count(_.idx == 0)} primaries). The cluster may have been resharding or failing over: retry.")
+    }
 }
 
 /**
@@ -261,8 +298,10 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
 
   val initialAddr: String = initialHost.host
 
-  val hosts: Array[RedisNode] = getHosts(initialHost)
+  /** Every node, primaries and replicas, read once from the server when this config is created. */
   val nodes: Array[RedisNode] = getNodes(initialHost)
+  /** The primaries among [[nodes]]. */
+  val hosts: Array[RedisNode] = nodes.filter(_.idx == 0)
 
   /**
     * @return initialHost's auth
@@ -279,8 +318,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
   }
 
   def getRandomNode(): RedisNode = {
-    val rnd = scala.util.Random.nextInt().abs % hosts.length
-    hosts(rnd)
+    hosts(scala.util.Random.nextInt(hosts.length))
   }
 
   /**
@@ -319,16 +357,14 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
 
   /**
     * @param initialHost any redis endpoint of a cluster or a single server
-    * @return true if the target server is in cluster mode
+    * @return true if the target server is in cluster mode. A server whose `INFO` has no `cluster_enabled` field,
+    *         such as a proxy, is not.
     */
   private def clusterEnabled(initialHost: RedisEndpoint): Boolean = {
     val info = withConnection(initialHost.connect()) { conn =>
-      conn.info.split("\n")
+      RedisConfig.parseInfo(conn.info)
     }
-    val version = info.filter(_.contains("redis_version:"))(0)
-    val clusterEnable = info.filter(_.contains("cluster_enabled:"))
-    val mainVersion = version.substring(14, version.indexOf(".")).toInt
-    mainVersion > 2 && clusterEnable.length > 0 && clusterEnable(0).contains("1")
+    info.get("cluster_enabled").contains("1")
   }
 
   /**
@@ -349,20 +385,8 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     getHostBySlot(slot)
   }
 
-  private def getHostBySlot(slot: Int): RedisNode = {
-    hosts.filter { host =>
-      host.startSlot <= slot && host.endSlot >= slot
-    }(0)
-  }
-
-
-  /**
-    * @param initialHost any redis endpoint of a cluster or a single server
-    * @return list of host nodes
-    */
-  private def getHosts(initialHost: RedisEndpoint): Array[RedisNode] = {
-    getNodes(initialHost).filter(_.idx == 0)
-  }
+  /** @throws IllegalStateException if no primary serves `slot` */
+  private def getHostBySlot(slot: Int): RedisNode = RedisConfig.primaryForSlot(hosts, slot)
 
   /**
     * @param initialHost any redis endpoint of a single server
@@ -370,14 +394,18 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
     */
   private def getNonClusterNodes(initialHost: RedisEndpoint): Array[RedisNode] = {
     val master = (initialHost.host, initialHost.port)
-    val replinfo = withConnection(initialHost.connect()) { conn =>
-      conn.info("Replication").split("\n")
+    val replication = withConnection(initialHost.connect()) { conn =>
+      RedisConfig.parseInfo(conn.info("Replication"))
     }
 
     // If  this node is a slave, we need to extract the slaves from its master
-    if (replinfo.exists(_.contains("role:slave"))) {
-      val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
-      val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
+    if (replication.get("role").contains("slave")) {
+      val server = s"${initialHost.host}:${initialHost.port}"
+      val host = replication.getOrElse("master_host",
+        throw new IllegalStateException(s"Redis at $server is a replica, but INFO replication names no master_host"))
+      val port = replication.get("master_port").flatMap(p => scala.util.Try(p.toInt).toOption).getOrElse(
+        throw new IllegalStateException(
+          s"Redis at $server is a replica, but INFO replication has no valid master_port"))
 
       // re-enter this function with the master's host and port, and every other setting of the initial endpoint
       // (credentials, database, timeout, TLS, client name)
@@ -385,15 +413,7 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
 
     } else {
       //this is a master - take its slaves
-
-      val slaves = replinfo.filter(x => x.contains("slave") && x.contains("online")).map(rl => {
-        val content = rl.substring(rl.indexOf(':') + 1).split(",")
-        val ip = content(0)
-        val port = content(1)
-        (ip.substring(ip.indexOf('=') + 1), port.substring(port.indexOf('=') + 1).toInt)
-      })
-
-      val nodes = master +: slaves
+      val nodes = master +: RedisConfig.onlineReplicas(replication)
       val range = nodes.length
       (0 until range).map(i => {
         val endpoint = RedisEndpoint(

@@ -37,18 +37,29 @@ object ConnectionPool extends Logging {
 
     override def makeObject(): PooledObject[Jedis] = {
       val pooledObject = super.makeObject()
+      val jedis = pooledObject.getObject
       try {
-        val jedis = pooledObject.getObject
         jedis.sendCommand(Protocol.Command.CLIENT, "SETINFO", "LIB-NAME", RedisClientLibraryInfo.libName)
         jedis.sendCommand(Protocol.Command.CLIENT, "SETINFO", "LIB-VER", RedisClientLibraryInfo.libVersion)
       } catch {
-        // An error reply means the server refused the command (pre-7.2, or CLIENT|SETINFO denied)
+        // Without AUTH, SELECT or a client name, this is the first reply the connection reads, so a server at
+        // maxclients answers it with its refusal, and has closed the connection: fail it, so `connect` retries.
+        case e: JedisDataException if isMaxClients(e) =>
+          jedis.close()
+          throw e
+        // Any other error reply means the server refused the command (pre-7.2, or CLIENT|SETINFO denied)
         case e: JedisDataException =>
           logDebug(s"CLIENT SETINFO not supported (requires Redis 7.2+): ${e.getMessage}")
       }
       pooledObject
     }
   }
+
+  /** How long [[connect]] keeps retrying a server that refuses new connections at its `maxclients`. */
+  private[redis] val MaxClientsRetryMillis = 60000L
+
+  /** The longest wait between two attempts: the waits double from 8 ms up to this. */
+  private val MaxClientsRetrySleepMillis = 512L
 
   /**
     * Returns the pool for this endpoint, creating it on first use.
@@ -82,24 +93,56 @@ object ConnectionPool extends Logging {
     new JedisPool(poolConfig, factory)
   }
 
+  /**
+    * A connection from the endpoint's pool. A server at its `maxclients` refuses new connections; they are retried,
+    * waiting longer each time, for up to [[MaxClientsRetryMillis]].
+    *
+    * @throws JedisConnectionException if the server still refuses new connections after that, or can't be reached
+    */
   def connect(re: RedisEndpoint): Jedis = {
     val pool = poolFor(re)
-    var sleepTime: Int = 4
-    var conn: Jedis = null
-    while (conn == null) {
+    retryWhileMaxClients(s"${re.host}:${re.port}", MaxClientsRetryMillis)(pool.getResource)
+  }
+
+  /**
+    * Runs `attempt` until it doesn't fail because the server is at its `maxclients`, or until `maxWaitMillis` have
+    * passed, then throws the last such failure, wrapped in one that says how long it retried.
+    */
+  private[redis] def retryWhileMaxClients[A](server: String, maxWaitMillis: Long,
+                                             sleep: Long => Unit = Thread.sleep,
+                                             nanoTime: () => Long = () => System.nanoTime())(attempt: => A): A = {
+    val start = nanoTime()
+    var sleepMillis = 4L
+    var result: Option[A] = None
+    while (result.isEmpty) {
       try {
-        conn = pool.getResource
-      }
-      catch {
-        case e: JedisConnectionException if e.getCause.toString.
-          contains("ERR max number of clients reached") => {
-          if (sleepTime < 500) sleepTime *= 2
-          Thread.sleep(sleepTime)
-        }
-        case e: Exception => throw e
+        result = Some(attempt)
+      } catch {
+        case e: JedisConnectionException if isMaxClients(e) =>
+          sleepMillis = math.min(sleepMillis * 2, MaxClientsRetrySleepMillis)
+          val waitedMillis = (nanoTime() - start) / 1000000
+          if (waitedMillis + sleepMillis > maxWaitMillis) {
+            val refusal = maxClientsRefusal(e).getOrElse("")
+            throw new JedisConnectionException(s"Redis at $server refused new connections for " +
+              s"${waitedMillis / 1000} s: $refusal. Raise the server's maxclients, or run fewer tasks at once.", e)
+          }
+          sleep(sleepMillis)
       }
     }
-    conn
+    result.get
   }
+
+  /**
+    * True if `e`, or an exception that caused it, is the server's refusal of a connection at its `maxclients`:
+    * `ERR max number of clients reached`, or on a cluster node `ERR max number of clients + cluster connections
+    * reached`.
+    */
+  private[redis] def isMaxClients(e: Throwable): Boolean = maxClientsRefusal(e).isDefined
+
+  /** The server's refusal at its `maxclients`, if `e` or an exception that caused it is one. */
+  private def maxClientsRefusal(e: Throwable): Option[String] =
+    Iterator.iterate(e)(_.getCause).takeWhile(_ != null).take(10).collectFirst {
+      case d: JedisDataException if String.valueOf(d.getMessage).contains("max number of clients") => d.getMessage
+    }
 }
 

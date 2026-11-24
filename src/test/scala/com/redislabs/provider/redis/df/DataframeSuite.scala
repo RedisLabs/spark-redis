@@ -1,5 +1,7 @@
 package com.redislabs.provider.redis.df
 
+import com.redislabs.provider.redis.toRedisContext
+import com.redislabs.provider.redis.util.ConnectionUtils.withConnection
 import com.redislabs.provider.redis.util.Person
 import com.redislabs.provider.redis.util.Person._
 import com.redislabs.provider.redis.util.TestUtils._
@@ -233,42 +235,42 @@ trait DataframeSuite extends RedisDataframeSuite with Matchers {
     verifyDf(loadedDf, overrideData)
   }
 
+  /** Each row's TTL in seconds, as Redis reports it: -1 for a row that doesn't expire. */
+  private def rowTtls(tableName: String): Seq[Long] =
+    sc.fromRedisKeyPattern(RedisSourceRelation.tableDataKeyPattern(tableName)).collect().toSeq.map { key =>
+      withConnection(redisConfig.connectionForKey(key))(_.ttl(key).longValue)
+    }
+
   test("save dataframe with ttl") {
     val tableName = generateTableName(TableNamePrefix)
-    writeDf(tableName, Map(SqlOptionTTL -> 1))
+    writeDf(tableName, Map(SqlOptionTTL -> 100))
     loadAndVerifyDf(tableName)
-    Thread.sleep(1000)
-    val actualDf = spark.read.format(RedisFormat)
-      .option(SqlOptionTableName, tableName)
-      .load()
-    actualDf.count() shouldBe 0
+    val ttls = rowTtls(tableName)
+    ttls should have size data.size.toLong
+    all(ttls) should (be > 0L and be <= 100L)
   }
 
   test("save dataframe in binary model with ttl") {
     val tableName = generateTableName(TableNamePrefix)
-    writeDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary, SqlOptionTTL -> 1))
+    writeDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary, SqlOptionTTL -> 100))
     loadAndVerifyDf(tableName, Map(SqlOptionModel -> SqlOptionModelBinary))
-    Thread.sleep(1000)
-    val actualDf = spark.read.format(RedisFormat)
-      .option(SqlOptionTableName, tableName)
-      .load()
-    actualDf.count() shouldBe 0
+    val ttls = rowTtls(tableName)
+    ttls should have size data.size.toLong
+    all(ttls) should (be > 0L and be <= 100L)
   }
 
   test("save dataframe with zero ttl") {
     val tableName = generateTableName(TableNamePrefix)
     writeDf(tableName, Map(SqlOptionTTL -> 0))
     loadAndVerifyDf(tableName)
-    Thread.sleep(1000)
-    loadAndVerifyDf(tableName)
+    rowTtls(tableName) shouldBe Seq.fill(data.size)(-1L)
   }
 
   test("save dataframe with no ttl") {
     val tableName = generateTableName(TableNamePrefix)
     writeDf(tableName)
     loadAndVerifyDf(tableName)
-    Thread.sleep(1000)
-    loadAndVerifyDf(tableName)
+    rowTtls(tableName) shouldBe Seq.fill(data.size)(-1L)
   }
 
   test("filter dataframe") {

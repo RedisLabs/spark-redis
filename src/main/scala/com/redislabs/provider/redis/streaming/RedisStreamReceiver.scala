@@ -2,11 +2,11 @@ package com.redislabs.provider.redis.streaming
 
 import java.util.AbstractMap.SimpleEntry
 import com.redislabs.provider.redis.util.PipelineUtils.foreachWithPipeline
-import com.redislabs.provider.redis.util.{Logging, StreamUtils}
+import com.redislabs.provider.redis.util.{DaemonThreadPool, Logging, StreamUtils}
 import com.redislabs.provider.redis.{ReadWriteConfig, RedisConfig}
-import org.apache.curator.utils.ThreadUtils
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.receiver.Receiver
+// Spark's own relocated Guava, which Spark 3.x and 4.x both ship: a Guava of our own would clash with Hadoop's
 import org.sparkproject.guava.util.concurrent.RateLimiter
 import redis.clients.jedis.{Jedis, StreamEntry, StreamEntryID}
 
@@ -23,7 +23,7 @@ class RedisStreamReceiver(consumersConfig: Seq[ConsumerConfig],
 
   override def onStart(): Unit = {
     logInfo("Starting Redis Stream Receiver")
-    val executorPool = ThreadUtils.newFixedThreadPool(consumersConfig.size, "RedisStreamMessageHandler")
+    val executorPool = DaemonThreadPool.fixed(consumersConfig.size, "RedisStreamMessageHandler")
     try {
       // start consumers in separate threads
       for (c <- consumersConfig) {

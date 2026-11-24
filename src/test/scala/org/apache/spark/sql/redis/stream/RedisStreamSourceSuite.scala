@@ -331,8 +331,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
     val writer = extraWriteOptions.foldLeft(writerBase) { case (w, (k, v)) => w.option(k, v) }
 
     val query = writer.start()
-    // give some time for spark query to start
-    Thread.sleep(2000)
+    awaitFirstTrigger(query)
     try {
       body(query)
     } finally {
@@ -367,8 +366,7 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
                  schema: StructType = Person.fullSchema)(body: SparkSession => Unit): Unit = {
 
     val (spark, query) = readStream2(streamKey, extraReadOptions, extraWriteOptions, writeFormat, schema)
-    // give some time for spark query to start
-    Thread.sleep(2000)
+    awaitFirstTrigger(query)
     try {
       body(spark)
     } finally {
@@ -376,6 +374,15 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
       spark.stop()
     }
   }
+
+  /**
+    * Waits until the query has run its first trigger, so its source has started and created the consumer groups, or
+    * until it has stopped, for a test that expects it to fail.
+    */
+  def awaitFirstTrigger(query: StreamingQuery): Unit =
+    eventually(timeout(30.seconds), interval(50.millis)) {
+      assert(query.recentProgress.nonEmpty || !query.isActive, "the query hasn't run its first trigger")
+    }
 
   def readStream2(streamKey: String,
                   extraReadOptions: Map[String, String],
