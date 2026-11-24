@@ -26,6 +26,17 @@ class RedisConfigSuite extends FunSuite with Matchers {
     assert(clusterHost.startSlot <= slot && clusterHost.endSlot >= slot)
   }
 
+  test("starting from a replica, the master keeps the initial endpoint's settings, the timeout included") {
+    val replicaPort = RedisContainers.replicaPort
+    assume(replicaPort.isDefined, "the replica runs only in a container")
+    val fromReplica = RedisEndpoint(host = "127.0.0.1", port = replicaPort.get, auth = "passwd", timeout = 12345,
+      clientName = "replica-test")
+    val nodes = new RedisConfig(fromReplica).hosts
+    nodes.map(n => (n.endpoint.host, n.endpoint.port)).toSeq shouldBe Seq(("127.0.0.1", standalonePort))
+    nodes.map(_.endpoint.timeout).toSeq shouldBe Seq(12345)
+    nodes.map(_.endpoint.clientName).toSeq shouldBe Seq("replica-test")
+  }
+
   test("getNodes") {
     redisStandaloneConfig.getNodes(RedisEndpoint(host = "127.0.0.1", port = standalonePort, auth = "passwd"))
       .length shouldBe 1

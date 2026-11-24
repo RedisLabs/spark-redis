@@ -379,16 +379,9 @@ class RedisConfig(val initialHost: RedisEndpoint) extends Serializable {
       val host = replinfo.filter(_.contains("master_host:"))(0).trim.substring(12)
       val port = replinfo.filter(_.contains("master_port:"))(0).trim.substring(12).toInt
 
-      //simply re-enter this function witht he master host/port
-      getNonClusterNodes(initialHost = RedisEndpoint(
-        host = host,
-        port = port,
-        user = initialHost.user,
-        auth = initialHost.auth,
-        dbNum = initialHost.dbNum,
-        ssl = initialHost.ssl,
-        clientName = initialHost.clientName
-      ))
+      // re-enter this function with the master's host and port, and every other setting of the initial endpoint
+      // (credentials, database, timeout, TLS, client name)
+      getNonClusterNodes(initialHost = initialHost.copy(host = host, port = port))
 
     } else {
       //this is a master - take its slaves
