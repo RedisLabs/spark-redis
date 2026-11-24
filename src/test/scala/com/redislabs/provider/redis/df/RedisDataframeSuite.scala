@@ -61,7 +61,8 @@ trait RedisDataframeSuite extends SparkRedisSuite with Matchers {
   def verifyPartialDf(actualDf: DataFrame): Unit = {
     actualDf.show()
     actualDf.count() shouldBe expectedDf.count()
-    namesAndTypes(actualDf) shouldBe namesAndTypes(expectedDf).filter { case (name, _) => actualDf.columns.contains(name) }
+    namesAndTypes(actualDf) shouldBe
+      namesAndTypes(expectedDf).filter { case (name, _) => actualDf.columns.contains(name) }
     val loadedArr = actualDf.collect()
       .map(r => (r.getAs[String]("name"), r.getAs[Double]("salary")))
     loadedArr.sortBy(_._1) shouldBe data.toArray.sortBy(_.name).map(p => (p.name, p.salary))

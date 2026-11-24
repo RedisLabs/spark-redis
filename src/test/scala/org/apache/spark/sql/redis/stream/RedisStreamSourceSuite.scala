@@ -17,6 +17,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.{FunSuite, Matchers}
 import redis.clients.jedis.StreamEntryID
+import redis.clients.jedis.exceptions.JedisDataException
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationLong
@@ -336,6 +337,45 @@ trait RedisStreamSourceSuite extends FunSuite with Matchers with Env with Loggin
       body(query)
     } finally {
       query.stop()
+      spark.stop()
+    }
+  }
+
+  test("a query whose stream key no longer holds a stream fails with Redis's error, rather than idling") {
+    val streamKey = Person.generatePersonStreamKey()
+    withConnection(streamKey) { conn =>
+      readStream(streamKey) { spark =>
+        conn.del(streamKey)
+        conn.set(streamKey, "not a stream")
+        val query = spark.streams.active.head
+        val e = interceptSparkErr[StreamingQueryException] {
+          query.awaitTermination(10000)
+        }
+        findCause[JedisDataException](e).getMessage should include("WRONGTYPE")
+      }
+    }
+  }
+
+  test("getOffset leaves out a stream key that doesn't exist, and fails for a key that isn't a stream") {
+    val streamKey = Person.generatePersonStreamKey()
+    val spark = SparkSession.builder.config(conf).getOrCreate()
+    try {
+      val metadataPath = new File(System.getProperty("java.io.tmpdir"), s"redis-source-${UUID.randomUUID()}").getPath
+      val source = new RedisSource(spark.sqlContext, metadataPath, Some(Person.fullSchema),
+        Map(StreamOptionStreamKeys -> streamKey))
+      source.start()
+      withConnection(streamKey) { conn =>
+        val entryId = conn.xadd(streamKey, new StreamEntryID(0, 1), Person.dataMaps.head.asJava)
+        source.getOffset.map(RedisSourceOffset.fromOffset(_).offsets(streamKey).offset) shouldBe Some(entryId.toString)
+        // deleted, or expired, after the source created it
+        conn.del(streamKey)
+        source.getOffset shouldBe None
+        conn.set(streamKey, "not a stream")
+        val e = the[JedisDataException] thrownBy source.getOffset
+        e.getMessage should include("WRONGTYPE")
+        conn.del(streamKey)
+      }
+    } finally {
       spark.stop()
     }
   }
