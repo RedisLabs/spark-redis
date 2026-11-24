@@ -69,6 +69,19 @@ object RedisContainers {
     startedWhen(c, "Ready to accept connections")
   }
 
+  // A Redis that reports itself as a replica of the standalone server. It is told to replicate 127.0.0.1 on the
+  // standalone server's host port, which nothing listens on inside its own container, so its replication link stays
+  // down. INFO replication still reports role:slave with that master address, which is all a RedisConfig reads to
+  // find the master, and from the test JVM that address is the standalone server.
+  private lazy val replica: Try[RedisContainer] = Try {
+    val c = new RedisContainer
+    copy(c, "containers/standalone.conf", s"$ConfDir/redis.conf")
+    copy(c, "containers/users.acl", s"$ConfDir/users.acl")
+    c.withExposedPorts(Int.box(StandalonePort))
+    c.withCommand("redis-server", s"$ConfDir/redis.conf", "--replicaof", "127.0.0.1", standalonePort.toString)
+    startedWhen(c, "Ready to accept connections")
+  }
+
   private lazy val tls: Try[RedisContainer] = Try {
     val c = new RedisContainer
     copy(c, "containers/standalone-tls.conf", s"$ConfDir/redis.conf")
@@ -106,6 +119,12 @@ object RedisContainers {
 
   /** Standalone Redis, with ACL users `default`/`passwd` and `alice`/`p1pp0`. */
   def standalonePort: Int = if (Enabled) standalone.get.getMappedPort(StandalonePort) else StandalonePort
+
+  /**
+    * A Redis that reports itself as a replica of the standalone server (see `replica`), with the same ACL users. None
+    * with `redis.containers=false`, since no such server exists then.
+    */
+  def replicaPort: Option[Int] = if (Enabled) Some(replica.get.getMappedPort(StandalonePort)) else None
 
   /** TLS-only Redis with the same ACL users, using the certificates in `src/test/resources/tls`. */
   def tlsPort: Int = if (Enabled) tls.get.getMappedPort(TlsPort) else TlsPort
